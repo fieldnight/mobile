@@ -7,7 +7,6 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
 # Native
 .kotlin/
@@ -26,6 +25,16 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# env files (can opt-in for committing if needed)
+.env
+#expo 환경서 env.local 파일 인식불가
+
+# vercel
+.vercel
+
+# IDE
+.idea/
+
 # macOS
 .DS_Store
 *.pem
@@ -39,3 +48,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# documentation (local only)
+error.md
+weather.md
+swagger.md
+pr양식.md
