@@ -10,6 +10,7 @@ export interface User {
   cultivationAddress?: string;
   isSeller?: boolean;
   isAdmin?: boolean;
+  profileImageUrl?: string;
 }
 
 // Auth request/response types

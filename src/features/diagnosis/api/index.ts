@@ -31,7 +31,7 @@ export async function analyzeBeeImage(imageUri: string): Promise<BeeDiagnosisAna
     formDataBody,
     {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     }
   );
@@ -88,7 +88,7 @@ export async function saveDiagnosis(params: SaveDiagnosisParams): Promise<{ beeD
     formDataBody,
     {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     }
   );

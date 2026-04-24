@@ -1,0 +1,166 @@
+import { useState } from 'react';
+import { View, ScrollView, Pressable, Switch } from 'react-native';
+import Text from '@/components/Text';
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import AppHeader from '@/components/AppHeader';
+
+interface MenuItemProps {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  onPress: () => void;
+  rightElement?: React.ReactNode;
+  danger?: boolean;
+}
+
+function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuItemProps) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      className="flex-row items-center px-4 py-3 active:bg-gray-50"
+    >
+      <Feather
+        name={icon}
+        size={22}
+        color={danger ? '#FF3B30' : '#8E8E93'}
+        style={{ marginRight: 12 }}
+      />
+      <Text className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}>
+        {label}
+      </Text>
+      {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
+    </Pressable>
+  );
+}
+
+export default function Settings() {
+  const router = useRouter();
+  const { logout } = useAuthStore();
+  const { fontOffset, increaseFontSize, decreaseFontSize } = useSettingsStore();
+  const [newsNotificationEnabled, setNewsNotificationEnabled] = useState(false);
+  const [communityNotificationEnabled, setCommunityNotificationEnabled] = useState(false);
+  const [notificationsExpanded, setNotificationsExpanded] = useState(true);
+  const insets = useSafeAreaInsets();
+
+  const handleLogout = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+        await logout();
+    } finally {
+      router.replace('/login');
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // TODO: 계정 삭제 확인 모달
+    console.log('계정 삭제');
+  };
+
+  return (
+    <View className="flex-1 bg-gray-100" style={{ paddingTop: insets.top }}>
+      <AppHeader title="설정" onBack={() => router.back()} />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* 설정 섹션 */}
+        <View className="mt-4 mb-4">
+          <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">설정</Text>
+          <View className="mx-4 bg-white rounded-2xl overflow-hidden">
+            <MenuItem
+              icon="bell"
+              label="알림"
+              onPress={() => setNotificationsExpanded(!notificationsExpanded)}
+              rightElement={
+                <Feather
+                  name={notificationsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color="#C7C7CC"
+                />
+              }
+            />
+            {notificationsExpanded && (
+              <>
+                <View className="h-px bg-gray-100 ml-11" />
+                <Pressable
+                  onPress={() => setNewsNotificationEnabled(!newsNotificationEnabled)}
+                  className="flex-row items-center pl-11 pr-4 py-3 active:bg-gray-50"
+                >
+                  <Text className="flex-1 text-base text-gray-900">뉴스</Text>
+                  <Switch
+                    value={newsNotificationEnabled}
+                    onValueChange={setNewsNotificationEnabled}
+                    trackColor={{ false: '#E5E5EA', true: '#F59E0B' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </Pressable>
+                <View className="h-px bg-gray-100 ml-11" />
+                <Pressable
+                  onPress={() => setCommunityNotificationEnabled(!communityNotificationEnabled)}
+                  className="flex-row items-center pl-11 pr-4 py-3 active:bg-gray-50"
+                >
+                  <Text className="flex-1 text-base text-gray-900">커뮤니티</Text>
+                  <Switch
+                    value={communityNotificationEnabled}
+                    onValueChange={setCommunityNotificationEnabled}
+                    trackColor={{ false: '#E5E5EA', true: '#F59E0B' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </Pressable>
+              </>
+            )}
+            <View className="h-px bg-gray-100 ml-11" />
+            <View className="flex-row items-center px-4 py-3">
+              <Feather name="type" size={20} color="#8E8E93" style={{ marginRight: 12 }} />
+              <Text className="flex-1 text-base text-gray-900">폰트 크기</Text>
+              <View className="flex-row items-center gap-3">
+                <Pressable
+                  onPress={decreaseFontSize}
+                  disabled={fontOffset <= -2}
+                  className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:bg-gray-200"
+                >
+                  <Feather name="minus" size={16} color={fontOffset <= -2 ? '#C7C7CC' : '#6B7280'} />
+                </Pressable>
+                <Pressable
+                  onPress={increaseFontSize}
+                  disabled={fontOffset >= 2}
+                  className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:bg-gray-200"
+                >
+                  <Feather name="plus" size={16} color={fontOffset >= 2 ? '#C7C7CC' : '#6B7280'} />
+                </Pressable>
+              </View>
+            </View>
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="help-circle" label="문의하기" onPress={() => router.push('/bee-chat-inquiry')} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="file-text" label="이용약관" onPress={() => {}} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="shield" label="개인정보처리방침" onPress={() => {}} />
+          </View>
+        </View>
+
+        {/* 계정 섹션 */}
+        <View className="mb-4">
+          <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">계정</Text>
+          <View className="mx-4 bg-white rounded-2xl overflow-hidden">
+            <MenuItem icon="log-out" label="로그아웃" onPress={handleLogout} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="trash-2" label="계정 삭제" onPress={handleDeleteAccount} danger />
+          </View>
+        </View>
+
+        {/* 버전 정보 */}
+        <View className="items-center py-4 mb-8">
+          <Text className="text-sm text-gray-600">버전 1.0.0</Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}

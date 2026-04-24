@@ -4,7 +4,6 @@ import { Feather } from "@expo/vector-icons";
 import { NewsCarousel } from "@/components/NewsCarousel";
 import { PromoBanner } from "@/components/Promobanner";
 import { HomeGridIcon } from "@/components/HomeGridIcon";
-import { HiveControlBanner } from "@/components/Hive-controlBanner";
 
 export default function Home() {
   const router = useRouter();

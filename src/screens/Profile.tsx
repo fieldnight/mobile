@@ -1,94 +1,99 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, Switch } from 'react-native';
+import { View, ScrollView, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
 import Text from '@/components/Text';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useFarmList } from '@/features/farm';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUploadProfileImage } from '@/features/user';
 import type { UserCrop } from '@/types/farm';
 import FarmDetailModal from '@/components/FarmDetailModal';
 
 const PAGE_SIZE = 3;
 
-interface MenuItemProps {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  onPress: () => void;
-  rightElement?: React.ReactNode;
-  danger?: boolean;
-}
-
-function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuItemProps) {
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  };
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      className="flex-row items-center px-4 py-3 active:bg-gray-50"
-    >
-      <Feather
-        name={icon}
-        size={20}
-        color={danger ? "#FF3B30" : "#8E8E93"}
-        style={{ marginRight: 12 }}
-      />
-      <Text className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}>
-        {label}
-      </Text>
-      {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
-    </Pressable>
-  );
-}
-
 export default function Profile() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { data: farms = [], isLoading: farmsLoading } = useFarmList();
-  const [newsNotificationEnabled, setNewsNotificationEnabled] = useState(false);
-  const [communityNotificationEnabled, setCommunityNotificationEnabled] = useState(false);
-  const [notificationsExpanded, setNotificationsExpanded] = useState(true);
-  const { fontOffset, increaseFontSize, decreaseFontSize } = useSettingsStore();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedFarm, setSelectedFarm] = useState<UserCrop | null>(null);
+  const { mutate: uploadProfileImage, isPending: isUploading } = useUploadProfileImage();
 
   const userName = user?.fullName || user?.username || '사용자';
+
+  const handleProfileImagePress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    uploadProfileImage(result.assets[0].uri, {
+      onSuccess: (profileImageUrl) => {
+        if (user) setUser({ ...user, profileImageUrl });
+      },
+      onError: () => {
+        Alert.alert('오류', '프로필 사진 업로드에 실패했습니다.');
+      },
+    });
+  };
 
   const handleAddFarmland = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/add-farm');
   };
 
-  const handleLogout = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    logout();
-    router.replace('/login');
-  };
-
-  const handleDeleteAccount = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: 계정 삭제 확인 모달
-    console.log('계정 삭제');
-  };
-
   return (
     <View className="flex-1">
     <ScrollView className="flex-1 bg-gray-100" showsVerticalScrollIndicator={false}>
       {/* 프로필 섹션 */}
-      <View className="px-4 pt-4 mb-4">
-        <Pressable className="flex-row items-center bg-white rounded-2xl p-4 active:scale-[0.98]">
-          <View className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center mr-3">
-            <Feather name="user" size={28} color="#8E8E93" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-lg font-semibold text-gray-900">{userName}님</Text>
-            <Text className="text-sm text-gray-600 mt-0.5">프로필 관리</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#C7C7CC" />
+      <View className="px-4 pt-4 mb-4 gap-2">
+        {/* 이미지 + 이름 */}
+        <View className="flex-row items-center bg-white rounded-2xl p-4">
+          <Pressable
+            onPress={handleProfileImagePress}
+            disabled={isUploading}
+            className="mr-3"
+          >
+            <View className="w-14 h-14 rounded-full bg-gray-100 items-center justify-center overflow-hidden">
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#8E8E93" />
+              ) : user?.profileImageUrl ? (
+                <Image source={{ uri: user.profileImageUrl }} className="w-14 h-14" />
+              ) : (
+                <Feather name="user" size={30} color="#8E8E93" />
+              )}
+            </View>
+            {/* 카메라 배지 */}
+            {!isUploading && (
+              <View className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-gray-500 items-center justify-center border-2 border-white">
+                <Feather name="camera" size={10} color="#fff" />
+              </View>
+            )}
+          </Pressable>
+          <Text className="text-lg font-semibold text-gray-900">{userName}님</Text>
+        </View>
+
+        {/* 프로필 관리 버튼 */}
+        <Pressable
+          className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 active:bg-gray-50"
+        >
+          <Feather name="edit-2" size={16} color="#6B7280" />
+          <Text className="flex-1 text-sm font-medium text-gray-700 ml-3">프로필 관리</Text>
+          <Feather name="chevron-right" size={16} color="#C7C7CC" />
         </Pressable>
       </View>
 
@@ -163,98 +168,6 @@ export default function Profile() {
         </View>
       </View>
 
-      
-
-      {/* 설정 섹션 */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">설정</Text>
-        <View className="mx-4 bg-white rounded-2xl overflow-hidden">
-          <MenuItem
-            icon="bell"
-            label="알림"
-            onPress={() => setNotificationsExpanded(!notificationsExpanded)}
-            rightElement={
-              <Feather
-                name={notificationsExpanded ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color="#C7C7CC"
-              />
-            }
-          />
-          {notificationsExpanded && (
-            <>
-              <View className="h-px bg-gray-100 ml-11" />
-              <Pressable
-                onPress={() => setNewsNotificationEnabled(!newsNotificationEnabled)}
-                className="flex-row items-center pl-11 pr-4 py-3 active:bg-gray-50"
-              >
-                <Text className="flex-1 text-base text-gray-900">뉴스</Text>
-                <Switch
-                  value={newsNotificationEnabled}
-                  onValueChange={setNewsNotificationEnabled}
-                  trackColor={{ false: "#E5E5EA", true: "#F59E0B" }}
-                  thumbColor="#FFFFFF"
-                />
-              </Pressable>
-              <View className="h-px bg-gray-100 ml-11" />
-              <Pressable
-                onPress={() => setCommunityNotificationEnabled(!communityNotificationEnabled)}
-                className="flex-row items-center pl-11 pr-4 py-3 active:bg-gray-50"
-              >
-                <Text className="flex-1 text-base text-gray-900">커뮤니티</Text>
-                <Switch
-                  value={communityNotificationEnabled}
-                  onValueChange={setCommunityNotificationEnabled}
-                  trackColor={{ false: "#E5E5EA", true: "#F59E0B" }}
-                  thumbColor="#FFFFFF"
-                />
-              </Pressable>
-            </>
-          )}
-          <View className="h-px bg-gray-100 ml-11" />
-          <View className="flex-row items-center px-4 py-3">
-            <Feather name="type" size={20} color="#8E8E93" style={{ marginRight: 12 }} />
-            <Text className="flex-1 text-base text-gray-900">폰트 크기</Text>
-            <View className="flex-row items-center gap-3">
-              <Pressable
-                onPress={decreaseFontSize}
-                disabled={fontOffset <= -2}
-                className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:bg-gray-200"
-              >
-                <Feather name="minus" size={16} color={fontOffset <= -2 ? "#C7C7CC" : "#6B7280"} />
-              </Pressable>
-              <Pressable
-                onPress={increaseFontSize}
-                disabled={fontOffset >= 2}
-                className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:bg-gray-200"
-              >
-                <Feather name="plus" size={16} color={fontOffset >= 2 ? "#C7C7CC" : "#6B7280"} />
-              </Pressable>
-            </View>
-          </View>
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="help-circle" label="문의하기" onPress={() => router.push('/bee-chat-inquiry')} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="file-text" label="이용약관" onPress={() => {}} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="shield" label="개인정보처리방침" onPress={() => {}} />
-        </View>
-      </View>
-
-      {/* 계정 섹션 */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">계정</Text>
-        <View className="mx-4 bg-white rounded-2xl overflow-hidden">
-          <MenuItem icon="log-out" label="로그아웃" onPress={handleLogout} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="trash-2" label="계정 삭제" onPress={handleDeleteAccount} danger />
-        </View>
-      </View>
-
-      {/* 버전 정보 */}
-      <View className="items-center py-4 mb-8">
-        <Text className="text-sm text-gray-600">버전 1.0.0</Text>
-      </View>
     </ScrollView>
 
     <FarmDetailModal farm={selectedFarm} onClose={() => setSelectedFarm(null)} />

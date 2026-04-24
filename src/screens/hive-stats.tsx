@@ -12,14 +12,14 @@ import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
 
 import { Colors, Spacing } from "../constants";
-import { ThemedText, Card } from "@/components/Hive-shared";
+import { ThemedText, Card } from "@/components/hive-shared";
 import {
   HiveSelector,
   PeriodCard,
   ChartCards,
   DataTable,
 } from "@/features/hive-status";
-import { WeatherSection } from "@/components/Hive-weather";
+import { WeatherSection } from "@/components/hive-weather";
 import {
   useWeatherRegion,
   useMakeWeather,

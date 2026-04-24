@@ -33,6 +33,7 @@ const HIDE_HEADER_ROUTES = [
   "report",
   "report-result",
   "oauth-register",
+  "settings",
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -161,8 +162,10 @@ export default function RootLayout() {
               {showHeader && (
                 <Header
                   onMenuPress={() => setMenuVisible(true)}
-                  onNotificationPress={() =>
-                    console.log("Notification pressed")
+                  onSettingsPress={
+                    currentRoute === "profile"
+                      ? () => router.push("/settings")
+                      : undefined
                   }
                 />
               )}

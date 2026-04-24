@@ -10,7 +10,7 @@ import React from "react";
 import { View, Pressable, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Colors, HIVES } from "@/constants/hive-stats";
-import { ThemedText, Card, MiniChart } from "@/components/Hive-shared";
+import { ThemedText, Card, MiniChart } from "@/components/hive-shared";
 import type { DataPoint, Period } from "@/types";
 
 // ─── Hive Selector ─────────────────────────────────────────────────────────────
