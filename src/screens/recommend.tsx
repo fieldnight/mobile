@@ -19,6 +19,8 @@ import {
   getBeeTypeEnum,
 } from "@/features/recommendation";
 import { Card } from "@/components/Card";
+import { CropGuideSection } from "@/components/recommend/CropGuideSection";
+import { PretendardFont } from "@/components/PretendardFont";
 import type {
   BeeRecommendationAiResponse,
   BeeRecommendationSaveRequest,
@@ -51,8 +53,11 @@ function getCropEmoji(name: string): string {
   return emojiMap[name] || "🌱";
 }
 
+type Tab = "farm" | "crop";
+
 export default function RecommendScreen() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>("farm");
   const [result, setResult] = useState<BeeRecommendationAiResponse | null>(
     null,
   );
@@ -126,7 +131,61 @@ export default function RecommendScreen() {
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
       >
-        {!result ? (
+        {/* 탭 전환 */}
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor: '#F3F4F6',
+            borderRadius: 14,
+            padding: 4,
+            marginBottom: 16,
+          }}
+        >
+          {(
+            [
+              { key: "farm", label: "농지 기반 AI 추천" },
+              { key: "crop", label: "작물별 가이드" },
+            ] as { key: Tab; label: string }[]
+          ).map(({ key, label }) => (
+            <Pressable
+              key={key}
+              onPress={() => {
+                setActiveTab(key);
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 10,
+                alignItems: 'center',
+                backgroundColor: activeTab === key ? '#FFFFFF' : 'transparent',
+                shadowColor: activeTab === key ? '#000' : 'transparent',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: activeTab === key ? 0.08 : 0,
+                shadowRadius: 2,
+                elevation: activeTab === key ? 2 : 0,
+              }}
+            >
+              <PretendardFont
+                weight="bold"
+                style={{
+                  fontSize: 13,
+                  color: activeTab === key ? '#2563EB' : '#6B7280',
+                }}
+              >
+                {label}
+              </PretendardFont>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* 작물별 가이드 탭 */}
+        {activeTab === "crop" && <CropGuideSection />}
+
+        {/* 농지 기반 AI 추천 탭 */}
+        {activeTab === "farm" && (!result ? (
           <>
             {/* 추천 기록 바로가기 */}
             <Pressable
@@ -444,7 +503,7 @@ export default function RecommendScreen() {
               </Pressable>
             </Card>
           </>
-        )}
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
