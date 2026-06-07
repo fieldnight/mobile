@@ -1,6 +1,7 @@
-import { View, Pressable, Text } from "react-native";
+import { View, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { BoxColor as C } from "@/types";
+import { PretendardFont } from "@/components/PretendardFont";
 
 interface HiveData {
   id: string;
@@ -78,20 +79,21 @@ export function HiveDropdown({
                 size={14}
                 color={selectedId === hive.id ? C.primary : C.sec}
               />
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: selectedId === hive.id ? C.primary : C.text,
-                  fontWeight: selectedId === hive.id ? "600" : "400",
-                }}
+              <PretendardFont
+                weight={selectedId === hive.id ? "semibold" : "regular"}
+                className="text-[14px]"
+                style={{ color: selectedId === hive.id ? C.primary : C.text }}
               >
                 {hive.name}
-              </Text>
+              </PretendardFont>
             </View>
             {hive.status === "offline" && (
-              <Text style={{ fontSize: 11, color: C.error, marginRight: 8 }}>
+              <PretendardFont
+                className="text-[11px] mr-2"
+                style={{ color: C.error }}
+              >
                 오프라인
-              </Text>
+              </PretendardFont>
             )}
             {selectedId === hive.id && (
               <Feather name="check" size={16} color={C.primary} />

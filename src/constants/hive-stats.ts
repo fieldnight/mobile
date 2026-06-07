@@ -1,24 +1,15 @@
 /**
  * 벌통 관련 기능 통합 상수
- * - Colors         : 컬러 팔레트
  * - Spacing        : 여백 단위 (xs~xl)
  * - KMA_REGIONS    : 기상청 지점 코드·이름 목록
  * - HIVES          : 벌통 목록 (id, name, status)
  * - WEATHER_REGION_KEY / KMA_API_KEY : AsyncStorage 키 및 API 인증키
+ *
+ * 색상은 @/constants/hiveColors 의 C 를 사용하세요.
  */
 
-export const Colors = {
-  primary: "#3182F6",
-  background: "#F4F5F7",
-  white: "#FFFFFF",
-  text: "#191F28",
-  textSecondary: "#8B95A1",
-  textTertiary: "#B0B8C1",
-  border: "#E5E8EB",
-  success: "#00C853",
-  warning: "#FF9100",
-  error: "#F44336",
-} as const;
+// Colors는 hiveColors 로 이전되었습니다. 기존 import 호환용.
+export { C as Colors } from "@/constants/hive-colors";
 
 export const Spacing = {
   xs: 4,
@@ -30,14 +21,14 @@ export const Spacing = {
 
 export const WEATHER_REGION_KEY = "webee_weather_region";
 export const KMA_API_KEY = process.env.EXPO_PUBLIC_KMA_API_KEY!;
-export const PERIODS = ["일간", "주간", "월간"] as const; //날씨 확인 
+export const PERIODS = ["일간", "주간", "월간"] as const; //날씨 확인
 
 export const DATA_INTERVALS = [
   { value: 1, label: "1분" },
   { value: 5, label: "5분" },
   { value: 10, label: "10분" },
   { value: 30, label: "30분" },
-]; // 데이터 통신 주기 설정 
+]; // 데이터 통신 주기 설정
 
 export const HIVES = [
   { id: "1", name: "벌통 1호", status: "online" as const },

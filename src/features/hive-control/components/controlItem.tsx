@@ -1,14 +1,8 @@
 import { BoxColor as C } from "@/types";
 import { Feather } from "@expo/vector-icons";
-import { View, Switch, Text } from "react-native";
-
-interface ControlSetting {
-  id: string;
-  name: string;
-  description: string;
-  icon: keyof typeof Feather.glyphMap;
-  enabled: boolean;
-}
+import { View, Switch } from "react-native";
+import { PretendardFont } from "@/components/PretendardFont";
+import type { ControlSetting } from "@/types/hive-control";
 
 export function ControlItem({
   control,
@@ -26,12 +20,16 @@ export function ControlItem({
         <Feather name={control.icon} size={20} color={C.primary} />
       </View>
       <View className="flex-1">
-        <Text style={{ fontSize: 15, fontWeight: "500", color: C.text }}>
+        <PretendardFont
+          weight="medium"
+          className="text-[15px]"
+          style={{ color: C.text }}
+        >
           {control.name}
-        </Text>
-        <Text style={{ fontSize: 12, color: C.sec, marginTop: 2 }}>
+        </PretendardFont>
+        <PretendardFont className="text-[12px] mt-0.5" style={{ color: C.sec }}>
           {control.description}
-        </Text>
+        </PretendardFont>
       </View>
       <Switch
         value={control.enabled}

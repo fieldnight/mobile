@@ -1,6 +1,7 @@
 import { BoxColor as C } from "@/types";
 import { Feather } from "@expo/vector-icons";
-import { View, Pressable, Text } from "react-native";
+import { View, Pressable } from "react-native";
+import { PretendardFont } from "@/components/PretendardFont";
 
 export function QcToggleButton({
   label,
@@ -53,24 +54,26 @@ export function QcToggleButton({
         >
           <Feather name={icon} size={13} color={isOn ? onColor : C.ter} />
         </View>
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: isOn ? "600" : "500",
-            color: isOn ? onColor : C.sec,
-          }}
+        <PretendardFont
+          weight={isOn ? "semibold" : "medium"}
+          className="text-[12px]"
+          style={{ color: isOn ? onColor : C.sec }}
         >
           {label}
-        </Text>
+        </PretendardFont>
       </Pressable>
       {disabled && (
         <View
-          className="absolute top-0 left-0 right-0 bottom-0 justify-center items-center rounded-lg"
+          className="absolute inset-0 justify-center items-center rounded-lg"
           pointerEvents="none"
         >
-          <Text style={{ fontSize: 13, fontWeight: "700", color: C.primary }}>
+          <PretendardFont
+            weight="bold"
+            className="text-[13px]"
+            style={{ color: C.primary }}
+          >
             자동
-          </Text>
+          </PretendardFont>
         </View>
       )}
     </View>
