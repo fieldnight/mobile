@@ -9,42 +9,42 @@ export function HomeGridIcon() {
         {[
           {
             id: "community",
-            label: "농부의 수다",
+            label: "농부들의 수다",
             icon: require("../../assets/homeIcons/community.png"),
           },
           {
             id: "bee-diagnosis",
-            label: "질병진단(꿀벌)",
+            label: "벌 건강검진",
             icon: require("../../assets/homeIcons/diagnosis.png"),
           },
           {
             id: "add-farm",
-            label: "우리 농장",
+            label: "내 농장 기록",
             icon: require("../../assets/homeIcons/house.png"),
           },
           {
             id: "inquiry",
-            label: "할 말 있어요",
+            label: "문의하기",
             icon: require("../../assets/homeIcons/inquiry.png"),
           },
           {
-            id: "news2",
-            label: "벌통 관리",
+            id: "pesticide",
+            label: "맞춤 농약",
             icon: require("../../assets/homeIcons/pesticide.png"),
           },
           {
             id: "bee-news",
-            label: "키워드 뉴스",
+            label: "키워드뉴스",
             icon: require("../../assets/homeIcons/news2.png"),
           },
           {
             id: "recommend",
-            label: "수정벌 추천",
+            label: "수정벌추천",
             icon: require("../../assets/homeIcons/recommend.png"),
           },
           {
             id: "fruit-price",
-            label: "농작물 시세",
+            label: "오늘의 시세",
             icon: require("../../assets/homeIcons/trading.png"),
           },
         ].map((item) => (
@@ -58,7 +58,10 @@ export function HomeGridIcon() {
               className="w-12 h-12 mb-2"
               resizeMode="contain"
             />
-            <PretendardFont weight="medium" className="text-xs text-gray-600">
+            <PretendardFont
+              weight="semibold"
+              style={{ fontSize: 13, color: "#1F2937" }}
+            >
               {item.label}
             </PretendardFont>
           </Pressable>

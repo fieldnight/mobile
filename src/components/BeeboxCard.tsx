@@ -1,17 +1,7 @@
+import React from "react";
+import { type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-
-const C = {
-  primary: "#3182F6",
-  bg: "#F4F5F7",
-  white: "#FFFFFF",
-  text: "#191F28",
-  sec: "#8B95A1",
-  ter: "#B0B8C1",
-  border: "#E5E8EB",
-  success: "#00C853",
-  warning: "#FF9100",
-  error: "#F44336",
-};
+import { C } from "@/constants/hive-colors";
 
 export function BeeBoxCard({
   children,
@@ -20,13 +10,24 @@ export function BeeBoxCard({
 }: {
   children: React.ReactNode;
   delay?: number;
-  style?: any;
+  style?: ViewStyle;
 }) {
   return (
     <Animated.View
       entering={FadeInDown.delay(delay).duration(400).springify()}
       style={[
-        { backgroundColor: C.white, borderRadius: 16, padding: 16 },
+        {
+          backgroundColor: C.white,
+          borderRadius: 20,
+          padding: 16,
+          borderWidth: 1,
+          borderColor: "rgba(0, 0, 0, 0.04)",
+          shadowColor: C.sec,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.1,
+          shadowRadius: 20,
+          elevation: 4,
+        },
         style,
       ]}
     >

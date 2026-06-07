@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
+import { PretendardFont } from '@/components/PretendardFont';
 
 interface LoadingProps {
   text?: string;
@@ -10,7 +11,7 @@ export function Loading({ text }: LoadingProps) {
     <View className="flex-1 items-center justify-center bg-white">
       <ActivityIndicator size="large" color="#2563eb" />
       {text && (
-        <Text className="text-gray-600 mt-4">{text}</Text>
+        <PretendardFont className="text-gray-600 mt-4">{text}</PretendardFont>
       )}
     </View>
   );

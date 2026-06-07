@@ -56,7 +56,7 @@ const SLIDES = [
     dotInactive: "rgba(6,95,70,0.2)",
     ctaColor: "#5f0634",
     ctaLabel: "AI에게 물어보기",
-    route: "/ai-report",
+    route: "/bee-chat",
   },
 ];
 
@@ -176,9 +176,8 @@ function TossButton({
         }}
       >
         <PretendardFont weight="medium" style={{ color }}>
-          {label}
+          {label} ›
         </PretendardFont>
-        <Text style={{ fontSize: 15, lineHeight: 18 }}> ›</Text>
       </Animated.View>
     </Pressable>
   );

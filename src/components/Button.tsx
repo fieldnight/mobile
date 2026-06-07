@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { Pressable, ActivityIndicator } from 'react-native';
+import { PretendardFont } from '@/components/PretendardFont';
 import { clsx } from 'clsx';
 
 interface ButtonProps {
@@ -62,15 +63,15 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={variant === 'outline' ? '#2563eb' : '#ffffff'} />
       ) : (
-        <Text
+        <PretendardFont
+          weight="semibold"
           className={clsx(
-            'font-semibold',
             textSizeStyles[size],
             textColorStyles[variant]
           )}
         >
           {children}
-        </Text>
+        </PretendardFont>
       )}
     </Pressable>
   );

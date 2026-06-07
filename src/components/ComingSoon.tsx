@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { PretendardFont } from '@/components/PretendardFont';
 
 interface ComingSoonProps {
   title?: string;
@@ -15,12 +16,12 @@ export function ComingSoon({
       <View className="w-24 h-24 bg-blue-100 rounded-full items-center justify-center mb-6">
         <Text className="text-5xl">🚧</Text>
       </View>
-      <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">
+      <PretendardFont weight="bold" className="text-2xl text-gray-900 mb-3 text-center">
         {title}
-      </Text>
-      <Text className="text-base text-gray-600 text-center">
+      </PretendardFont>
+      <PretendardFont className="text-base text-gray-600 text-center">
         {message}
-      </Text>
+      </PretendardFont>
     </View>
   );
 }

@@ -1,25 +1,21 @@
 /**
  * 범용 토스트 알림 컴포넌트
  * 화면 최상단에서 잠깐 떴다 사라지는 안내 메시지.
- * 삭제 완료, 저장 성공, 에러 등 어디서든 재사용 가능.
- * 
+ *
  * useToast()  : { toastState, show, hide } 반환하는 훅.
- *                 show("메시지", "success" | "error" | "info") 로 호출.
+ *               show("메시지", "success" | "error" | "info") 로 호출.
  *
  * [사용법]
  * const { toastState, show, hide } = useToast();
  * show("저장됐어요!", "success");
  * <Toast visible={toastState.visible} message={toastState.message}
  *        type={toastState.type} onHide={hide} />
- *
- * [애니메이션]
- * visible=true → 위에서 spring으로 내려옴 → duration 후 fade out → onHide 호출
  */
 
-
 import { useEffect, useRef } from "react";
-import { Animated, Text, View } from "react-native";
+import { Animated, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { PretendardFont } from "@/components/PretendardFont";
 
 type ToastType = "success" | "error" | "info";
 
@@ -118,15 +114,14 @@ export function Toast({
         }}
       >
         <Feather name={icon as any} size={18} color={color} />
-        <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600", flex: 1 }}>
+        <PretendardFont weight="semibold" style={{ color: "#FFFFFF", fontSize: 14, flex: 1 }}>
           {message}
-        </Text>
+        </PretendardFont>
       </View>
     </Animated.View>
   );
 }
 
-// 간단하게 쓸 수 있는 useToast 훅
 import { useState, useCallback } from "react";
 
 export function useToast() {

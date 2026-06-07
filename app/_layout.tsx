@@ -24,7 +24,7 @@ import { SideMenu } from "@/components/SideMenu";
 
 SplashScreen.preventAutoHideAsync();
 
-// 헤더를 숨길 페이지들
+// 헤더(햄버거 메뉴 라인)를 숨길 페이지들 — home, profile 제외 전부
 const HIDE_HEADER_ROUTES = [
   "login",
   "register",
@@ -34,6 +34,22 @@ const HIDE_HEADER_ROUTES = [
   "report-result",
   "oauth-register",
   "settings",
+  "hive-control",
+  "hive-stats",
+  "hive-setting",
+  "hive-add",
+  "bee-chat",
+  "bee-chat-inquiry",
+  "bee-news",
+  "bee-diagnosis",
+  "diagnose-history",
+  "recommend",
+  "recommend-detail",
+  "recommend-history",
+  "fruit-price",
+  "pesticide",
+  "market",
+  "community",
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -154,10 +170,7 @@ export default function RootLayout() {
           <Animated.View
             style={[{ flex: 1, backgroundColor: "#fff" }, animatedStyle]}
           >
-            <SafeAreaView
-              className="flex-1 bg-white"
-              edges={showHeader ? ["top"] : []}
-            >
+            <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
               <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
               {showHeader && (
                 <Header

@@ -1,12 +1,9 @@
 /**
  * 시세 테이블 정렬 바
- * [구성]
- * - <SortBar />  : 가로 스크롤 정렬 버튼 (최신순/최고가/최저가/거래량↑↓)
- * - sortRows()   : SortKey에 따라 rows 배열 정렬 (원본 불변)
- * - SortKey 타입 : "default" | "price_desc" | "price_asc" | "qty_desc" | "qty_asc"
  */
 
-import { ScrollView, Pressable, Text, View } from "react-native";
+import { ScrollView, Pressable, View } from "react-native";
+import { PretendardFont } from "@/components/PretendardFont";
 
 export type SortKey =
   | "default"
@@ -55,17 +52,17 @@ export function SortBar({ value, onChange }: SortBarProps) {
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <Text
+            <PretendardFont
+              weight={active ? "bold" : "medium"}
               style={{
                 fontSize: 14,
-                fontWeight: active ? "700" : "500",
                 color: active ? "#000000" : "#64748B",
                 marginVertical: 2,
                 marginLeft: 10,
               }}
             >
               {opt.label}
-            </Text>
+            </PretendardFont>
           </Pressable>
         );
       })}

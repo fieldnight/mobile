@@ -1,6 +1,5 @@
 import {
   View,
-  Text,
   Pressable,
   FlatList,
   Dimensions,
@@ -9,6 +8,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useNews } from "@/features/news";
+import { PretendardFont } from "@/components/PretendardFont";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const NEWS_CARD_WIDTH = SCREEN_WIDTH - 44;
@@ -46,20 +46,27 @@ export function NewsCarousel({
   if (loading) {
     return (
       <View className="mb-8">
-        <View className="flex-row items-center justify-between px-4 mb-2">
-          <Text className="text-lg font-bold text-gray-900">{title}</Text>
-          <Pressable
-            onPress={() => router.push("/bee-news")}
-            className="flex-row items-center"
+        <View className="px-4 mb-4">
+          <PretendardFont
+            weight="bold"
+            style={{ fontSize: 20, color: "#111827", marginBottom: 4 }}
           >
-            <Text className="text-sm font-semibold text-blue-600 mr-1">
-              뉴스 더보기
-            </Text>
-            <Feather name="arrow-right" size={14} color="#3B82F6" />
-          </Pressable>
+            {title}
+          </PretendardFont>
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 13, color: "#6B7280" }}
+          >
+            매일 업데이트되는 {keyword} 관련 뉴스
+          </PretendardFont>
         </View>
         <View className="mx-4 bg-white rounded-2xl p-8 items-center">
-          <Text className="text-sm text-gray-500">뉴스 로딩중...</Text>
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 14, color: "#9CA3AF" }}
+          >
+            뉴스 로딩중...
+          </PretendardFont>
         </View>
       </View>
     );
@@ -68,22 +75,27 @@ export function NewsCarousel({
   if (news.length === 0) {
     return (
       <View className="mb-8">
-        <View className="flex-row items-center justify-between px-4 mb-2">
-          <Text className="text-lg font-bold text-gray-900">{title}</Text>
-          <Pressable
-            onPress={() => router.push("/bee-news")}
-            className="flex-row items-center"
+        <View className="px-4 mb-4">
+          <PretendardFont
+            weight="bold"
+            style={{ fontSize: 20, color: "#111827", marginBottom: 4 }}
           >
-            <Text className="text-sm font-semibold text-blue-600 mr-1">
-              뉴스 더보기
-            </Text>
-            <Feather name="arrow-right" size={14} color="#3B82F6" />
-          </Pressable>
+            {title}
+          </PretendardFont>
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 13, color: "#6B7280" }}
+          >
+            매일 업데이트되는 {keyword} 관련 뉴스
+          </PretendardFont>
         </View>
         <View className="mx-4 bg-white rounded-2xl p-8 items-center">
-          <Text className="text-sm text-gray-500">
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 14, color: "#9CA3AF" }}
+          >
             뉴스를 불러올 수 없습니다
-          </Text>
+          </PretendardFont>
         </View>
       </View>
     );
@@ -91,15 +103,32 @@ export function NewsCarousel({
 
   return (
     <View className="mb-8">
-      <View className="flex-row items-center justify-between px-4 mb-2">
-        <Text className="text-lg font-bold text-gray-900">{title}</Text>
+      <View className="px-4 mb-4">
+        <View style={{ flexDirection: "column", gap: 2 }}>
+          <PretendardFont
+            weight="bold"
+            style={{ fontSize: 20, color: "#111827" }}
+            numberOfLines={1}
+          >
+            {title}
+          </PretendardFont>
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 13, color: "#6B7280", lineHeight: 18 }}
+          >
+            매일 업데이트되는 {keyword} 소식
+          </PretendardFont>
+        </View>
         <Pressable
           onPress={() => router.push("/bee-news")}
-          className="flex-row items-center"
+          className="flex-row items-center absolute right-4 top-4"
         >
-          <Text className="text-sm font-semibold text-blue-600 mr-1">
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 14, color: "#2563EB", marginRight: 4 }}
+          >
             뉴스 더보기
-          </Text>
+          </PretendardFont>
           <Feather name="arrow-right" size={14} color="#3B82F6" />
         </Pressable>
       </View>
@@ -118,24 +147,39 @@ export function NewsCarousel({
             style={{ width: NEWS_CARD_WIDTH }}
           >
             <View className="flex-row justify-between mb-2">
-              <Text className="text-xs font-semibold text-blue-600">
+              <PretendardFont
+                weight="semibold"
+                style={{ fontSize: 12, color: "#2563EB" }}
+              >
                 {item.source}
-              </Text>
-              <Text className="text-xs text-gray-500">
+              </PretendardFont>
+              <PretendardFont
+                weight="regular"
+                style={{ fontSize: 12, color: "#9CA3AF" }}
+              >
                 {formatDate(item.pubDate)}
-              </Text>
+              </PretendardFont>
             </View>
-            <Text
-              className="text-base font-semibold text-gray-900 mb-2"
+            <PretendardFont
+              weight="semibold"
+              style={{
+                fontSize: 16,
+                color: "#111827",
+                marginBottom: 8,
+                lineHeight: 24,
+              }}
               numberOfLines={2}
             >
               {cleanTitle(item.title, item.source)}
-            </Text>
+            </PretendardFont>
 
             <View className="flex-row items-center">
-              <Text className="text-sm font-semibold text-blue-600">
+              <PretendardFont
+                weight="semibold"
+                style={{ fontSize: 13, color: "#2563EB" }}
+              >
                 자세히 보기
-              </Text>
+              </PretendardFont>
               <Feather name="arrow-right" size={14} color="#3B82F6" />
             </View>
           </Pressable>

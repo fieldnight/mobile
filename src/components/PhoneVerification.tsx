@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, TextInput, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { api } from '@/lib/api';
+import { PretendardFont } from '@/components/PretendardFont';
 
 interface PhoneVerificationProps {
   onVerified: (phoneNumber: string) => void;
@@ -70,7 +71,7 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
 
   return (
     <View>
-      <Text className="text-base font-semibold text-gray-900 mb-2">전화번호</Text>
+      <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">전화번호</PretendardFont>
       <View className="flex-row gap-2">
         <TextInput
           value={phoneNumber}
@@ -91,7 +92,9 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
         >
           {isSending
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text className="text-white font-semibold text-sm">{isVerificationSent ? '재발송' : '인증번호 받기'}</Text>
+            : <PretendardFont weight="semibold" className="text-white text-sm">
+                {isVerificationSent ? '재발송' : '인증번호 받기'}
+              </PretendardFont>
           }
         </TouchableOpacity>
       </View>
@@ -116,13 +119,13 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
           >
             {isVerifying
               ? <ActivityIndicator size="small" color="#fff" />
-              : <Text className="text-white font-semibold text-sm">확인</Text>
+              : <PretendardFont weight="semibold" className="text-white text-sm">확인</PretendardFont>
             }
           </TouchableOpacity>
         </View>
       )}
       {isVerified && (
-        <Text className="text-green-600 text-sm mt-1 ml-1">전화번호 인증이 완료되었습니다</Text>
+        <PretendardFont className="text-green-600 text-sm mt-1 ml-1">전화번호 인증이 완료되었습니다</PretendardFont>
       )}
     </View>
   );
