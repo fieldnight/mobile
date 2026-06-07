@@ -13,17 +13,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "expo": {
-      "android": {
-        "softwareKeyboardLayoutMode": "pan"
-      }
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.webee.mo"
     },
     "android": {
       "package": "com.webee.mo",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",
         "backgroundColor": "#ffffff"
