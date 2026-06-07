@@ -13,6 +13,7 @@ import {
   TextInput,
   Pressable,
   Modal,
+  RefreshControl,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Feather } from "@expo/vector-icons";
@@ -22,6 +23,7 @@ import type { ResultItem } from "@/features/pesticide";
 import Pagination from "@/components/pagination";
 import { COLS } from "@/constants";
 import AppHeader from "@/components/AppHeader";
+import { HEADER_HEIGHT } from "@/hooks";
 import { useRouter } from "expo-router";
 
 // ── 행 ────────────────────────────────────────────────────────────────────────
@@ -120,9 +122,11 @@ function SearchBar({
 function TableBody({
   isFetching,
   items,
+  onRefresh,
 }: {
   isFetching: boolean;
   items: ResultItem[];
+  onRefresh?: () => void;
 }) {
   if (isFetching) {
     return (
@@ -141,7 +145,19 @@ function TableBody({
     );
   }
   return (
-    <ScrollView>
+    <ScrollView
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={false}
+            onRefresh={onRefresh}
+            tintColor="#EA580C"
+            progressBackgroundColor="#FFFFFF"
+            colors={["#EA580C", "#F59E0B"]}
+          />
+        ) : undefined
+      }
+    >
       {items.map((item, index) => (
         <ResultRow key={item.agchmApplcNo + index} item={item} index={index} />
       ))}
@@ -201,7 +217,11 @@ export default function PesticideTable() {
             </Text>
           ))}
         </View>
-        <TableBody isFetching={isFetching} items={items} />
+        <TableBody
+          isFetching={isFetching}
+          items={items}
+          onRefresh={() => { refetchCodes(); refetchList(); }}
+        />
       </View>
     </ScrollView>
   );
@@ -210,7 +230,7 @@ export default function PesticideTable() {
     <View className="flex-1 bg-slate-50">
       {/* 헤더 */}
       <AppHeader
-        title="내 작물에 맞는 농약 찾기"
+        title="안심농약찾기"
         onBack={() => router.back()}
         rightAction={{
           icon: "maximize-2",
@@ -220,7 +240,7 @@ export default function PesticideTable() {
         }}
       />
 
-      <View className="px-4 pt-3 pb-2 bg-white border-b border-slate-100">
+      <View className="px-4 pb-2 bg-white border-b border-slate-100" style={{ paddingTop: HEADER_HEIGHT + 12 }}>
         <Text className="text-xs text-slate-400">
           작물, 용도, 곤충을 선택하거나 상표명/병해충명으로 검색하세요.
         </Text>

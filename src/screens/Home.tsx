@@ -1,15 +1,27 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useCallback } from "react";
+import { PretendardFont } from "@/components/PretendardFont";
+import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { NewsCarousel } from "@/components/NewsCarousel";
 import { PromoBanner } from "@/components/Promobanner";
 import { HomeGridIcon } from "@/components/HomeGridIcon";
 
 export default function Home() {
   const router = useRouter();
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    // 실제 데이터 refetch는 각 컴포넌트의 useQuery에서 처리됨
+    // 여기서는 간단한 딜레이만 추가
+    return new Promise((resolve) => setTimeout(resolve, 1000));
+  }, []);
   return (
     <View className="flex-1 bg-gray-100">
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <PullToRefresh
+        onRefresh={handleRefresh}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 1. 프로모 배너 */}
         <PromoBanner />
 
@@ -23,17 +35,26 @@ export default function Home() {
               <Feather name="zap" size={18} color="#22C55E" />
             </View>
             <View className="flex-1">
-              <Text className="text-base font-semibold text-gray-900">
+              <PretendardFont
+                weight="semibold"
+                style={{ fontSize: 16, color: "#111827" }}
+              >
                 농번기 필수 기능부터 시작
-              </Text>
-              <Text className="text-sm text-gray-500 mt-0.5">
+              </PretendardFont>
+              <PretendardFont
+                weight="regular"
+                style={{ fontSize: 14, color: "#6B7280", marginTop: 4 }}
+              >
                 WEBEE가 처음이라면
-              </Text>
+              </PretendardFont>
             </View>
             <View className="flex-row items-center">
-              <Text className="text-sm font-medium text-green-600 mr-1">
+              <PretendardFont
+                weight="medium"
+                style={{ fontSize: 14, color: "#16A34A", marginRight: 4 }}
+              >
                 따라해보기
-              </Text>
+              </PretendardFont>
               <Feather name="chevron-right" size={20} color="#22C55E" />
             </View>
           </Pressable>
@@ -46,7 +67,7 @@ export default function Home() {
 
         {/* 4. 수정벌 뉴스 캐러셀 */}
         <NewsCarousel keyword="수정벌" title="수정벌 뉴스" />
-      </ScrollView>
+      </PullToRefresh>
     </View>
   );
 }

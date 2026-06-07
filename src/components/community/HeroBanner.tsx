@@ -1,4 +1,4 @@
-import { View, Text, Animated, Easing } from "react-native";
+import { View, Animated, Easing } from "react-native";
 import { useEffect, useRef } from "react";
 import Svg, {
   Circle,
@@ -9,6 +9,7 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
+import { PretendardFont } from "@/components/PretendardFont";
 
 export function HeroBanner() {
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -52,23 +53,20 @@ export function HeroBanner() {
       <View className="p-5 relative z-10">
         <View className="flex-row items-center gap-1.5 self-start bg-orange-500/15 border border-orange-500/30 px-2.5 py-1 rounded-full mb-2.5">
           <View className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
-          <Text
-            className="text-[11px] font-semibold"
-            style={{ color: "#f97316" }}
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 11, color: "#f97316" }}
           >
             수정벌 농가 커뮤니티
-          </Text>
+          </PretendardFont>
         </View>
-        <Text className="text-white text-xl font-bold leading-7 mb-1">
+        <PretendardFont weight="bold" style={{ fontSize: 20, color: "#ffffff", lineHeight: 28, marginBottom: 4 }}>
           함께 나누면{"\n"}
-          <Text style={{ color: "#f97316" }}>착과율</Text>이 높아져요
-        </Text>
-        <Text
-          className="text-[13px] leading-5"
-          style={{ color: "rgba(255,255,255,0.55)" }}
-        >
+          <PretendardFont weight="bold" style={{ fontSize: 20, color: "#f97316" }}>착과율</PretendardFont>이 높아져요
+        </PretendardFont>
+        <PretendardFont style={{ fontSize: 13, lineHeight: 20, color: "rgba(255,255,255,0.55)" }}>
           이번 주 수정벌 현장 노하우 23개 공유됨
-        </Text>
+        </PretendardFont>
       </View>
 
       {/* 3D 벌통 에셋 */}

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Pressable, View, Image, TextInput, Alert, ScrollView } from 'react-native';
-import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -11,6 +10,7 @@ import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/Button';
+import { PretendardFont } from '@/components/PretendardFont';
 import { useKeyboard } from '@/hooks/useKeyboard';
 
 const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY;
@@ -57,9 +57,9 @@ function SocialButton({ icon, label, bgColor, textColor, borderColor, onPress }:
       style={[{ backgroundColor: bgColor, borderColor }, animatedStyle]}
     >
       {icon}
-      <Text className="text-base font-semibold" style={{ color: textColor }}>
+      <PretendardFont weight="semibold" style={{ fontSize: 16, color: textColor }}>
         {label}
-      </Text>
+      </PretendardFont>
     </AnimatedPressable>
   );
 }
@@ -130,14 +130,12 @@ export default function LoginScreen() {
     router.push('/register');
   };
 
-  // 이메일 로그인 폼 화면
   const { isVisible: isKeyboardVisible, keyboardHeight } = useKeyboard();
   const insets = useSafeAreaInsets();
 
   if (showEmailLogin) {
     return (
       <SafeAreaView className="flex-1 bg-white" edges={['top']}>
-        {/* 뒤로가기 */}
         <View className="px-4 py-2">
           <Pressable
             onPress={() => setShowEmailLogin(false)}
@@ -158,20 +156,18 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 로고 */}
           <View className="items-center mb-10">
             <Image
               source={require('../../assets/branding/webee_logo.png')}
               style={{ width: 80, height: 80 }}
               resizeMode="contain"
             />
-            <Text className="text-2xl font-bold text-black mt-4">로그인</Text>
+            <PretendardFont weight="bold" className="text-2xl text-black mt-4">로그인</PretendardFont>
           </View>
 
-          {/* 입력 폼 */}
           <View className="gap-5">
             <View>
-              <Text className="text-base font-semibold text-gray-900 mb-2">아이디</Text>
+              <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">아이디</PretendardFont>
               <TextInput
                 value={username}
                 onChangeText={setUsername}
@@ -185,7 +181,7 @@ export default function LoginScreen() {
             </View>
 
             <View>
-              <Text className="text-base font-semibold text-gray-900 mb-2">비밀번호</Text>
+              <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">비밀번호</PretendardFont>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
@@ -198,9 +194,9 @@ export default function LoginScreen() {
             </View>
 
             <View className="flex-row justify-center items-center mt-2">
-              <Text className="text-gray-600 text-base">계정이 없으신가요? </Text>
+              <PretendardFont className="text-gray-600 text-base">계정이 없으신가요? </PretendardFont>
               <Pressable onPress={handleGoToRegister}>
-                <Text className="text-blue-600 font-semibold text-base">회원가입</Text>
+                <PretendardFont weight="semibold" className="text-blue-600 text-base">회원가입</PretendardFont>
               </Pressable>
             </View>
           </View>
@@ -213,10 +209,7 @@ export default function LoginScreen() {
             paddingBottom: isKeyboardVisible ? 12 : insets.bottom + 16,
           }}
         >
-          <Button
-            onPress={handleEmailLogin}
-            loading={isLoading}
-          >
+          <Button onPress={handleEmailLogin} loading={isLoading}>
             로그인
           </Button>
         </View>
@@ -224,11 +217,9 @@ export default function LoginScreen() {
     );
   }
 
-  // 소셜 로그인 선택 화면
   return (
     <SafeAreaView className="flex-1 bg-white">
       <View className="flex-1 justify-between pb-8">
-        {/* 로고 섹션 */}
         <Animated.View
           entering={FadeIn.delay(100).duration(500)}
           className="flex-1 justify-center items-center"
@@ -240,11 +231,10 @@ export default function LoginScreen() {
               resizeMode="contain"
             />
           </View>
-          <Text className="text-3xl font-bold text-black tracking-tight">Webee</Text>
-          <Text className="text-base text-gray-600 mt-1">수정벌 통합 관리 플랫폼</Text>
+          <PretendardFont weight="bold" className="text-3xl text-black tracking-tight">Webee</PretendardFont>
+          <PretendardFont className="text-base text-gray-600 mt-1">수정벌 통합 관리 플랫폼</PretendardFont>
         </Animated.View>
 
-        {/* 버튼 섹션 */}
         <Animated.View
           entering={FadeIn.delay(200).duration(500)}
           className="px-6 gap-3 mb-8"
@@ -265,35 +255,37 @@ export default function LoginScreen() {
             onPress={() => handleSocialLogin('NAVER')}
           />
 
-          {/* 구분선 */}
           <View className="flex-row items-center my-4">
             <View className="flex-1 h-px bg-gray-200" />
-            <Text className="text-sm text-gray-600 mx-4">또는</Text>
+            <PretendardFont className="text-sm text-gray-600 mx-4">또는</PretendardFont>
             <View className="flex-1 h-px bg-gray-200" />
           </View>
 
           <Pressable onPress={() => setShowEmailLogin(true)} className="items-center py-3">
-            <Text className="text-base text-blue-500 font-medium">
+            <PretendardFont weight="medium" className="text-base text-blue-500">
               아이디로 로그인
-            </Text>
+            </PretendardFont>
           </Pressable>
 
           <Pressable onPress={handleGoToRegister} className="items-center py-1">
-            <Text className="text-sm text-gray-600">
-              계정이 없으신가요? <Text className="text-blue-500 font-medium">회원가입</Text>
-            </Text>
+            <PretendardFont className="text-sm text-gray-600">
+              계정이 없으신가요?{' '}
+              <PretendardFont weight="medium" className="text-blue-500">회원가입</PretendardFont>
+            </PretendardFont>
           </Pressable>
         </Animated.View>
 
-        {/* 푸터 */}
         <Animated.View
           entering={FadeIn.delay(300).duration(500)}
           className="items-center px-8"
         >
-          <Text className="text-sm text-gray-600 text-center leading-5">
-            계속 진행하면 <Text className="text-gray-600 underline">서비스 이용약관</Text> 및{'\n'}
-            <Text className="text-gray-600 underline">개인정보 처리방침</Text>에 동의하게 됩니다.
-          </Text>
+          <PretendardFont className="text-sm text-gray-600 text-center leading-5">
+            계속 진행하면{' '}
+            <PretendardFont className="text-gray-600 underline">서비스 이용약관</PretendardFont>
+            {' '}및{'\n'}
+            <PretendardFont className="text-gray-600 underline">개인정보 처리방침</PretendardFont>
+            에 동의하게 됩니다.
+          </PretendardFont>
         </Animated.View>
       </View>
     </SafeAreaView>

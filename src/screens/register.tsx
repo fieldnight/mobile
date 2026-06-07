@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Alert, Pressable, ScrollView } from 'react-native';
+import { View, TextInput, Alert, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/Button';
+import { PretendardFont } from '@/components/PretendardFont';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { PhoneVerification } from '@/components/PhoneVerification';
 
@@ -65,7 +66,6 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top']}>
-      {/* Header */}
       <View className="flex-row items-center px-4 py-2">
         <Pressable
           onPress={() => router.back()}
@@ -87,13 +87,12 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View className="items-center mb-10">
-          <Text className="text-gray-900 text-3xl font-bold">회원가입</Text>
+          <PretendardFont weight="bold" className="text-gray-900 text-3xl">회원가입</PretendardFont>
         </View>
 
         <View className="gap-5">
-          {/* 아이디 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">아이디</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">아이디</PretendardFont>
             <TextInput
               value={formData.username}
               onChangeText={(text) => setFormData({ ...formData, username: text })}
@@ -105,9 +104,8 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 닉네임 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">닉네임</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">닉네임</PretendardFont>
             <TextInput
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
@@ -118,14 +116,12 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 전화번호 + 인증 */}
           <PhoneVerification
             onVerified={(phone) => setFormData({ ...formData, phoneNumber: phone })}
           />
 
-          {/* 비밀번호 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">비밀번호</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">비밀번호</PretendardFont>
             <TextInput
               value={formData.password}
               onChangeText={(text) => setFormData({ ...formData, password: text })}
@@ -137,9 +133,8 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 비밀번호 확인 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">비밀번호 확인</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">비밀번호 확인</PretendardFont>
             <TextInput
               value={formData.passwordConfirm}
               onChangeText={(text) => setFormData({ ...formData, passwordConfirm: text })}
@@ -154,14 +149,14 @@ export default function RegisterScreen() {
               }}
             />
             {passwordMismatch && (
-              <Text className="text-red-500 text-sm mt-1 ml-1">비밀번호가 일치하지 않습니다</Text>
+              <PretendardFont className="text-red-500 text-sm mt-1 ml-1">비밀번호가 일치하지 않습니다</PretendardFont>
             )}
           </View>
 
           <View className="flex-row justify-center items-center mt-2">
-            <Text className="text-gray-600 text-base">이미 계정이 있으신가요? </Text>
+            <PretendardFont className="text-gray-600 text-base">이미 계정이 있으신가요? </PretendardFont>
             <Pressable onPress={() => router.back()}>
-              <Text className="text-blue-600 font-semibold text-base">로그인</Text>
+              <PretendardFont weight="semibold" className="text-blue-600 text-base">로그인</PretendardFont>
             </Pressable>
           </View>
         </View>

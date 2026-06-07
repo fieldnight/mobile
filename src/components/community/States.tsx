@@ -1,5 +1,6 @@
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Pressable, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { PretendardFont } from "@/components/PretendardFont";
 
 // ── 게시글 카드 스켈레톤 ────────────────────────────────────────────────────
 export function PostCardSkeleton() {
@@ -54,18 +55,17 @@ export function EmptyState({ onWritePress }: { onWritePress?: () => void }) {
       >
         <Feather name="message-circle" size={24} color="#b0b8c1" />
       </View>
-      <Text
-        className="text-[15px] font-semibold mb-1"
-        style={{ color: "#4e5968" }}
+      <PretendardFont
+        weight="semibold"
+        style={{ fontSize: 15, color: "#4e5968", marginBottom: 4 }}
       >
         아직 올라온 글이 없어요
-      </Text>
-      <Text
-        className="text-[13px] text-center leading-5 mb-5"
-        style={{ color: "#8b95a1" }}
+      </PretendardFont>
+      <PretendardFont
+        style={{ fontSize: 13, color: "#8b95a1", textAlign: "center", lineHeight: 20, marginBottom: 20 }}
       >
         첫 번째 이야기를 공유해보세요.{"\n"}다른 농부들이 반가워할 거예요.
-      </Text>
+      </PretendardFont>
       {onWritePress && (
         <Pressable
           onPress={() => {
@@ -79,12 +79,9 @@ export function EmptyState({ onWritePress }: { onWritePress?: () => void }) {
             paddingVertical: 10,
           }}
         >
-          <Text
-            className="text-[14px] font-semibold"
-            style={{ color: "#f97316" }}
-          >
+          <PretendardFont weight="semibold" style={{ fontSize: 14, color: "#f97316" }}>
             글쓰기
-          </Text>
+          </PretendardFont>
         </Pressable>
       )}
     </View>
@@ -107,18 +104,17 @@ export function ErrorState({
       >
         <Feather name="wifi-off" size={22} color="#f04452" />
       </View>
-      <Text
-        className="text-[15px] font-semibold mb-1"
-        style={{ color: "#4e5968" }}
+      <PretendardFont
+        weight="semibold"
+        style={{ fontSize: 15, color: "#4e5968", marginBottom: 4 }}
       >
         불러오지 못했어요
-      </Text>
-      <Text
-        className="text-[13px] text-center leading-5 mb-5"
-        style={{ color: "#8b95a1" }}
+      </PretendardFont>
+      <PretendardFont
+        style={{ fontSize: 13, color: "#8b95a1", textAlign: "center", lineHeight: 20, marginBottom: 20 }}
       >
         {message ?? "잠시 후 다시 시도해주세요."}
-      </Text>
+      </PretendardFont>
       <Pressable
         onPress={onRetry}
         className="rounded-lg flex-row items-center gap-1.5"
@@ -129,7 +125,9 @@ export function ErrorState({
         }}
       >
         <Feather name="refresh-cw" size={14} color="#ffffff" />
-        <Text className="text-[14px] font-semibold text-white">다시 시도</Text>
+        <PretendardFont weight="semibold" style={{ fontSize: 14, color: "#ffffff" }}>
+          다시 시도
+        </PretendardFont>
       </Pressable>
     </View>
   );

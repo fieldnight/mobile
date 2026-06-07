@@ -1,5 +1,6 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
 import { CATEGORY_TABS, SORT_OPTIONS } from "@/constants/community";
+import { PretendardFont } from "@/components/PretendardFont";
 import type { CategoryTab, SortKey } from "@/types/community";
 
 interface CategoryTabsProps {
@@ -29,15 +30,12 @@ export function CategoryTabs({ active, onChange }: CategoryTabsProps) {
                   marginBottom: -1,
                 }}
               >
-                <Text
-                  className="text-sm"
-                  style={{
-                    color: isActive ? "#191f28" : "#8b95a1",
-                    fontWeight: isActive ? "600" : "400",
-                  }}
+                <PretendardFont
+                  weight={isActive ? "semibold" : "regular"}
+                  style={{ fontSize: 14, color: isActive ? "#191f28" : "#8b95a1" }}
                 >
                   {tab.label}
-                </Text>
+                </PretendardFont>
               </Pressable>
             );
           })}
@@ -83,16 +81,13 @@ export function FilterChips({ active, onChange }: FilterChipsProps) {
                 marginRight: 6,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: isActive ? "600" : "500",
-                  color: isActive ? "#ffffff" : "#6b7684",
-                }}
+              <PretendardFont
+                weight={isActive ? "semibold" : "medium"}
+                style={{ fontSize: 13, color: isActive ? "#ffffff" : "#6b7684" }}
               >
                 {opt.label}
                 {isDisabled ? " 준비중" : ""}
-              </Text>
+              </PretendardFont>
             </Pressable>
           );
         })}

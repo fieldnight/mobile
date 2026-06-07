@@ -7,6 +7,7 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  RefreshControl,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -32,6 +33,7 @@ import type { Row } from "@/types";
 import { middleKey, COLUMNS, DETAIL_FIELDS, getTodayKST, QUICK_SEARCH_ITEMS } from "@/constants";
 import Pagination from "@/components/pagination";
 import AppHeader from "@/components/AppHeader";
+import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import { Toast, useToast } from "@/components/Toast";
 import { SortBar, sortRows, type SortKey } from "@/components/SortBar";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -241,6 +243,7 @@ const getMinDateKST = () => moveDateBy(getTodayKST(), -7);
 export default function FruitPriceScreen() {
   const router = useRouter();
   const { toastState, show: showToast, hide: hideToast } = useToast();
+  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
 
   const [marketCode, setMarketCode] = useState(() => getDefaultMarket(getTodayKST()));
   const [largeCode, setLargeCode] = useState("");
@@ -319,6 +322,11 @@ export default function FruitPriceScreen() {
     else fetchMarket(marketCode, selectedDate);
   }, [cacheKey, quickItem, selectedDate, marketCode]);
 
+  const handlePullRefresh = useCallback(async () => {
+    handleRefresh();
+    await new Promise<void>((resolve) => setTimeout(resolve, 800));
+  }, [handleRefresh]);
+
   const currentMidName = useMemo(
     () => rows.find((r) => r.gds_mclsf_cd === middleCode)?.gds_mclsf_nm ?? "",
     [rows, middleCode],
@@ -352,13 +360,28 @@ export default function FruitPriceScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-        <AppHeader title="도매시장 시세" onBack={() => router.back()} />
+        <AppHeader title="도매시장 시세" onBack={() => router.back()} isScrolled={isScrolled} />
 
         {/* ── 메인 스크롤 영역 ── */}
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          onScroll={onScroll}
+          scrollEventThrottle={scrollEventThrottle}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={handlePullRefresh}
+              tintColor="#EA580C"
+              progressBackgroundColor="#FFFFFF"
+              colors={["#EA580C", "#F59E0B"]}
+            />
+          }
+        >
 
           {/* ── 내 맞춤 시세 패널 ── */}
-          <View style={{ backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
+          <View style={{ backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F1F5F9", paddingTop: HEADER_HEIGHT }}>
             {/* 헤더: 설명글 + 토글 */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
               <View style={{ flex: 1, marginRight: 12 }}>

@@ -11,6 +11,7 @@ import {
   TextInput,
   Modal,
   KeyboardAvoidingView,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ import {
 } from "@/features/bee-news";
 import { formatDateKorean } from "@/lib/utils";
 import AppHeader from "@/components/AppHeader";
+import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import Pagination from "@/components/pagination";
 import { NewsCardSkeleton, KeywordChipSkeleton } from "@/components/Skeleton";
 import type { NewsItem } from "@/types/news";
@@ -211,9 +213,11 @@ function ArticleItem({ item, index }: { item: NewsItem; index: number }) {
 export default function BeeNewsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedKeyword, setSelectedKeyword] = useState(DEFAULT_KEYWORDS[0]);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     data: news = [],
@@ -221,6 +225,12 @@ export default function BeeNewsScreen() {
     error,
     refetch,
   } = useNews(selectedKeyword);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  }, [refetch]);
   const { data: userKeywords = [], isLoading: kwLoading } =
     useInterestKeywords();
   const { mutate: addKeyword, isPending } = useAddInterestKeyword();
@@ -265,10 +275,10 @@ export default function BeeNewsScreen() {
 
   return (
     <View className="flex-1 bg-gray-100">
-      <AppHeader title="꿀소식" onBack={() => navigation.goBack()} />
+      <AppHeader title="관심뉴스" onBack={() => navigation.goBack()} isScrolled={isScrolled} />
 
       {/* 키워드 바 */}
-      <View className="bg-white border-b border-gray-200">
+      <View className="bg-white border-b border-gray-200" style={{ paddingTop: HEADER_HEIGHT }}>
         {kwLoading ? (
           <KeywordChipSkeleton />
         ) : (
@@ -358,6 +368,17 @@ export default function BeeNewsScreen() {
           )}
           keyExtractor={(item) => item.link}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor="#EA580C"
+              progressBackgroundColor="#FFFFFF"
+              colors={["#EA580C", "#F59E0B"]}
+            />
+          }
+          onScroll={onScroll}
+          scrollEventThrottle={scrollEventThrottle}
           contentContainerStyle={{
             padding: 16,
             paddingBottom: insets.bottom + 20,
