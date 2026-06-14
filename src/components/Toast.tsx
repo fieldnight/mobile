@@ -1,21 +1,16 @@
 /**
- * 범용 토스트 알림 컴포넌트
- * 화면 최상단에서 잠깐 떴다 사라지는 안내 메시지.
- *
- * useToast()  : { toastState, show, hide } 반환하는 훅.
- *               show("메시지", "success" | "error" | "info") 로 호출.
- *
- * [사용법]
- * const { toastState, show, hide } = useToast();
- * show("저장됐어요!", "success");
- * <Toast visible={toastState.visible} message={toastState.message}
- *        type={toastState.type} onHide={hide} />
+ * 전역 토스트 알림 컴포넌트
+ * - pill 형태 흰 카드, 위에서 슬라이드인
+ * - 탭하면 즉시 닫힘 / duration 후 자동 닫힘
+ * - SafeArea inset 자동 반영 (노치·상태바 아래 배치)
+ * - ToastContext(useAppToast)를 통해 어디서든 호출 가능
  */
-
-import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Animated, Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
 
 type ToastType = "success" | "error" | "info";
 
@@ -27,102 +22,91 @@ interface ToastProps {
   onHide: () => void;
 }
 
-const CONFIG: Record<ToastType, { bg: string; icon: string; color: string }> = {
-  success: { bg: "#1A1A1A", icon: "check-circle", color: "#4ADE80" },
-  error:   { bg: "#1A1A1A", icon: "alert-circle",  color: "#F87171" },
-  info:    { bg: "#1A1A1A", icon: "info",           color: "#60A5FA" },
+const CONFIG: Record<ToastType, { icon: string; iconColor: string }> = {
+  success: { icon: "check-circle", iconColor: C.success },
+  error:   { icon: "alert-circle", iconColor: C.error },
+  info:    { icon: "info",         iconColor: C.primary },
 };
 
 export function Toast({
   message,
   type = "success",
   visible,
-  duration = 2500,
+  duration = 2000,
   onHide,
 }: ToastProps) {
-  const translateY = useRef(new Animated.Value(-80)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(-120)).current;
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismiss = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: -120, duration: 220, useNativeDriver: true }),
+      Animated.timing(opacity,    { toValue: 0,    duration: 220, useNativeDriver: true }),
+    ]).start(() => onHide());
+  }, [onHide]);
 
   useEffect(() => {
-    if (visible) {
-      if (timerRef.current) clearTimeout(timerRef.current);
+    if (!visible) return;
 
-      Animated.parallel([
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          speed: 20,
-          bounciness: 6,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (timerRef.current) clearTimeout(timerRef.current);
 
-      timerRef.current = setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: -80,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-        ]).start(() => onHide());
-      }, duration);
-    }
+    // 위에서 내려오는 슬라이드인 + 페이드인
+    Animated.parallel([
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 5 }),
+      Animated.timing(opacity,    { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start();
+
+    timerRef.current = setTimeout(dismiss, duration);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [visible]);
 
-  const { bg, icon, color } = CONFIG[type];
+  const { icon, iconColor } = CONFIG[type];
 
   return (
     <Animated.View
-      pointerEvents="none"
       style={{
         position: "absolute",
-        top: 16,
-        left: 16,
-        right: 16,
+        // SafeArea 상단 inset 기준, 탭바 높이(약 48) + 여백을 더해 탭바 아래에 위치
+        top: insets.top + 56,
+        left: 24,
+        right: 24,
         zIndex: 9999,
+        alignItems: "center",
         transform: [{ translateY }],
         opacity,
       }}
     >
-      <View
+      {/* 탭하면 즉시 닫히는 pill 카드 */}
+      <Pressable
+        onPress={dismiss}
+        className="flex-row items-center active:opacity-75"
         style={{
-          backgroundColor: bg,
-          borderRadius: 16,
-          paddingHorizontal: 16,
+          backgroundColor: C.white,
+          borderRadius: 999,
+          paddingHorizontal: 20,
           paddingVertical: 14,
-          flexDirection: "row",
-          alignItems: "center",
           gap: 10,
-          shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
+          shadowColor: C.shadow,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.14,
+          shadowRadius: 16,
           elevation: 10,
         }}
       >
-        <Feather name={icon as any} size={18} color={color} />
-        <PretendardFont weight="semibold" style={{ color: "#FFFFFF", fontSize: 14, flex: 1 }}>
+        <Feather name={icon as any} size={20} color={iconColor} />
+        <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.text }}>
           {message}
         </PretendardFont>
-      </View>
+      </Pressable>
     </Animated.View>
   );
 }
-
-import { useState, useCallback } from "react";
 
 export function useToast() {
   const [state, setState] = useState<{
