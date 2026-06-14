@@ -15,12 +15,15 @@ export interface HiveData {
   status: "online" | "offline";
   temperature: number;
   humidity: number;
+  externalTemperature?: number;
+  externalHumidity?: number;
   weight: number;
   beeActivity: "high" | "medium" | "low";
   lastUpdate: string;
   location?: string;
   memo?: string;
   registeredAt?: string;
+  replacedAt?: string;
 }
 
 export interface ActiveTag {
@@ -38,9 +41,12 @@ export interface HiveControlState {
 }
 
 export function getDisabledState(controls: ControlSetting[]) {
-  const heatingAuto = controls.find((c) => c.id === "heating")?.enabled ?? false;
-  const humidityAuto = controls.find((c) => c.id === "humidity")?.enabled ?? false;
-  const ventilationAuto = controls.find((c) => c.id === "ventilation")?.enabled ?? false;
+  const heatingAuto =
+    controls.find((c) => c.id === "heating")?.enabled ?? false;
+  const humidityAuto =
+    controls.find((c) => c.id === "humidity")?.enabled ?? false;
+  const ventilationAuto =
+    controls.find((c) => c.id === "ventilation")?.enabled ?? false;
   return {
     heaterDisabled: heatingAuto,
     coolerDisabled: heatingAuto,
@@ -50,10 +56,9 @@ export function getDisabledState(controls: ControlSetting[]) {
 }
 
 const TAG_MAP: Record<string, string> = {
-  ventilation: "자동환기",
   heating: "온도유지",
   humidity: "습도조절",
-  alert: "알림",
+  ventilation: "자동환기",
 };
 
 export function buildActiveTags(hc: HiveControlState): ActiveTag[] {
@@ -77,13 +82,6 @@ export function buildActiveTags(hc: HiveControlState): ActiveTag[] {
 
 export const initialControls: ControlSetting[] = [
   {
-    id: "ventilation",
-    name: "환기 시스템",
-    description: "벌통 내부 환기 자동 조절",
-    icon: "wind",
-    enabled: true,
-  },
-  {
     id: "heating",
     name: "온도 유지",
     description: "적정 온도(34~35°C) 자동 유지",
@@ -98,10 +96,10 @@ export const initialControls: ControlSetting[] = [
     enabled: false,
   },
   {
-    id: "alert",
-    name: "이상 알림",
-    description: "비정상 상태 감지 시 알림",
-    icon: "bell",
+    id: "ventilation",
+    name: "공기 시스템",
+    description: "벌통 내부 공기 자동 조절",
+    icon: "wind",
     enabled: true,
   },
 ];

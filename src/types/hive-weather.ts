@@ -17,6 +17,7 @@ export interface DataPoint {
   humidity: number;
   methane: number;
   co2: number;
+  hasData?: boolean;
 }
 
 export interface WeatherCondition {

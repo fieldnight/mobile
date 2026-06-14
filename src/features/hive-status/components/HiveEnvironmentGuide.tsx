@@ -1,4 +1,4 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -28,26 +28,46 @@ const GUIDE_ITEMS = [
  */
 export function HiveEnvironmentGuide() {
   return (
-    <Card delay={300}>
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
-        🌡️ 적정 환경 가이드
+    <Card
+      delay={300}
+      className="mb-10"
+      style={{
+        marginHorizontal: -14,
+        backgroundColor: "rgba(255,255,255,0.643)",
+        elevation: 0,
+      }}
+    >
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+        적정 환경 가이드
       </PretendardFont>
-      <View className="mt-2 space-y-2">
+      <View className="mt-3 gap-3">
         {GUIDE_ITEMS.map((item) => (
-          <View key={item.label} className="flex-row gap-2 items-start">
-            <View className="min-w-[44px] px-2 py-1 rounded-lg bg-primary-soft items-center justify-center">
-              <Text className="text-xs font-semibold text-primary">
+          <View key={item.label} className="flex-row gap-3 items-start">
+            {/* 항목 레이블 뱃지 */}
+            <View
+              className="min-w-[48px] px-2.5 py-1.5 rounded-lg items-center justify-center"
+              style={{ backgroundColor: C.bg }}
+            >
+              <PretendardFont
+                weight="bold"
+                style={{ fontSize: 13, color: C.text }}
+              >
                 {item.label}
-              </Text>
+              </PretendardFont>
             </View>
             <View className="flex-1">
               <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 14, color: C.text }}
+                weight="bold"
+                style={{ fontSize: 15, color: C.text }}
               >
                 {item.value}
               </PretendardFont>
-              <Text className="text-xs text-[#8A99A8] mt-1">{item.desc}</Text>
+              {/* 설명 텍스트: 더 잘 보이도록 sec 색 사용 */}
+              <PretendardFont
+                style={{ fontSize: 13, color: C.sec, marginTop: 3 }}
+              >
+                {item.desc}
+              </PretendardFont>
             </View>
           </View>
         ))}

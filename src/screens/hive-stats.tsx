@@ -8,99 +8,38 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  View,
-  Pressable,
   Platform,
   ScrollView,
   Dimensions,
+  ImageBackground,
 } from "react-native";
+
+const BG_IMAGE = require("../../assets/df.jpg");
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { PretendardFont } from "@/components/PretendardFont";
-import AppHeader from "@/components/AppHeader";
-import { PageTitle } from "@/components/PageTitle";
-import { HEADER_HEIGHT, useScrollHeader } from "@/hooks";
+import { useRoute } from "@react-navigation/native";
+import { useScrollHeader } from "@/hooks";
 import { Spacing } from "../constants";
 import {
   HiveEnvironmentGuide,
   PeriodCard,
   ChartCards,
   DataTable,
+  HiveReplacementTable,
 } from "@/features/hive-status";
-import {
-  HIVE_STATS_SUBTITLE,
-  HIVE_STATS_TITLE,
-  PERIOD_HINT,
-  VIEW_MODES,
-} from "@/features/hive-status/constants";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
+import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { WeatherSection } from "@/components/hive/Hive-weather";
 import {
   useWeatherRegion,
   useMakeWeather,
-  hiveDataMap,
+  getHivePeriodData,
 } from "@/features/hive-status";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { Period } from "../types";
-import { C } from "@/constants/hive-colors";
 
 const SLIDER_ITEM_WIDTH = Dimensions.get("window").width - 32;
-
-/**
- * ViewModeToggle
- * - 통계 보기 모드를 차트 / 통합 / 표로 전환하는 버튼 그룹입니다.
- * - 상위에서 상태를 받아 렌더링하고, onChange 콜백으로 변경을 전달합니다.
- */
-function ViewModeToggle({
-  period,
-  viewMode,
-  onChange,
-}: {
-  period: Period;
-  viewMode: "chart" | "combined" | "table";
-  onChange: (mode: "chart" | "combined" | "table") => void;
-}) {
-  return (
-    <View className="flex-row items-center justify-between mt-5 mb-4">
-      <PretendardFont style={{ fontSize: 13, color: C.sec, marginRight: 8 }}>
-        {PERIOD_HINT[period]}
-      </PretendardFont>
-      <View
-        className="flex-row rounded-full overflow-hidden"
-        style={{
-          borderWidth: 1,
-          borderColor: C.border,
-          backgroundColor: C.bgAlt,
-        }}
-      >
-        {VIEW_MODES.map((item) => {
-          const active = viewMode === item.key;
-          return (
-            <Pressable
-              key={item.key}
-              onPress={() => onChange(item.key)}
-              className="px-4 py-2"
-              style={{ backgroundColor: active ? C.primary : C.bgAlt }}
-              data-testid={`button-view-${item.key}`}
-            >
-              <PretendardFont
-                weight={active ? "semibold" : "medium"}
-                style={{
-                  fontSize: 14,
-                  color: active ? C.buttonActiveText : C.text,
-                }}
-              >
-                {item.label}
-              </PretendardFont>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 /**
  * HiveStatsScreen
@@ -110,9 +49,9 @@ function ViewModeToggle({
  */
 export default function HiveStatsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const route = useRoute<any>();
   const hives = useHiveStore((state) => state.hives);
+  const hiveControls = useHiveStore((state) => state.hiveControls);
 
   const [period, setPeriod] = useState<Period>("일간");
   const [selectedHive, setSelectedHive] = useState<string>(
@@ -121,7 +60,7 @@ export default function HiveStatsScreen() {
   const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
     "chart",
   );
-  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
+  const { onScroll, scrollEventThrottle } = useScrollHeader();
 
   const { stn, regionName } = useWeatherRegion();
   const { todayWeather, weeklyWeather, loading, errorMsg } =
@@ -148,7 +87,7 @@ export default function HiveStatsScreen() {
     }
   }, [selectedIndex]);
 
-  const statData = (hiveDataMap[selectedHive] ?? hiveDataMap["1"])[period];
+  const statData = getHivePeriodData(selectedHive, period);
 
   const isWeb = Platform.OS === "web";
   const haptic = () => {
@@ -159,14 +98,6 @@ export default function HiveStatsScreen() {
   const handleRefresh = useCallback(async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 800));
   }, []);
-
-  // 설정 화면으로 이동하며 모바일에서 햅틱 피드백을 제공합니다.
-  const handleSettings = () => {
-    if (!isWeb) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    (navigation as any).navigate("hive-setting");
-  };
 
   //슬라이더에서 벌통을 선택했을 때 상태를 변경합니다.
   const handleHivePress = (id: string) => {
@@ -190,61 +121,38 @@ export default function HiveStatsScreen() {
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: C.bg }}>
-      {/* Header */}
-      <AppHeader
-        title="벌통 통계"
-        isScrolled={isScrolled}
-        onBack={() => {
-          haptic();
-          navigation.goBack();
-        }}
-        rightAction={{
-          icon: "settings",
-          color: C.text,
-          onPress: handleSettings,
-          testId: "button-settings",
-        }}
-      />
+    <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
+      <HiveTabBar />
 
       <PullToRefresh
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
-          paddingTop: HEADER_HEIGHT + Spacing.lg,
-          gap: Spacing.md,
+          paddingTop: Spacing.sm,
           paddingBottom: insets.bottom + 40,
+          gap: Spacing.lg,
         }}
         showsVerticalScrollIndicator={false}
         onRefresh={handleRefresh}
         onScroll={onScroll}
         scrollEventThrottle={scrollEventThrottle}
       >
-        <PageTitle title={HIVE_STATS_TITLE} subtitle={HIVE_STATS_SUBTITLE} />
-
         <HiveSliderSection
           hives={hives}
-          hiveControls={{}}
+          hiveControls={hiveControls}
           allView={false}
           selectedIndex={selectedIndex}
           itemWidth={SLIDER_ITEM_WIDTH}
           sliderRef={sliderRef}
           onHivePress={handleHivePress}
           onSlideEnd={handleSlideEnd}
-          showToggle={false}
-          title="내 벌통 확인"
-          subtitle="밀어서 다른 벌통 확인 · 탭하여 통계 확인"
-        />
-
-        <PageTitle
-          size="medium"
-          title="내부 통계"
-          subtitle={`온도·습도·가스 데이터를 한눈에 볼 수 있어요\n이는 벌의 활동성을 파악하는 데 중요해요`}
         />
 
         <PeriodCard
           period={period}
           onSelect={setPeriod}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
           weatherContent={
             <WeatherSection
               period={period}
@@ -257,12 +165,6 @@ export default function HiveStatsScreen() {
             />
           }
         >
-          <ViewModeToggle
-            period={period}
-            viewMode={viewMode}
-            onChange={handleViewModeChange}
-          />
-
           {viewMode === "table" ? (
             <DataTable data={statData} period={period} />
           ) : (
@@ -270,8 +172,10 @@ export default function HiveStatsScreen() {
           )}
         </PeriodCard>
 
+        <HiveReplacementTable />
+
         <HiveEnvironmentGuide />
       </PullToRefresh>
-    </View>
+    </ImageBackground>
   );
 }

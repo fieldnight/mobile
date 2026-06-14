@@ -8,8 +8,6 @@ export function QcToggleButton({
   icon,
   isOn,
   disabled,
-  onColor,
-  bgOn,
   onPress,
   testId,
 }: {
@@ -17,8 +15,6 @@ export function QcToggleButton({
   icon: keyof typeof Feather.glyphMap;
   isOn: boolean;
   disabled: boolean;
-  onColor: string;
-  bgOn: string;
   onPress: () => void;
   testId: string;
 }) {
@@ -26,52 +22,50 @@ export function QcToggleButton({
     <View className="flex-1 relative">
       <Pressable
         onPress={disabled ? undefined : onPress}
-        className="items-center rounded-lg"
+        className="items-center rounded-2xl"
         style={[
           {
-            paddingVertical: 5,
-            gap: 3,
+            paddingVertical: 12,
+            paddingHorizontal: 4,
+            gap: 6,
             backgroundColor: C.bg,
           },
-          isOn &&
-            !disabled && {
-              backgroundColor: C.white,
-              borderWidth: 1.5,
-              borderColor: C.primary,
-            },
+          isOn && !disabled && {
+            backgroundColor: C.white,
+            borderWidth: 1.5,
+            borderColor: C.text,
+          },
           disabled && { opacity: 0.25 },
         ]}
         data-testid={testId}
       >
+        {/* 아이콘 원형 배경 — on 상태는 진한 배경 */}
         <View
           className="items-center justify-center"
           style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: isOn ? bgOn : C.bg,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: isOn ? C.text : C.bgAlt,
           }}
         >
-          <Feather name={icon} size={13} color={isOn ? onColor : C.ter} />
+          <Feather name={icon} size={16} color={isOn ? C.white : C.sec} />
         </View>
         <PretendardFont
-          weight={isOn ? "semibold" : "medium"}
-          className="text-[12px]"
-          style={{ color: isOn ? onColor : C.sec }}
+          weight={isOn ? "bold" : "semibold"}
+          style={{ fontSize: 13, color: C.text }}
         >
           {label}
         </PretendardFont>
       </Pressable>
+
+      {/* 자동 제어 활성화 시 "자동" 오버레이 — 터치 통과 */}
       {disabled && (
         <View
-          className="absolute inset-0 justify-center items-center rounded-lg"
+          className="absolute inset-0 justify-center items-center rounded-2xl"
           pointerEvents="none"
         >
-          <PretendardFont
-            weight="bold"
-            className="text-[13px]"
-            style={{ color: C.primary }}
-          >
+          <PretendardFont weight="bold" style={{ fontSize: 13, color: C.sec }}>
             자동
           </PretendardFont>
         </View>

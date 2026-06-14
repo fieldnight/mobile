@@ -115,7 +115,7 @@ function WeeklyWeather({ days }: { days: WeatherDay[] }) {
               <Feather
                 key={i}
                 name={w.icon as any}
-                size={16}
+                size={20}
                 color={w.iconColor}
                 style={i > 0 ? { marginLeft: -4 } : undefined}
               />
@@ -208,21 +208,6 @@ function MonthlyWeather({ stn }: { stn: number }) {
       onPress={() => Linking.openURL(url)}
     >
       <View className="flex-row items-center gap-2.5">
-        <View className="flex-row items-center">
-          <Feather name="sun" size={18} color="#FFB300" />
-          <Feather
-            name="cloud"
-            size={18}
-            color="#90A4AE"
-            style={{ marginLeft: -6 }}
-          />
-          <Feather
-            name="cloud-rain"
-            size={18}
-            color="#64B5F6"
-            style={{ marginLeft: -6 }}
-          />
-        </View>
         <PretendardFont
           weight="semibold"
           style={{ fontSize: 15, color: "#191F28" }}
@@ -289,7 +274,6 @@ interface WeatherSectionProps {
 export function WeatherSection({
   period,
   stn,
-  regionName,
   loading,
   errorMsg,
   todayWeather,

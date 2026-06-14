@@ -8,14 +8,14 @@ const TABLE_COLS = [
     key: "temp" as const,
     label: "온도",
     unit: "°C",
-    color: C.primary,
+    color: C.text,
     format: (v: number) => v.toFixed(1),
   },
   {
     key: "humidity" as const,
     label: "습도",
     unit: "%",
-    color: C.primary,
+    color: C.text,
     format: (v: number) => String(v),
   },
   {
@@ -66,7 +66,7 @@ export function DataTable({ data, period }: DataTableProps) {
               {col.label}
             </PretendardFont>
             <PretendardFont
-              style={{ fontSize: 11, color: C.ter, marginTop: 2 }}
+              style={{ fontSize: 12, color: C.sec, marginTop: 2 }}
             >
               {col.unit}
             </PretendardFont>

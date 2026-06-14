@@ -5,6 +5,7 @@ import { HiveDropdown } from "./HiveDropdown";
 import { QcToggleButton } from "./QctoggleButton";
 import { ControlItem } from "./controlItem";
 import { BoxColor as C } from "@/types";
+import { Card } from "@/components/hive/hive-shared";
 import type { HiveData, HiveControlState } from "@/types/hive-control";
 import { getDisabledState } from "@/types/hive-control";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -39,130 +40,137 @@ export function HiveControlSection({
   const disabled = getDisabledState(current.controls);
 
   return (
-    <View className="mt-2 gap-3">
+    <Card
+      className="mb-10"
+      style={{
+        borderRadius: 20,
+        backgroundColor: "rgba(255, 255, 255, 0.643) ",
+        elevation: 0,
+        marginHorizontal: -14,
+      }}
+    >
+      <View className="flex-row justify-between items-center mb-3.5">
+        <PretendardFont
+          weight="bold"
+          className="text-[18px]"
+          style={{ color: C.text }}
+        >
+          제어 설정
+        </PretendardFont>
+        <View className="relative">
+          <Pressable
+            onPress={() => setDropdownOpen((prev) => !prev)}
+            className="flex-row items-center gap-1.5 px-3 py-2.5 bg-white rounded-[14px] border"
+            style={{ borderColor: C.border }}
+          >
+            <PretendardFont className="text-[14px]" style={{ color: C.text }}>
+              {selectedHive?.name ?? "벌통 선택"}
+            </PretendardFont>
+            <Feather name="chevron-down" size={16} color={C.sec} />
+          </Pressable>
+          {dropdownOpen && (
+            <HiveDropdown
+              hives={hives}
+              selectedId={
+                controlHive === "all" ? (hives[0]?.id ?? "") : controlHive
+              }
+              onSelect={(id) => {
+                setDropdownOpen(false);
+                onSelectHive(id);
+              }}
+              onClose={() => setDropdownOpen(false)}
+              testPrefix="control"
+            />
+          )}
+        </View>
+      </View>
+
+      <PretendardFont
+        weight="bold"
+        className="text-[14px] mb-3"
+        style={{ color: C.text }}
+      >
+        수동 제어
+      </PretendardFont>
+
+      <View className="flex-row justify-between gap-2.5 rounded-[18px] p-3">
+        <QcToggleButton
+          label="히터"
+          icon="sun"
+          isOn={current.heaterOn}
+          disabled={disabled.heaterDisabled}
+          onPress={() => onToggleQuickControl("heaterOn")}
+          testId="button-qc-heater"
+        />
+        <QcToggleButton
+          label="쿨러"
+          icon="wind"
+          isOn={current.coolerOn}
+          disabled={disabled.coolerDisabled}
+          onPress={() => onToggleQuickControl("coolerOn")}
+          testId="button-qc-cooler"
+        />
+        <QcToggleButton
+          label="환기"
+          icon="refresh-cw"
+          isOn={current.ventOn}
+          disabled={disabled.ventDisabled}
+          onPress={() => onToggleQuickControl("ventOn")}
+          testId="button-qc-vent"
+        />
+        <QcToggleButton
+          label="순환"
+          icon="rotate-cw"
+          isOn={current.circOn}
+          disabled={disabled.circDisabled}
+          onPress={() => onToggleQuickControl("circOn")}
+          testId="button-qc-circ"
+        />
+      </View>
+
+      {/* 자동·수동 제어 안내 배너 */}
       <View
-        className="bg-white rounded-[20px]"
         style={{
-          padding: 18,
-          shadowColor: C.shadow,
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.08,
-          shadowRadius: 18,
-          elevation: 2,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          backgroundColor: C.bgAlt,
+          borderRadius: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          marginTop: 4,
         }}
       >
-        <View className="flex-row justify-between items-center mb-3.5">
-          <PretendardFont
-            weight="bold"
-            className="text-[18px]"
-            style={{ color: C.text }}
-          >
-            제어 설정
-          </PretendardFont>
-          <View className="relative">
-            <Pressable
-              onPress={() => setDropdownOpen((prev) => !prev)}
-              className="flex-row items-center gap-1.5 px-3 py-2.5 bg-white rounded-[14px] border"
-              style={{ borderColor: C.border }}
-            >
-              <PretendardFont className="text-[14px]" style={{ color: C.text }}>
-                {controlHive === "all"
-                  ? "전체"
-                  : (selectedHive?.name ?? "벌통 선택")}
-              </PretendardFont>
-              <Feather name="chevron-down" size={16} color={C.sec} />
-            </Pressable>
-            {dropdownOpen && (
-              <HiveDropdown
-                hives={hives}
-                selectedId={
-                  controlHive === "all" ? (hives[0]?.id ?? "") : controlHive
-                }
-                onSelect={(id) => {
-                  setDropdownOpen(false);
-                  onSelectHive(id);
-                }}
-                onClose={() => setDropdownOpen(false)}
-                testPrefix="control"
-              />
-            )}
-          </View>
-        </View>
-
+        <Feather name="info" size={13} color={C.sec} />
         <PretendardFont
-          weight="bold"
-          className="text-[14px] mb-3"
-          style={{ color: C.text }}
+          style={{ fontSize: 12, color: C.sec, flex: 1, lineHeight: 18 }}
         >
-          수동 제어
+          자동 제어가 켜진 동안엔 해당 수동 버튼을 누를 수 없어요.
         </PretendardFont>
-
-        <View className="flex-row justify-between gap-2.5 rounded-[18px] p-3">
-          <QcToggleButton
-            label="히터"
-            icon="sun"
-            isOn={current.heaterOn}
-            disabled={disabled.heaterDisabled}
-            onColor={C.primary}
-            bgOn="#FEE2E2"
-            onPress={() => onToggleQuickControl("heaterOn")}
-            testId="button-qc-heater"
-          />
-          <QcToggleButton
-            label="쿨러"
-            icon="wind"
-            isOn={current.coolerOn}
-            disabled={disabled.coolerDisabled}
-            onColor={C.primary}
-            bgOn="#E0F2FE"
-            onPress={() => onToggleQuickControl("coolerOn")}
-            testId="button-qc-cooler"
-          />
-          <QcToggleButton
-            label="환기"
-            icon="refresh-cw"
-            isOn={current.ventOn}
-            disabled={disabled.ventDisabled}
-            onColor={C.primary}
-            bgOn="#D1FAE5"
-            onPress={() => onToggleQuickControl("ventOn")}
-            testId="button-qc-vent"
-          />
-          <QcToggleButton
-            label="순환"
-            icon="rotate-cw"
-            isOn={current.circOn}
-            disabled={disabled.circDisabled}
-            onColor={C.primary}
-            bgOn="#FEF3C7"
-            onPress={() => onToggleQuickControl("circOn")}
-            testId="button-qc-circ"
-          />
-        </View>
-
-        <View
-          style={{
-            height: 1,
-            backgroundColor: C.border,
-            marginVertical: 18,
-          }}
-        />
-
-        <PretendardFont
-          weight="bold"
-          className="text-[14px] mb-3"
-          style={{ color: C.text }}
-        >
-          자동 제어
-        </PretendardFont>
-        {current.controls.map((control) => (
-          <ControlItem
-            key={control.id}
-            control={control}
-            onToggle={onToggleControl}
-          />
-        ))}
       </View>
-    </View>
+
+      <View
+        style={{
+          height: 1,
+          backgroundColor: C.border,
+          marginVertical: 18,
+        }}
+      />
+
+      <PretendardFont
+        weight="bold"
+        className="text-[14px] mb-3"
+        style={{ color: C.text }}
+      >
+        자동 제어
+      </PretendardFont>
+      {current.controls.map((control) => (
+        <ControlItem
+          key={control.id}
+          control={control}
+          onToggle={onToggleControl}
+        />
+      ))}
+    </Card>
   );
 }

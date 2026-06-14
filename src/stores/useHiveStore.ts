@@ -28,6 +28,8 @@ const initialHives: HiveData[] = [
     status: "online",
     temperature: 34.5,
     humidity: 62,
+    externalTemperature: 22.1,
+    externalHumidity: 48,
     weight: 28.3,
     beeActivity: "high",
     lastUpdate: "2분 전",
@@ -41,6 +43,8 @@ const initialHives: HiveData[] = [
     status: "online",
     temperature: 33.8,
     humidity: 58,
+    externalTemperature: 21.3,
+    externalHumidity: 52,
     weight: 31.2,
     beeActivity: "medium",
     lastUpdate: "5분 전",
@@ -66,7 +70,9 @@ const initialHives: HiveData[] = [
 interface HiveStoreState {
   hives: HiveData[];
   hiveControls: Record<string, HiveControlState>;
-  addHive: (name: string, location: string, memo: string) => void;
+  addHive: (name: string, location: string, memo: string, replacedAt?: string) => void;
+  reorderHives: (nextHives: HiveData[]) => void;
+  updateReplacedAt: (id: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
 }
 
@@ -75,7 +81,7 @@ export const useHiveStore = create<HiveStoreState>()(
     (set, get) => ({
       hives: initialHives,
       hiveControls: createInitialHiveControls(initialHives),
-      addHive: (name, location, memo) => {
+      addHive: (name, location, memo, replacedAt) => {
         const now = new Date();
         const id = String(now.getTime());
         const registeredAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -85,6 +91,7 @@ export const useHiveStore = create<HiveStoreState>()(
           location,
           memo,
           registeredAt,
+          replacedAt,
           status: "online",
           temperature: 34,
           humidity: 60,
@@ -101,6 +108,18 @@ export const useHiveStore = create<HiveStoreState>()(
           },
         }));
       },
+      reorderHives: (nextHives) => {
+        set({ hives: nextHives });
+      },
+      updateReplacedAt: (id) => {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        set((state) => ({
+          hives: state.hives.map((hive) =>
+            hive.id === id ? { ...hive, replacedAt: today } : hive,
+          ),
+        }));
+      },
       updateHiveControls: (id, nextState) => {
         set((state) => ({
           hiveControls: {
@@ -113,6 +132,23 @@ export const useHiveStore = create<HiveStoreState>()(
     {
       name: "webee-hive-store",
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      migrate: (persistedState: any) => {
+        const state = persistedState as HiveStoreState;
+        const fresh = initialControls.map((c) => ({ ...c }));
+        const nextControls: Record<string, HiveControlState> = {};
+        for (const id of Object.keys(state.hiveControls ?? {})) {
+          const prev = state.hiveControls[id];
+          nextControls[id] = {
+            ...prev,
+            controls: fresh.map((fc) => {
+              const existing = prev.controls.find((c) => c.id === fc.id);
+              return existing ? { ...fc, enabled: existing.enabled } : { ...fc };
+            }),
+          };
+        }
+        return { ...state, hiveControls: nextControls };
+      },
     },
   ),
 );

@@ -13,8 +13,8 @@ import {
   Platform,
   TextInput,
   Switch,
+  ImageBackground,
 } from "react-native";
-import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -22,10 +22,12 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KMA_REGIONS, DATA_INTERVALS } from "@/types";
 import { BeeBoxCard } from "@/components/BeeboxCard";
-import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
-import { router } from "expo-router";
 import { C } from "@/constants/hive-colors";
+import { HiveTabBar } from "@/components/hive/HiveTabBar";
+import { Spacing } from "../constants";
+
+const BG_IMAGE = require("../../assets/df.jpg");
 
 export const WEATHER_REGION_KEY = "webee_weather_region";
 export const DATA_INTERVAL_KEY = "webee_data_interval";
@@ -46,7 +48,6 @@ export interface WeatherRegion {
 
 export default function HiveSettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [selectedStn, setSelectedStn] = useState<number>(108);
   const [searchText, setSearchText] = useState("");
   const [savedMessage, setSavedMessage] = useState(false);
@@ -118,21 +119,20 @@ export default function HiveSettingsScreen() {
     KMA_REGIONS.find((r) => r.stn === selectedStn)?.name || "서울";
 
   return (
-    <View className="flex-1" style={{ backgroundColor: C.bg }}>
-      <AppHeader title="설정" onBack={() => router.back()} isScrolled={isScrolled} />
+    <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
+      <HiveTabBar  />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          padding: 20,
-          paddingTop: HEADER_HEIGHT + 20,
+          padding: 16,
+          paddingTop: Spacing.sm,
           gap: 16,
-          paddingBottom: insets.bottom + 40,
+          paddingBottom: 100,
         }}
         showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={scrollEventThrottle}
+
       >
-        <BeeBoxCard delay={0}>
+        <BeeBoxCard variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
             <View
               className="items-center justify-center rounded-lg p-2"
@@ -187,7 +187,7 @@ export default function HiveSettingsScreen() {
           </PretendardFont>
         </BeeBoxCard>
 
-        <BeeBoxCard delay={100}>
+        <BeeBoxCard delay={100} variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
             <View
               className="items-center justify-center rounded-lg p-2"
@@ -232,7 +232,7 @@ export default function HiveSettingsScreen() {
               <Switch
                 value={slot.enabled}
                 onValueChange={() => handleToggleSchedule(slot.id)}
-                trackColor={{ false: C.border, true: C.primary }}
+                trackColor={{ false: C.border, true: C.text }}
                 thumbColor={C.white}
                 data-testid={`switch-schedule-${slot.id}`}
               />
@@ -245,7 +245,7 @@ export default function HiveSettingsScreen() {
           </PretendardFont>
         </BeeBoxCard>
 
-        <BeeBoxCard delay={200}>
+        <BeeBoxCard delay={200} variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
             <View
               className="items-center justify-center rounded-lg p-2"
@@ -366,6 +366,6 @@ export default function HiveSettingsScreen() {
           </PretendardFont>
         </Animated.View>
       )}
-    </View>
+    </ImageBackground>
   );
 }

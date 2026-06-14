@@ -1,6 +1,12 @@
+/**
+ * 자동 제어 항목 행
+ * - 행 전체(텍스트 + 토글) 탭으로 켜기/끄기
+ * - 탭 시 스케일 바운스 인터랙션
+ * - 이름 굵게·크게, 설명 가독성 개선
+ */
 import { BoxColor as C } from "@/types";
-import { Feather } from "@expo/vector-icons";
-import { View, Switch } from "react-native";
+import { View, Switch, Pressable, Animated } from "react-native";
+import { useRef } from "react";
 import { PretendardFont } from "@/components/PretendardFont";
 import type { ControlSetting } from "@/types/hive-control";
 
@@ -11,33 +17,48 @@ export function ControlItem({
   control: ControlSetting;
   onToggle: (id: string) => void;
 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () =>
+    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const pressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+
   return (
-    <View className="flex-row items-center py-2">
-      <View
-        className="w-10 h-10 items-center justify-center mr-3"
-        style={{ borderRadius: 10, backgroundColor: "#E8F2FF" }}
+    <Pressable
+      onPress={() => onToggle(control.id)}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      android_ripple={{ color: "rgba(0,0,0,0.04)", borderless: false }}
+    >
+      <Animated.View
+        className="flex-row items-center py-3"
+        style={{ transform: [{ scale }] }}
       >
-        <Feather name={control.icon} size={20} color={C.primary} />
-      </View>
-      <View className="flex-1">
-        <PretendardFont
-          weight="medium"
-          className="text-[15px]"
-          style={{ color: C.text }}
-        >
-          {control.name}
-        </PretendardFont>
-        <PretendardFont className="text-[12px] mt-0.5" style={{ color: C.sec }}>
-          {control.description}
-        </PretendardFont>
-      </View>
-      <Switch
-        value={control.enabled}
-        onValueChange={() => onToggle(control.id)}
-        trackColor={{ false: C.border, true: "#A8D5FF" }}
-        thumbColor={control.enabled ? C.primary : "#FFFFFF"}
-        ios_backgroundColor={C.border}
-      />
-    </View>
+        <View className="flex-1 pr-3">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 16, color: C.text }}
+            >
+              {control.name}
+            </PretendardFont>
+            <PretendardFont
+              weight="medium"
+              style={{ fontSize: 12, color: C.textSx }}
+            >
+              {control.description}
+            </PretendardFont>
+          </View>
+        </View>
+        <Switch
+          value={control.enabled}
+          onValueChange={() => onToggle(control.id)}
+          trackColor={{ false: C.border, true: C.primary }}
+          thumbColor={C.white}
+          ios_backgroundColor={C.border}
+        />
+      </Animated.View>
+    </Pressable>
   );
 }
