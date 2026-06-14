@@ -2,12 +2,12 @@
  * 개폐기 화면 배경 그라데이션
  * - expo-linear-gradient 없이 react-native-svg로 배경을 그립니다.
  */
-import { Dimensions, StyleSheet, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-const { width, height } = Dimensions.get("window");
-
 export function DoorOpenerBackground() {
+  const { width, height } = useWindowDimensions();
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width={width} height={height}>

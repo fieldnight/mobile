@@ -14,6 +14,7 @@ function getDayStatus(replacedAt?: string): {
   if (!replacedAt) return { label: "미등록" };
 
   const replaced = new Date(replacedAt);
+  if (Number.isNaN(replaced.getTime())) return { label: "미등록" };
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   replaced.setHours(0, 0, 0, 0);

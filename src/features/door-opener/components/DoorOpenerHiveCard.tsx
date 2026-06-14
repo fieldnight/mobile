@@ -20,6 +20,7 @@ export function DoorOpenerHiveCard({
   dragOffset,
   onPress,
   onLongPress,
+  onPressOut,
 }: {
   hive: HiveData;
   size: number;
@@ -28,6 +29,7 @@ export function DoorOpenerHiveCard({
   dragOffset?: Animated.ValueXY;
   onPress: () => void;
   onLongPress?: () => void;
+  onPressOut?: () => void;
 }) {
   const offline = hive.status === "offline";
   const transform =
@@ -50,6 +52,7 @@ export function DoorOpenerHiveCard({
       <Pressable
         onPress={onPress}
         onLongPress={onLongPress}
+        onPressOut={onPressOut}
         delayLongPress={260}
         className="active:opacity-80"
       >

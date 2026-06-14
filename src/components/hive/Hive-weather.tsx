@@ -169,13 +169,15 @@ function WeeklyWeather({ days }: { days: WeatherDay[] }) {
                   </PretendardFont>
                   {/* Temp range bar */}
                   <View className="flex-1 h-1 bg-[#E5E8EB] rounded-sm overflow-hidden relative">
-                    <View
-                      className="absolute top-0 bottom-0 bg-[#FF9100] rounded-sm"
-                      style={{
-                        left: `${w.low != null ? ((w.low - globalMin) / range) * 100 : 0}%`,
-                        right: `${w.high != null ? 100 - ((w.high - globalMin) / range) * 100 : 0}%`,
-                      }}
-                    />
+                    {Number.isFinite(w.low) && Number.isFinite(w.high) && (
+                      <View
+                        className="absolute top-0 bottom-0 bg-[#FF9100] rounded-sm"
+                        style={{
+                          left: `${((w.low! - globalMin) / range) * 100}%`,
+                          right: `${100 - ((w.high! - globalMin) / range) * 100}%`,
+                        }}
+                      />
+                    )}
                   </View>
                   <PretendardFont
                     weight="semibold"

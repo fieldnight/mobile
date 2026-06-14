@@ -51,17 +51,13 @@ export function AddNfcDoorCardModal({
   const [endHour, setEndHour] = useState(14);
   const [repeat, setRepeat] = useState(false);
 
-  const normalizedRange = useMemo(() => {
-    if (startHour === endHour) return [startHour, (endHour + 1) % 24] as const;
-    return [startHour, endHour] as const;
-  }, [endHour, startHour]);
-
   const detail = useMemo(() => {
     if (functionType === "cycle") {
-      return `${formatHour24(normalizedRange[0])} ~ ${formatHour24(normalizedRange[1])}`;
+      if (startHour === endHour) return `${formatHour24(startHour)}부터 24시간 전체`;
+      return `${formatHour24(startHour)} ~ ${formatHour24(endHour)}`;
     }
     return `${meridiem} ${hour}:${String(minute).padStart(2, "0")}`;
-  }, [functionType, hour, meridiem, minute, normalizedRange]);
+  }, [endHour, functionType, hour, meridiem, minute, startHour]);
 
   const resetAndClose = () => {
     setTitle("");

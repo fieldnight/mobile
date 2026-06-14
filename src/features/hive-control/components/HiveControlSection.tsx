@@ -71,9 +71,7 @@ export function HiveControlSection({
           {dropdownOpen && (
             <HiveDropdown
               hives={hives}
-              selectedId={
-                controlHive === "all" ? (hives[0]?.id ?? "") : controlHive
-              }
+              selectedId={controlHive === "all" ? "" : controlHive}
               onSelect={(id) => {
                 setDropdownOpen(false);
                 onSelectHive(id);

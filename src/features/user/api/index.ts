@@ -27,9 +27,6 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
     '/api/v1/users/profile-image',
     formData,
     { 
-      headers: { 
-        'Content-Type': 'multipart/form-data',
-      },
       timeout: 60000,
       maxContentLength: 10 * 1024 * 1024,
       maxBodyLength: 10 * 1024 * 1024,

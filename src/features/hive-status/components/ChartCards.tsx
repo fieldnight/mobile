@@ -289,6 +289,16 @@ export function ChartCards({
   const humidityScrollRef = useRef<ScrollView | null>(null);
   const syncingRef = useRef(false);
 
+  if (!data.length) {
+    return (
+      <View className="items-center py-6">
+        <PretendardFont style={{ fontSize: 13, color: C.sec }}>
+          표시할 데이터가 없습니다.
+        </PretendardFont>
+      </View>
+    );
+  }
+
   // 진입 시 현재 시각 위치로 자동 스크롤 (양쪽 차트 동시)
   useEffect(() => {
     if (!data.length) return;

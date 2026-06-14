@@ -83,7 +83,7 @@ export const useHiveStore = create<HiveStoreState>()(
       hiveControls: createInitialHiveControls(initialHives),
       addHive: (name, location, memo, replacedAt) => {
         const now = new Date();
-        const id = String(now.getTime());
+        const id = `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
         const registeredAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         const newHive: HiveData = {
           id,
@@ -134,20 +134,26 @@ export const useHiveStore = create<HiveStoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       version: 2,
       migrate: (persistedState: any) => {
-        const state = persistedState as HiveStoreState;
+        const state = persistedState as Partial<HiveStoreState> | undefined;
+        const safeHives = state?.hives ?? initialHives;
+        const prevControls = state?.hiveControls ?? {};
         const fresh = initialControls.map((c) => ({ ...c }));
         const nextControls: Record<string, HiveControlState> = {};
-        for (const id of Object.keys(state.hiveControls ?? {})) {
-          const prev = state.hiveControls[id];
-          nextControls[id] = {
-            ...prev,
-            controls: fresh.map((fc) => {
-              const existing = prev.controls.find((c) => c.id === fc.id);
-              return existing ? { ...fc, enabled: existing.enabled } : { ...fc };
-            }),
-          };
+
+        for (const hive of safeHives) {
+          const prev = prevControls[hive.id];
+          nextControls[hive.id] = prev
+            ? {
+                ...prev,
+                controls: fresh.map((fc) => {
+                  const existing = prev.controls.find((c) => c.id === fc.id);
+                  return existing ? { ...fc, enabled: existing.enabled } : { ...fc };
+                }),
+              }
+            : createDefaultControlState();
         }
-        return { ...state, hiveControls: nextControls };
+
+        return { ...state, hives: safeHives, hiveControls: nextControls } as HiveStoreState;
       },
     },
   ),

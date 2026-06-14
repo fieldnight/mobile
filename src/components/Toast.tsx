@@ -42,16 +42,18 @@ export function Toast({
 
   const dismiss = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
     Animated.parallel([
       Animated.timing(translateY, { toValue: -120, duration: 220, useNativeDriver: true }),
       Animated.timing(opacity,    { toValue: 0,    duration: 220, useNativeDriver: true }),
     ]).start(() => onHide());
-  }, [onHide]);
+  }, [onHide, opacity, translateY]);
 
   useEffect(() => {
     if (!visible) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
 
     // 위에서 내려오는 슬라이드인 + 페이드인
     Animated.parallel([
@@ -63,8 +65,9 @@ export function Toast({
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
     };
-  }, [visible]);
+  }, [dismiss, duration, message, opacity, translateY, type, visible]);
 
   const { icon, iconColor } = CONFIG[type];
 

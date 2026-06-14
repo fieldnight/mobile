@@ -30,6 +30,7 @@ export default function HiveAddScreen() {
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
   const [replacedAt, setReplacedAt] = useState<Date | null>(null);
+  const [draftReplacedAt, setDraftReplacedAt] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const formatDate = (date: Date) =>
@@ -145,7 +146,10 @@ export default function HiveAddScreen() {
             <PretendardFont style={{ fontSize: 12, color: C.ter }}>{"  "}(선택사항)</PretendardFont>
           </View>
           <Pressable
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => {
+              setDraftReplacedAt(replacedAt ?? new Date());
+              setShowDatePicker(true);
+            }}
             className="flex-row items-center justify-between rounded-2xl px-4 py-3 active:opacity-70"
             style={{ backgroundColor: C.bgAlt }}
           >
@@ -166,17 +170,22 @@ export default function HiveAddScreen() {
                     <Pressable onPress={() => setShowDatePicker(false)}>
                       <PretendardFont style={{ fontSize: 16, color: C.ter }}>취소</PretendardFont>
                     </Pressable>
-                    <Pressable onPress={() => setShowDatePicker(false)}>
+                    <Pressable
+                      onPress={() => {
+                        setReplacedAt(draftReplacedAt);
+                        setShowDatePicker(false);
+                      }}
+                    >
                       <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.primary }}>확인</PretendardFont>
                     </Pressable>
                   </View>
                   <DateTimePicker
-                    value={replacedAt ?? new Date()}
+                    value={draftReplacedAt}
                     mode="date"
                     display="inline"
                     maximumDate={new Date()}
                     onChange={(_, date) => {
-                      if (date) setReplacedAt(date);
+                      if (date) setDraftReplacedAt(date);
                     }}
                     locale="ko-KR"
                   />
@@ -200,7 +209,10 @@ export default function HiveAddScreen() {
         </BeeBoxCard>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4">
+      <View
+        className="absolute bottom-0 left-0 right-0 bg-white px-4 pt-4"
+        style={{ paddingBottom: insets.bottom + 16 }}
+      >
         <Pressable
           onPress={handleSubmit}
           disabled={!canSubmit}

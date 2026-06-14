@@ -181,9 +181,8 @@ export default function PesticideTable() {
   const handlePage = useCallback((p: number) => setPage(p), []);
   const handleSuggestion = useCallback((s: string) => setQuery(s), []);
   const handleRefresh = useCallback(async () => {
-    refetchCodes();
-    refetchList();
-  }, []);
+    await Promise.all([refetchCodes(), refetchList()]);
+  }, [refetchCodes, refetchList]);
 
   const tableContent = (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>

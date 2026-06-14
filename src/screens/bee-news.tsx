@@ -168,8 +168,11 @@ export default function BeeNewsScreen() {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [refetch]);
 
   const handleKeywordChange = useCallback((keyword: string) => {

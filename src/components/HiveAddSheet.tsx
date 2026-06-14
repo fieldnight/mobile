@@ -37,12 +37,14 @@ export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
   const [location, setLocation] = useState("");
   const [memo, setMemo]         = useState("");
   const [replacedAt, setReplacedAt] = useState<Date | null>(null);
+  const [draftReplacedAt, setDraftReplacedAt] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const canSubmit = name.trim() !== "" && location.trim() !== "";
 
   const resetAndClose = () => {
     setName(""); setLocation(""); setMemo(""); setReplacedAt(null);
+    setDraftReplacedAt(new Date());
     onClose();
   };
 
@@ -95,7 +97,10 @@ export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
       {/* 교체일 (선택) */}
       <FieldLabel label="교체일" hint="선택사항" />
       <Pressable
-        onPress={() => setShowDatePicker(true)}
+        onPress={() => {
+          setDraftReplacedAt(replacedAt ?? new Date());
+          setShowDatePicker(true);
+        }}
         className="flex-row items-center justify-between rounded-2xl px-4"
         style={{
           height: 48,
@@ -116,19 +121,28 @@ export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
           <View className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
             <View style={{ backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 }}>
               <View className="flex-row justify-between items-center mb-2">
-                <Pressable onPress={() => setShowDatePicker(false)}>
+                <Pressable
+                  onPress={() => {
+                    setShowDatePicker(false);
+                  }}
+                >
                   <PretendardFont style={{ fontSize: 16, color: C.ter }}>취소</PretendardFont>
                 </Pressable>
-                <Pressable onPress={() => setShowDatePicker(false)}>
+                <Pressable
+                  onPress={() => {
+                    setReplacedAt(draftReplacedAt);
+                    setShowDatePicker(false);
+                  }}
+                >
                   <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.primary }}>확인</PretendardFont>
                 </Pressable>
               </View>
               <DateTimePicker
-                value={replacedAt ?? new Date()}
+                value={draftReplacedAt}
                 mode="date"
                 display="inline"
                 maximumDate={new Date()}
-                onChange={(_, date) => { if (date) setReplacedAt(date); }}
+                onChange={(_, date) => { if (date) setDraftReplacedAt(date); }}
                 locale="ko-KR"
               />
             </View>

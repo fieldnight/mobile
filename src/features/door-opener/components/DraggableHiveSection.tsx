@@ -136,6 +136,9 @@ export function DraggableHiveSection({
               panHandlers={panResponder.panHandlers}
               dragOffset={dragging ? dragOffset : undefined}
               onLongPress={() => startDrag(hive)}
+              onPressOut={() => {
+                if (draggingHiveIdRef.current === hive.id) finishDrag();
+              }}
               onPress={() => {
                 if (draggingHiveIdRef.current) return;
                 router.push({ pathname: "/hive-control", params: { selectedHiveId: hive.id } });

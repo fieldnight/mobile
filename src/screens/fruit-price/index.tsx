@@ -102,7 +102,10 @@ function DetailModal({
             </Pressable>
           </View>
           <GHScrollView className="px-5 py-2">
-            {DETAIL_FIELDS.filter(({ key }) => row[key]).map(
+            {DETAIL_FIELDS.filter(({ key }) => {
+              const value = row[key];
+              return value !== null && value !== undefined && value !== "";
+            }).map(
               ({ key, label }) => (
                 <View
                   key={key}

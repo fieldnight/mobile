@@ -28,11 +28,12 @@ import * as Haptics from "expo-haptics";
 interface PullToRefreshProps extends ScrollViewProps {
   onRefresh: () => Promise<void> | void;
   refreshing?: boolean;
+  progressViewOffset?: number;
   children?: React.ReactNode;
 }
 
 export const PullToRefresh = forwardRef<ScrollView, PullToRefreshProps>(
-  ({ onRefresh, refreshing = false, children, ...props }, ref) => {
+  ({ onRefresh, refreshing = false, progressViewOffset = 56, children, ...props }, ref) => {
     const [isRefreshing, setIsRefreshing] = React.useState(refreshing);
     const isRefreshingRef = useRef(false);
     const rotateValue = useSharedValue(0);
@@ -107,7 +108,7 @@ export const PullToRefresh = forwardRef<ScrollView, PullToRefreshProps>(
             progressBackgroundColor="#FFFFFF"
             colors={["#EA580C"]}
             // Android: AppHeader(56px)가 absolute로 떠 있으므로 스피너를 헤더 아래에 표시
-            progressViewOffset={56}
+            progressViewOffset={progressViewOffset}
           />
         }
         {...props}

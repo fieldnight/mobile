@@ -183,8 +183,11 @@ export default function HiveControlScreen() {
             (navigation as any).navigate("hive-stats", { selectedHiveId: id });
           }}
           onSlideEnd={(idx) => {
-            setSelectedIndex(idx);
-            setControlHive(hives[idx].id);
+            const nextIndex = Math.max(0, Math.min(idx, hives.length - 1));
+            const nextHive = hives[nextIndex];
+            if (!nextHive) return;
+            setSelectedIndex(nextIndex);
+            setControlHive(nextHive.id);
           }}
         />
 

@@ -381,7 +381,7 @@ export default function BeeDiagnosisScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["bottom"]}>
       {/* Header */}
-      <AppHeader title="꿀벌 질병 진단 " onBack={() => router.back()} isScrolled={isScrolled} />
+      <AppHeader title="꿀벌 질병 진단 " onBack={handleGoBack} isScrolled={isScrolled} />
 
       <ScrollView
         className="flex-1"

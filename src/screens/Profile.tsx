@@ -55,7 +55,7 @@ export default function Profile() {
       },
       onError: (error) => {
         Alert.alert("오류", "프로필 사진 업로드에 실패했습니다.");
-        console.log(error);
+        if (__DEV__) console.warn("Profile image upload failed", error);
       },
     });
   };

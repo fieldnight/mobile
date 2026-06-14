@@ -15,7 +15,7 @@
 /**
  * 🔧 사용 방법 1: ScrollView 기반 화면
  * 
- * import { PullToRefresh } from "@/components/RefreshControl";
+ * import { PullToRefresh } from "@/components/refresh/RefreshControl";
  * import { useCallback } from "react";
  * 
  * export function MyScreen() {
@@ -59,7 +59,7 @@
 /**
  * 🔧 사용 방법 3: 수동 새로고침 버튼 (헤더)
  * 
- * import { RotatingRefreshIcon } from "@/components/RefreshControl";
+ * import { RotatingRefreshIcon } from "@/components/refresh/RefreshControl";
  * 
  * <View className="flex-row items-center justify-between p-4">
  *   <Text>제목</Text>

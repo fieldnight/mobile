@@ -12,13 +12,38 @@ import android.os.Bundle
 
 class WeBeeHceService : HostApduService() {
   override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
-    return SUCCESS_RESPONSE
+    if (commandApdu == null) return UNKNOWN_COMMAND_RESPONSE
+    return if (isSelectAidCommand(commandApdu)) {
+      SUCCESS_RESPONSE
+    } else {
+      UNKNOWN_COMMAND_RESPONSE
+    }
   }
 
   override fun onDeactivated(reason: Int) = Unit
 
   companion object {
+    private val SELECT_AID_COMMAND = byteArrayOf(
+      0x00.toByte(),
+      0xA4.toByte(),
+      0x04.toByte(),
+      0x00.toByte(),
+      0x05.toByte(),
+      0xF0.toByte(),
+      0x12.toByte(),
+      0x34.toByte(),
+      0x56.toByte(),
+      0x78.toByte()
+    )
     private val SUCCESS_RESPONSE = byteArrayOf(0x90.toByte(), 0x00.toByte())
+    private val UNKNOWN_COMMAND_RESPONSE = byteArrayOf(0x6D.toByte(), 0x00.toByte())
+
+    private fun isSelectAidCommand(command: ByteArray): Boolean {
+      if (command.size < SELECT_AID_COMMAND.size) return false
+      return SELECT_AID_COMMAND.indices.all { index ->
+        command[index] == SELECT_AID_COMMAND[index]
+      }
+    }
   }
 }
 `;
