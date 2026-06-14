@@ -1,15 +1,21 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+/**
+ * 커뮤니티 활동 중인 농부 목록
+ * - 가로 스크롤 아바타 + 이름 + 게시글 수 표시
+ * - 활동 중(active) 여부에 따라 테두리 색상 및 초록 dot 표시
+ */
+import { View, ScrollView, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ACTIVE_FARMERS } from "@/constants/community";
+import { PretendardFont } from "@/components/PretendardFont";
 
 export function ActiveFarmers() {
   return (
     <View className="bg-white px-5 pt-4 pb-3 mb-2">
       <View className="flex-row items-center gap-1.5 mb-3">
         <Feather name="users" size={15} color="#191f28" />
-        <Text className="text-[15px] font-bold text-gray-900">
+        <PretendardFont weight="bold" style={{ fontSize: 15, color: "#111827" }}>
           지금 활동 중인 농부
-        </Text>
+        </PretendardFont>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -37,18 +43,15 @@ export function ActiveFarmers() {
                   />
                 )}
               </View>
-              <Text
-                className="text-[11px] text-gray-700 max-w-[54px]"
+              <PretendardFont
+                style={{ fontSize: 11, color: "#374151", maxWidth: 54 }}
                 numberOfLines={1}
               >
                 {f.name}
-              </Text>
-              <Text
-                className="text-[10px] text-gray-400"
-                style={{ marginTop: -4 }}
-              >
+              </PretendardFont>
+              <PretendardFont style={{ fontSize: 10, color: "#9ca3af", marginTop: -4 }}>
                 게시글 {f.postCount}
-              </Text>
+              </PretendardFont>
             </Pressable>
           ))}
         </View>

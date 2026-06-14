@@ -1,7 +1,13 @@
-import { View, Text, Pressable } from "react-native";
+/**
+ * 커뮤니티 공지·트렌딩 섹션
+ * - PinnedNotice: 상단 고정 공지 카드 (constants에서 데이터 주입)
+ * - TrendingTags: 지금 뜨는 해시태그 칩 목록 (constants에서 데이터 주입)
+ */
+import { View, Pressable } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { PINNED_NOTICE, TRENDING_TAGS } from "@/constants/community";
+import { PretendardFont } from "@/components/PretendardFont";
 
 export function PinnedNotice() {
   return (
@@ -32,23 +38,20 @@ export function PinnedNotice() {
       <View className="flex-1">
         <View className="flex-row items-center gap-1 mb-1">
           <Feather name="star" size={10} color="#f97316" />
-          <Text
-            className="text-[11px] font-semibold"
-            style={{ color: "#f97316" }}
-          >
+          <PretendardFont weight="semibold" style={{ fontSize: 11, color: "#f97316" }}>
             공지
-          </Text>
+          </PretendardFont>
         </View>
-        <Text
-          className="text-[14px] font-semibold leading-5"
-          style={{ color: "#191f28" }}
+        <PretendardFont
+          weight="semibold"
+          style={{ fontSize: 14, color: "#191f28", lineHeight: 20 }}
           numberOfLines={2}
         >
           {PINNED_NOTICE.title}
-        </Text>
-        <Text className="text-xs mt-1" style={{ color: "#8b95a1" }}>
+        </PretendardFont>
+        <PretendardFont style={{ fontSize: 12, marginTop: 4, color: "#8b95a1" }}>
           {PINNED_NOTICE.author} · {PINNED_NOTICE.time}
-        </Text>
+        </PretendardFont>
       </View>
     </View>
   );
@@ -59,9 +62,9 @@ export function TrendingTags() {
     <View className="bg-white px-5 py-4 mb-2">
       <View className="flex-row items-center gap-1.5 mb-3">
         <Feather name="trending-up" size={15} color="#191f28" />
-        <Text className="text-[15px] font-bold text-gray-900">
+        <PretendardFont weight="bold" style={{ fontSize: 15, color: "#111827" }}>
           지금 뜨는 주제
-        </Text>
+        </PretendardFont>
       </View>
       <View className="flex-row flex-wrap gap-2">
         {TRENDING_TAGS.map((tag, i) => (
@@ -81,18 +84,12 @@ export function TrendingTags() {
               elevation: 1,
             }}
           >
-            <Text
-              className="text-[11px] font-bold"
-              style={{ color: "#f97316" }}
-            >
+            <PretendardFont weight="bold" style={{ fontSize: 11, color: "#f97316" }}>
               {i + 1}
-            </Text>
-            <Text
-              className="text-[13px] font-medium"
-              style={{ color: "#4e5968" }}
-            >
+            </PretendardFont>
+            <PretendardFont weight="medium" style={{ fontSize: 13, color: "#4e5968" }}>
               {tag}
-            </Text>
+            </PretendardFont>
           </View>
         ))}
       </View>

@@ -21,19 +21,48 @@ import { Providers } from "@/providers";
 import Header from "@/navigation/Header";
 import Footer from "@/navigation/Footer";
 import { SideMenu } from "@/components/SideMenu";
+import { ToastProvider } from "@/components/ToastContext";
 
 SplashScreen.preventAutoHideAsync();
 
-// 헤더를 숨길 페이지들
+// 헤더(햄버거 메뉴 라인)를 숨길 페이지들 — home, profile 제외 전부
 const HIDE_HEADER_ROUTES = [
   "login",
   "register",
   "index",
+  "home",
   "add-farm",
   "report",
   "report-result",
   "oauth-register",
   "settings",
+  "hive-control",
+  "hive-stats",
+  "hive-setting",
+  "hive-add",
+  "bee-chat",
+  "bee-chat-inquiry",
+  "bee-news",
+  "bee-diagnosis",
+  "diagnose-history",
+  "recommend",
+  "recommend-detail",
+  "recommend-history",
+  "fruit-price",
+  "pesticide",
+  "market",
+  "community",
+  "feature-guide",
+  "iot-home",
+  "hive-overview",
+];
+
+// 하단 탭바를 숨길 페이지 — 로그인/온보딩 계열만
+const HIDE_FOOTER_ROUTES = [
+  "login",
+  "register",
+  "index",
+  "oauth-register",
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -72,6 +101,7 @@ export default function RootLayout() {
   // 현재 라우트가 헤더를 숨겨야 하는 페이지인지 확인
   const currentRoute = segments[0] || "index";
   const showHeader = !HIDE_HEADER_ROUTES.includes(currentRoute);
+  const showFooter = !HIDE_FOOTER_ROUTES.includes(currentRoute);
 
   const handleMenuPress = (menuId: string) => {
     setMenuVisible(false);
@@ -149,15 +179,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Providers>
+      <ToastProvider>
         <View style={{ flex: 1, backgroundColor: "#000" }}>
           {/* 메인 콘텐츠 */}
           <Animated.View
             style={[{ flex: 1, backgroundColor: "#fff" }, animatedStyle]}
           >
-            <SafeAreaView
-              className="flex-1 bg-white"
-              edges={showHeader ? ["top"] : []}
-            >
+            <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
               <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
               {showHeader && (
                 <Header
@@ -172,7 +200,7 @@ export default function RootLayout() {
               <View style={{ flex: 1 }}>
                 <Slot />
               </View>
-              {showHeader && <Footer />}
+              {showFooter && <Footer />}
             </SafeAreaView>
           </Animated.View>
 
@@ -197,6 +225,7 @@ export default function RootLayout() {
             />
           </GestureDetector>
         </View>
+      </ToastProvider>
       </Providers>
     </GestureHandlerRootView>
   );

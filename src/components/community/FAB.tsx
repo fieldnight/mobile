@@ -1,3 +1,7 @@
+/**
+ * 커뮤니티 글쓰기 플로팅 액션 버튼 (FAB)
+ * - 우하단 고정, 탭 시 스프링 스케일 애니메이션
+ */
 import { Pressable, Animated } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRef } from "react";

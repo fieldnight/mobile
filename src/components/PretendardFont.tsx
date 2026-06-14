@@ -26,5 +26,13 @@ export function PretendardFont({
   style,
   ...props
 }: TextProps & { weight?: Weight }) {
-  return <Text style={[{ fontFamily: familyMap[weight] }, style]} {...props} />;
+  return (
+    <Text
+      style={[
+        { fontFamily: familyMap[weight] },
+        style,
+      ]}
+      {...props}
+    />
+  );
 }

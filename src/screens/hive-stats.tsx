@@ -1,167 +1,181 @@
 /**
  * 벌통 통계 화면
- * - 벌통 선택 / 기간 탭 / 날씨 / 차트·테이블 조합을 조립하는 최상위 Screen
- * - 상태(period, selectedHive, tableView)만 보유하고 렌더링은 하위 컴포넌트에 위임
+ * - HiveSliderSection / PeriodCard / WeatherSection / ChartCards / DataTable / HiveEnvironmentGuide를 조합합니다.
+ * - 기간(period), 선택된 벌통(selectedHive), 보기 모드(viewMode)를 로컬 상태로 관리합니다.
+ * - useWeatherRegion/useMakeWeather로 날씨 데이터를 가져와 WeatherSection에 전달합니다.
+ * - PullToRefresh 새로고침, 설정 이동, 슬라이더/보기 모드 전환 핸들러를 포함합니다.
  */
 
-import { useState } from "react";
-import { View, ScrollView, Pressable, Platform } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { useNavigation } from "@react-navigation/native";
-
-import { Colors, Spacing } from "../constants";
-import { ThemedText, Card } from "@/components/hive-shared";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  HiveSelector,
+  Platform,
+  ScrollView,
+  Dimensions,
+  ImageBackground,
+} from "react-native";
+
+const BG_IMAGE = require("../../assets/df.jpg");
+import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import { useRoute } from "@react-navigation/native";
+import { useScrollHeader } from "@/hooks";
+import { Spacing } from "../constants";
+import {
+  HiveEnvironmentGuide,
   PeriodCard,
   ChartCards,
   DataTable,
+  HiveReplacementTable,
 } from "@/features/hive-status";
-import { WeatherSection } from "@/components/hive-weather";
+import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
+import { HiveTabBar } from "@/components/hive/HiveTabBar";
+import { WeatherSection } from "@/components/hive/Hive-weather";
 import {
   useWeatherRegion,
   useMakeWeather,
-  hiveDataMap,
+  getHivePeriodData,
 } from "@/features/hive-status";
+import { useHiveStore } from "@/stores/useHiveStore";
 import type { Period } from "../types";
 
+const SLIDER_ITEM_WIDTH = Dimensions.get("window").width - 32;
+
+/**
+ * HiveStatsScreen
+ * - 벌통 통계 페이지의 메인 화면입니다.
+ * - 상단에 벌통 슬라이더를 표시하고, 선택된 벌통의 통계 데이터를 보여줍니다.
+ * - 기간 선택과 차트/표 조회를 관리합니다.
+ */
 export default function HiveStatsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const route = useRoute<any>();
+  const hives = useHiveStore((state) => state.hives);
+  const hiveControls = useHiveStore((state) => state.hiveControls);
 
   const [period, setPeriod] = useState<Period>("일간");
-  const [selectedHive, setSelectedHive] = useState("1");
-  const [tableView, setTableView] = useState(false);
+  const [selectedHive, setSelectedHive] = useState<string>(
+    route.params?.selectedHiveId ?? hives[0]?.id ?? "1",
+  );
+  const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
+    "chart",
+  );
+  const { onScroll, scrollEventThrottle } = useScrollHeader();
 
   const { stn, regionName } = useWeatherRegion();
   const { todayWeather, weeklyWeather, loading, errorMsg } =
     useMakeWeather(stn);
 
-  const data = hiveDataMap[selectedHive][period];
-  const lastPoint = data[data.length - 1];
+  const sliderRef = useRef<ScrollView | null>(null);
+  const selectedIndex = Math.max(
+    0,
+    hives.findIndex((hive) => hive.id === selectedHive),
+  );
 
+  useEffect(() => {
+    if (hives.length && !hives.some((hive) => hive.id === selectedHive)) {
+      setSelectedHive(hives[0].id);
+    }
+  }, [hives, selectedHive]);
+
+  useEffect(() => {
+    if (sliderRef.current) {
+      sliderRef.current.scrollTo({
+        x: selectedIndex * SLIDER_ITEM_WIDTH,
+        animated: true,
+      });
+    }
+  }, [selectedIndex]);
+
+  const statData = getHivePeriodData(selectedHive, period);
+
+  const isWeb = Platform.OS === "web";
   const haptic = () => {
-    if (Platform.OS !== "web")
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleSettings = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  // PullToRefresh 컴포넌트 새로고침 처리. 데이터 API 연결 전 테스트용 0.8초 딜레이를 사용합니다.
+  const handleRefresh = useCallback(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 800));
+  }, []);
+
+  //슬라이더에서 벌통을 선택했을 때 상태를 변경합니다.
+  const handleHivePress = (id: string) => {
+    haptic();
+    setSelectedHive(id);
+  };
+
+  // 슬라이더 드래그가 끝났을 때 해당 인덱스 벌통을 선택합니다.
+  const handleSlideEnd = (idx: number) => {
+    const nextHive = hives[Math.max(0, Math.min(idx, hives.length - 1))];
+    if (nextHive) {
+      haptic();
+      setSelectedHive(nextHive.id);
     }
-    (navigation as any).navigate("hive-setting");
+  };
+
+  // 차트 / 통합 / 표 보기 모드를 변경하고 햅틱을 트리거합니다.
+  const handleViewModeChange = (mode: "chart" | "combined" | "table") => {
+    haptic();
+    setViewMode(mode);
   };
 
   return (
-    <View className="flex-1 bg-[#F4F5F7]" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-[#E5E8EB]">
-        <Pressable
-          onPress={() => {
-            haptic();
-            navigation.goBack();
-          }}
-          className="w-10 h-10 items-center justify-center -ml-2"
-          data-testid="button-back-stats"
-        >
-          <Feather name="chevron-left" size={24} color={Colors.text} />
-        </Pressable>
-        <ThemedText className="text-lg font-semibold text-[#191F28]">
-          벌통 통계
-        </ThemedText>
-        <Pressable
-          onPress={handleSettings}
-          className="w-10 h-10 items-center justify-center"
-          data-testid="button-settings"
-        >
-          <Feather name="settings" size={20} color={Colors.text} />
-        </Pressable>
-        <View className="w-10" />
-      </View>
+    <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
+      <HiveTabBar />
 
-      <ScrollView
+      <PullToRefresh
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
-          gap: Spacing.md,
+          paddingTop: Spacing.sm,
           paddingBottom: insets.bottom + 40,
+          gap: Spacing.lg,
         }}
         showsVerticalScrollIndicator={false}
+        onRefresh={handleRefresh}
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
       >
-        <HiveSelector
-          selectedHive={selectedHive}
-          onSelect={setSelectedHive}
-          currentTemp={lastPoint.temp}
-          currentHumidity={lastPoint.humidity}
+        <HiveSliderSection
+          hives={hives}
+          hiveControls={hiveControls}
+          allView={false}
+          selectedIndex={selectedIndex}
+          itemWidth={SLIDER_ITEM_WIDTH}
+          sliderRef={sliderRef}
+          onHivePress={handleHivePress}
+          onSlideEnd={handleSlideEnd}
         />
 
-        <PeriodCard period={period} onSelect={setPeriod}>
-          <WeatherSection
-            period={period}
-            stn={stn}
-            regionName={regionName}
-            loading={loading}
-            errorMsg={errorMsg}
-            todayWeather={todayWeather}
-            weeklyWeather={weeklyWeather}
-          />
+        <PeriodCard
+          period={period}
+          onSelect={setPeriod}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          weatherContent={
+            <WeatherSection
+              period={period}
+              stn={stn}
+              regionName={regionName}
+              loading={loading}
+              errorMsg={errorMsg}
+              todayWeather={todayWeather}
+              weeklyWeather={weeklyWeather}
+            />
+          }
+        >
+          {viewMode === "table" ? (
+            <DataTable data={statData} period={period} />
+          ) : (
+            <ChartCards data={statData} viewMode={viewMode} />
+          )}
         </PeriodCard>
 
-        {/* Section header */}
-        <View className="flex-row items-center justify-between mt-2 -mb-1">
-          <ThemedText className="text-base font-semibold text-[#8B95A1]">
-            스마트벌통 내부 통계
-          </ThemedText>
-          <Pressable
-            onPress={() => {
-              haptic();
-              setTableView((v) => !v);
-            }}
-            className={`flex-row items-center gap-1 px-[10px] py-[5px] rounded-[14px] border ${
-              tableView
-                ? "bg-[#3182F6] border-[#3182F6]"
-                : "bg-white border-[#E5E8EB]"
-            }`}
-            data-testid="button-table-view"
-          >
-            <Feather
-              name="grid"
-              size={13}
-              color={tableView ? "#FFFFFF" : Colors.textSecondary}
-            />
-            <ThemedText
-              className={`text-[13px] font-medium ${tableView ? "text-white" : "text-[#8B95A1]"}`}
-            >
-              표로 보기
-            </ThemedText>
-          </Pressable>
-        </View>
+        <HiveReplacementTable />
 
-        {tableView ? (
-          <DataTable data={data} period={period} />
-        ) : (
-          <ChartCards data={data} />
-        )}
-
-        {/* Info card */}
-        <Card delay={300}>
-          <View className="flex-row items-center">
-            <View className="w-10 h-10 rounded-[10px] bg-[#E8F2FF] items-center justify-center mr-3">
-              <Feather name="info" size={18} color={Colors.primary} />
-            </View>
-            <View className="flex-1">
-              <ThemedText className="text-[15px] font-semibold text-[#191F28]">
-                적정 범위 안내
-              </ThemedText>
-              <ThemedText className="text-[13px] text-[#8B95A1] mt-0.5 leading-[18px]">
-                온도 34~35°C, 습도 50~70%가 꿀벌에게 최적의 환경입니다.
-              </ThemedText>
-            </View>
-          </View>
-        </Card>
-      </ScrollView>
-    </View>
+        <HiveEnvironmentGuide />
+      </PullToRefresh>
+    </ImageBackground>
   );
 }

@@ -58,7 +58,8 @@ export default function AddFarm() {
   // iOS 모달용 임시 날짜 (확인 누르기 전까지 반영 안 함)
   const [tempDate, setTempDate] = useState<Date>(new Date());
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<PickerTarget>("harvestStart");
+  const [pickerTarget, setPickerTarget] =
+    useState<PickerTarget>("harvestStart");
 
   // Android는 DateTimePicker가 직접 다이얼로그로 뜸
   const [androidPickerVisible, setAndroidPickerVisible] = useState(false);
@@ -67,8 +68,8 @@ export default function AddFarm() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const current =
       target === "harvestStart"
-        ? harvestStartDate ?? new Date()
-        : harvestEndDate ?? new Date();
+        ? (harvestStartDate ?? new Date())
+        : (harvestEndDate ?? new Date());
     setPickerTarget(target);
     setTempDate(current);
     if (Platform.OS === "ios") {
@@ -110,11 +111,7 @@ export default function AddFarm() {
   };
 
   const canSubmit = () =>
-    cultivationType !== "" &&
-    area.trim() !== "" &&
-    isValidPlantingDate() &&
-    harvestStartDate !== null &&
-    harvestEndDate !== null;
+    cultivationType !== "" && area.trim() !== "" && isValidPlantingDate();
 
   const handleSubmit = () => {
     if (!canSubmit()) return;
@@ -125,13 +122,16 @@ export default function AddFarm() {
       cultivationType: cultivationType as CultivationType,
       cultivationArea: parseInt(area, 10),
       plantingDate: `${plantingYear}-${plantingMonth.padStart(2, "0")}-${plantingDay.padStart(2, "0")}`,
-      harvestStartDate: toISODate(harvestStartDate!),
-      harvestEndDate: toISODate(harvestEndDate!),
+      harvestStartDate: "",
+      harvestEndDate: ""
     };
 
     if (cropName.trim()) requestData.name = cropName.trim();
     if (variety.trim()) requestData.variety = variety.trim();
     if (address.trim()) requestData.cultivationAddress = address.trim();
+    if (harvestStartDate)
+      requestData.harvestStartDate = toISODate(harvestStartDate);
+    if (harvestEndDate) requestData.harvestEndDate = toISODate(harvestEndDate);
 
     createFarmMutation.mutate(requestData, {
       onSuccess: () => {
@@ -182,7 +182,9 @@ export default function AddFarm() {
       >
         {/* 재배 방식 */}
         <View className="bg-white rounded-2xl p-5 mb-4">
-          <Text className="text-base font-bold text-gray-900">재배 방식</Text>
+          <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
+            재배 방식
+          </Text>
           <Text className="text-sm text-gray-600 mt-1 mb-4">
             시설 유형을 선택해주세요
           </Text>
@@ -234,7 +236,10 @@ export default function AddFarm() {
 
         {/* 작물 정보 */}
         <View className="bg-white rounded-2xl p-5 mb-4">
-          <Text className="text-base font-bold text-gray-900 mb-4">
+          <Text
+            className="text-base font-bold text-gray-900 mb-4"
+            numberOfLines={1}
+          >
             작물 정보
           </Text>
 
@@ -269,7 +274,10 @@ export default function AddFarm() {
 
         {/* 농지 정보 */}
         <View className="bg-white rounded-2xl p-5 mb-4">
-          <Text className="text-base font-bold text-gray-900 mb-4">
+          <Text
+            className="text-base font-bold text-gray-900 mb-4"
+            numberOfLines={1}
+          >
             농지 정보
           </Text>
 
@@ -308,7 +316,10 @@ export default function AddFarm() {
                 placeholderTextColor="#C7C7CC"
                 keyboardType="numeric"
               />
-              <View className="bg-gray-200 px-4 rounded-xl" style={{ height: 50, justifyContent: 'center' }}>
+              <View
+                className="bg-gray-200 px-4 rounded-xl"
+                style={{ height: 50, justifyContent: "center" }}
+              >
                 <Text className="text-base font-semibold text-gray-600">
                   평
                 </Text>
@@ -320,7 +331,12 @@ export default function AddFarm() {
         {/* 정식일 */}
         <View className="bg-white rounded-2xl p-5 mb-4">
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-base font-bold text-gray-900">정식일</Text>
+            <Text
+              className="text-base font-bold text-gray-900"
+              numberOfLines={1}
+            >
+              정식일
+            </Text>
             <View className="bg-blue-100 px-2 py-0.5 rounded">
               <Text className="text-xs font-semibold text-blue-600">필수</Text>
             </View>
@@ -336,7 +352,7 @@ export default function AddFarm() {
                 style={{ height: 50, paddingVertical: 14 }}
                 value={plantingYear}
                 onChangeText={setPlantingYear}
-                placeholder="2024"
+                placeholder="2026"
                 placeholderTextColor="#C7C7CC"
                 keyboardType="numeric"
                 maxLength={4}
@@ -375,44 +391,73 @@ export default function AddFarm() {
         {/* 수확 기간 */}
         <View className="bg-white rounded-2xl p-5">
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-base font-bold text-gray-900">수확 기간</Text>
-            <View className="bg-blue-100 px-2 py-0.5 rounded">
-              <Text className="text-xs font-semibold text-blue-600">필수</Text>
+            <Text
+              className="text-base font-bold text-gray-900"
+              numberOfLines={1}
+            >
+              수확 기간
+            </Text>
+            <View className="bg-gray-100 px-2 py-0.5 rounded">
+              <Text className="text-xs font-semibold text-gray-500">선택</Text>
             </View>
           </View>
           <Text className="text-sm text-gray-600 mb-4">
-            수확 시작일과 마감일을 선택해주세요
+            수확 시작일과 마감일을 선택해주세요 (나중에 추가 가능)
           </Text>
 
           <Text className="text-sm font-semibold text-gray-600 mb-2">
             수확 시작일
           </Text>
-          <Pressable
-            onPress={() => openPicker("harvestStart")}
-            className="flex-row items-center justify-between bg-gray-50 rounded-xl px-4 py-3.5 mb-4 active:bg-gray-100"
-          >
-            <Text
-              className={`text-base ${harvestStartDate ? "text-gray-900" : "text-gray-400"}`}
+          <View className="flex-row items-center gap-2 mb-4">
+            <Pressable
+              onPress={() => openPicker("harvestStart")}
+              className="flex-1 flex-row items-center justify-between bg-gray-50 rounded-xl px-4 py-3.5 active:bg-gray-100"
             >
-              {harvestStartDate ? formatDate(harvestStartDate) : "날짜를 선택하세요"}
-            </Text>
-            <Feather name="calendar" size={18} color="#9CA3AF" />
-          </Pressable>
+              <Text
+                className={`text-base ${harvestStartDate ? "text-gray-900" : "text-gray-400"}`}
+              >
+                {harvestStartDate
+                  ? formatDate(harvestStartDate)
+                  : "날짜를 선택하세요"}
+              </Text>
+              <Feather name="calendar" size={18} color="#9CA3AF" />
+            </Pressable>
+            {harvestStartDate && (
+              <Pressable
+                onPress={() => setHarvestStartDate(null)}
+                className="w-10 h-10 items-center justify-center bg-gray-50 rounded-xl active:bg-gray-100"
+              >
+                <Feather name="x" size={20} color="#EF4444" />
+              </Pressable>
+            )}
+          </View>
 
           <Text className="text-sm font-semibold text-gray-600 mb-2">
             수확 마감일
           </Text>
-          <Pressable
-            onPress={() => openPicker("harvestEnd")}
-            className="flex-row items-center justify-between bg-gray-50 rounded-xl px-4 py-3.5 active:bg-gray-100"
-          >
-            <Text
-              className={`text-base ${harvestEndDate ? "text-gray-900" : "text-gray-400"}`}
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              onPress={() => openPicker("harvestEnd")}
+              className="flex-1 flex-row items-center justify-between bg-gray-50 rounded-xl px-4 py-3.5 active:bg-gray-100"
             >
-              {harvestEndDate ? formatDate(harvestEndDate) : "날짜를 선택하세요"}
-            </Text>
-            <Feather name="calendar" size={18} color="#9CA3AF" />
-          </Pressable>
+              <Text
+                className={`text-base ${harvestEndDate ? "text-gray-900" : "text-gray-400"}`}
+              >
+                {harvestEndDate
+                  ? formatDate(harvestEndDate)
+                  : "날짜를 선택하세요"}
+              </Text>
+              <Feather name="calendar" size={18} color="#9CA3AF" />
+            </Pressable>
+            {harvestEndDate && (
+              <Pressable
+                onPress={() => setHarvestEndDate(null)}
+                className="w-10 h-10 items-center justify-center bg-gray-50 rounded-xl active:bg-gray-100"
+              >
+                <Feather name="x" size={20} color="#EF4444" />
+              </Pressable>
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -427,7 +472,7 @@ export default function AddFarm() {
         <Pressable
           onPress={handleSubmit}
           disabled={!canSubmit() || isLoading}
-          className={`items-center justify-center py-4 rounded-2xl ${
+          className={`w-full items-center justify-center py-4 rounded-2xl ${
             canSubmit() && !isLoading ? "bg-yellow-500" : "bg-gray-200"
           }`}
         >
@@ -435,6 +480,7 @@ export default function AddFarm() {
             className={`text-base font-bold ${
               canSubmit() && !isLoading ? "text-white" : "text-gray-500"
             }`}
+            numberOfLines={1}
           >
             {isLoading ? "등록 중..." : "농지 등록"}
           </Text>
@@ -459,7 +505,9 @@ export default function AddFarm() {
                 <Text className="text-base text-gray-500">취소</Text>
               </Pressable>
               <Text className="text-base font-semibold text-gray-900">
-                {pickerTarget === "harvestStart" ? "수확 시작일" : "수확 마감일"}
+                {pickerTarget === "harvestStart"
+                  ? "수확 시작일"
+                  : "수확 마감일"}
               </Text>
               <Pressable onPress={confirmPicker}>
                 <Text className="text-base font-semibold text-yellow-500">

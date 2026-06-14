@@ -1,12 +1,19 @@
+/**
+ * 벌통 설정 화면
+ * - 기상 지역, 데이터 간격, 자동 스케줄 설정을 저장/로드
+ * - useEffect : AsyncStorage에서 이전 설정 불러오기
+ * - filteredRegions : 검색어에 따른 지역 필터링
+ * - handleSelectRegion/handleSelectInterval/handleToggleSchedule : 선택값 저장 + 저장 완료 메시지 처리
+ */
 import { useState, useEffect, useMemo } from "react";
 import {
   View,
-  Text,
   ScrollView,
   Pressable,
   Platform,
   TextInput,
   Switch,
+  ImageBackground,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -15,8 +22,12 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KMA_REGIONS, DATA_INTERVALS } from "@/types";
 import { BeeBoxCard } from "@/components/BeeboxCard";
-import AppHeader from "@/components/AppHeader";
-import { router } from "expo-router";
+import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
+import { HiveTabBar } from "@/components/hive/HiveTabBar";
+import { Spacing } from "../constants";
+
+const BG_IMAGE = require("../../assets/df.jpg");
 
 export const WEATHER_REGION_KEY = "webee_weather_region";
 export const DATA_INTERVAL_KEY = "webee_data_interval";
@@ -108,29 +119,37 @@ export default function HiveSettingsScreen() {
     KMA_REGIONS.find((r) => r.stn === selectedStn)?.name || "서울";
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <AppHeader title="설정" onBack={() => router.back()} />
+    <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
+      <HiveTabBar  />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          padding: 20,
+          padding: 16,
+          paddingTop: Spacing.sm,
           gap: 16,
-          paddingBottom: insets.bottom + 40,
+          paddingBottom: 100,
         }}
         showsVerticalScrollIndicator={false}
+
       >
-        <BeeBoxCard delay={0}>
+        <BeeBoxCard variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
-            <View className="items-center justify-center rounded-lg bg-[#E8F1FF] p-2">
-              <Feather name="clock" size={18} color="#3182F6" />
+            <View
+              className="items-center justify-center rounded-lg p-2"
+              style={{ backgroundColor: C.bg }}
+            >
+              <Feather name="clock" size={18} color={C.text} />
             </View>
             <View className="flex-1">
-              <Text className="text-[17px] font-bold text-toss-text">
+              <PretendardFont
+                weight="bold"
+                className="text-[18px] text-toss-text"
+              >
                 데이터 기록 주기
-              </Text>
-              <Text className="mt-0.5 text-[13px] leading-[18px] text-toss-sec">
+              </PretendardFont>
+              <PretendardFont className="mt-0.5 text-[14px] leading-[20px] text-toss-sec">
                 센서 데이터를 얼마나 자주 기록할지 선택하세요
-              </Text>
+              </PretendardFont>
             </View>
           </View>
 
@@ -141,103 +160,146 @@ export default function HiveSettingsScreen() {
                 <Pressable
                   key={item.value}
                   onPress={() => handleSelectInterval(item.value)}
-                  className={`flex-1 items-center rounded-xl border py-3 ${isSelected ? "border-toss-blue bg-[#E8F1FF]" : "border-[#E5E8EB] bg-[#F8F9FA]"}`}
+                  className="flex-1 items-center rounded-xl border py-3"
+                  style={{
+                    borderColor: isSelected ? C.primary : C.border,
+                    backgroundColor: isSelected ? C.primarySoft : C.white,
+                  }}
                   data-testid={`button-interval-${item.value}`}
                 >
-                  <Text
-                    className={`text-[15px] ${isSelected ? "font-bold text-toss-blue" : "font-medium text-[#4E5968]"}`}
+                  <PretendardFont
+                    weight={isSelected ? "bold" : "medium"}
+                    style={{
+                      fontSize: 16,
+                      color: isSelected ? C.primary : C.text,
+                    }}
                   >
                     {item.label}
-                  </Text>
+                  </PretendardFont>
                 </Pressable>
               );
             })}
           </View>
 
-          <Text className="mt-3 text-[12px] leading-[17px] text-toss-ter">
+          <PretendardFont className="mt-3 text-[13px] leading-[18px] text-toss-ter">
             주기가 짧을수록 더 정밀한 데이터를 볼 수 있지만, 저장 공간을 더 많이
             사용해요.
-          </Text>
+          </PretendardFont>
         </BeeBoxCard>
 
-        <BeeBoxCard delay={100}>
+        <BeeBoxCard delay={100} variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
-            <View className="items-center justify-center rounded-lg bg-[#E8F1FF] p-2">
-              <Feather name="calendar" size={18} color="#3182F6" />
+            <View
+              className="items-center justify-center rounded-lg p-2"
+              style={{ backgroundColor: C.bg }}
+            >
+              <Feather name="calendar" size={18} color={C.text} />
             </View>
             <View className="flex-1">
-              <Text className="text-[17px] font-bold text-toss-text">
+              <PretendardFont
+                weight="bold"
+                className="text-[18px] text-toss-text"
+              >
                 자동 제어 스케줄
-              </Text>
-              <Text className="mt-0.5 text-[13px] leading-[18px] text-toss-sec">
+              </PretendardFont>
+              <PretendardFont className="mt-0.5 text-[14px] leading-[20px] text-toss-sec">
                 시간대별로 자동 제어를 켜거나 끌 수 있어요
-              </Text>
+              </PretendardFont>
             </View>
           </View>
 
           {scheduleSlots.map((slot, idx) => (
             <View
               key={slot.id}
-              className={`flex-row items-center justify-between py-3.5 ${idx < scheduleSlots.length - 1 ? "border-b border-[#F0F1F3]" : ""}`}
+              className="flex-row items-center justify-between py-3.5"
+              style={{
+                borderBottomWidth: idx < scheduleSlots.length - 1 ? 1 : 0,
+                borderBottomColor: C.border,
+              }}
             >
               <View className="gap-0.5">
-                <Text className="text-[15px] font-semibold text-toss-text">
+                <PretendardFont
+                  weight="semibold"
+                  className="text-[16px] text-toss-text"
+                >
                   {slot.label}
-                </Text>
-                <Text className="text-[13px] text-toss-sec">
+                </PretendardFont>
+                <PretendardFont className="text-[14px] text-toss-sec">
                   {String(slot.startHour).padStart(2, "0")}:00 ~{" "}
                   {String(slot.endHour).padStart(2, "0")}:00
-                </Text>
+                </PretendardFont>
               </View>
               <Switch
                 value={slot.enabled}
                 onValueChange={() => handleToggleSchedule(slot.id)}
-                trackColor={{ false: "#E5E8EB", true: "#D4A017" }}
-                thumbColor="#FFFFFF"
+                trackColor={{ false: C.border, true: C.text }}
+                thumbColor={C.white}
                 data-testid={`switch-schedule-${slot.id}`}
               />
             </View>
           ))}
 
-          <Text className="mt-2 text-[12px] leading-[17px] text-toss-ter">
+          <PretendardFont className="mt-2 text-[13px] leading-[18px] text-toss-ter">
             꺼진 시간대에는 자동 제어가 작동하지 않아요. 수동 제어는 언제든
             가능합니다.
-          </Text>
+          </PretendardFont>
         </BeeBoxCard>
 
-        <BeeBoxCard delay={200}>
+        <BeeBoxCard delay={200} variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
-            <View className="items-center justify-center rounded-lg bg-[#E8F1FF] p-2">
-              <Feather name="map-pin" size={18} color="#3182F6" />
+            <View
+              className="items-center justify-center rounded-lg p-2"
+              style={{ backgroundColor: C.bg }}
+            >
+              <Feather name="map-pin" size={18} color={C.text} />
             </View>
             <View className="flex-1">
-              <Text className="text-[17px] font-bold text-toss-text">
+              <PretendardFont
+                weight="bold"
+                className="text-[18px] text-toss-text"
+              >
                 일기예보 지역 설정
-              </Text>
-              <Text className="mt-0.5 text-[13px] leading-[18px] text-toss-sec">
+              </PretendardFont>
+              <PretendardFont className="mt-0.5 text-[14px] leading-[20px] text-toss-sec">
                 날씨 관측 지역을 선택하세요
-              </Text>
+              </PretendardFont>
             </View>
           </View>
 
-          <View className="mb-3 flex-row items-center justify-between rounded-xl bg-[#F0F6FF] p-3.5">
-            <Text className="text-[15px] font-semibold text-toss-text">
+          <View
+            className="mb-3 flex-row items-center justify-between rounded-xl p-3.5"
+            style={{ backgroundColor: C.bg }}
+          >
+            <PretendardFont
+              weight="semibold"
+              className="text-[16px] text-toss-text"
+            >
               현재 지역
-            </Text>
+            </PretendardFont>
             <View className="flex-row items-center gap-1 rounded-full bg-white px-3 py-1.5">
-              <Feather name="map-pin" size={13} color="#3182F6" />
-              <Text className="text-[15px] font-bold text-toss-blue">
+              <Feather name="map-pin" size={13} color={C.text} />
+              <PretendardFont
+                weight="bold"
+                className="text-[16px] text-toss-blue"
+              >
                 {selectedRegionName}
-              </Text>
+              </PretendardFont>
             </View>
           </View>
 
-          <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-[#E5E8EB] bg-[#F8F9FA] px-3 py-2.5">
-            <Feather name="search" size={16} color="#8B95A1" />
+          <View
+            className="mb-3 flex-row items-center gap-2 rounded-xl px-3 py-2.5"
+            style={{
+              backgroundColor: C.white,
+              borderWidth: 1,
+              borderColor: C.border,
+            }}
+          >
+            <Feather name="search" size={16} color={C.text} />
             <TextInput
-              className="m-0 flex-1 p-0 text-[15px] text-toss-text"
+              className="m-0 flex-1 p-0 text-[16px] text-toss-text"
               placeholder="지역 검색..."
-              placeholderTextColor="#B0B8C1"
+              placeholderTextColor={C.sec}
               value={searchText}
               onChangeText={setSearchText}
               data-testid="input-search-region"
@@ -247,7 +309,7 @@ export default function HiveSettingsScreen() {
                 onPress={() => setSearchText("")}
                 data-testid="button-clear-search"
               >
-                <Feather name="x-circle" size={16} color="#8B95A1" />
+                <Feather name="x-circle" size={16} color={C.text} />
               </Pressable>
             )}
           </View>
@@ -259,27 +321,36 @@ export default function HiveSettingsScreen() {
                 <Pressable
                   key={region.stn}
                   onPress={() => handleSelectRegion(region)}
-                  className={`rounded-full border px-3.5 py-2 ${isSelected ? "border-toss-blue bg-[#E8F1FF]" : "border-[#E5E8EB] bg-[#F8F9FA]"}`}
+                  className="rounded-full px-3.5 py-2"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: isSelected ? C.primary : C.border,
+                    backgroundColor: isSelected ? C.primarySoft : C.white,
+                  }}
                   data-testid={`button-region-${region.stn}`}
                 >
-                  <Text
-                    className={`text-sm ${isSelected ? "font-bold text-toss-blue" : "font-medium text-[#4E5968]"}`}
+                  <PretendardFont
+                    weight={isSelected ? "bold" : "medium"}
+                    style={{
+                      fontSize: 14,
+                      color: isSelected ? C.primary : C.text,
+                    }}
                   >
                     {region.name}
-                  </Text>
+                  </PretendardFont>
                 </Pressable>
               );
             })}
             {filteredRegions.length === 0 && (
-              <Text className="w-full py-5 text-center text-sm text-toss-sec">
+              <PretendardFont className="w-full py-5 text-center text-[14px] text-toss-sec">
                 검색 결과가 없습니다
-              </Text>
+              </PretendardFont>
             )}
           </View>
 
-          <Text className="mt-3 text-[12px] leading-[17px] text-toss-ter">
+          <PretendardFont className="mt-3 text-[13px] leading-[18px] text-toss-ter">
             내 농장에서 가장 가까운 관측소를 선택해 주세요.
-          </Text>
+          </PretendardFont>
         </BeeBoxCard>
       </ScrollView>
 
@@ -289,12 +360,12 @@ export default function HiveSettingsScreen() {
           className="absolute left-0 right-0 z-[999] mx-auto max-w-[200px] flex-row items-center justify-center gap-1.5 self-center rounded-full bg-black/75 px-5 py-2.5"
           style={{ top: insets.top + 60 }}
         >
-          <Feather name="check-circle" size={16} color="#FFFFFF" />
-          <Text className="text-sm font-semibold text-white">
+          <Feather name="check-circle" size={16} color={C.white} />
+          <PretendardFont weight="semibold" className="text-[14px] text-white">
             저장되었습니다!
-          </Text>
+          </PretendardFont>
         </Animated.View>
       )}
-    </View>
+    </ImageBackground>
   );
 }

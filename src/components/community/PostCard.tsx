@@ -1,8 +1,14 @@
+/**
+ * 커뮤니티 게시글 카드
+ * - 작성자(더미) / 제목 / 본문 미리보기 / 좋아요·댓글 수 표시
+ * - memo로 감싸 title·content·likeCount·commentCount 변경 시만 리렌더
+ */
 import { memo } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LikeButton } from "./LikeButton";
 import { formatRelativeTime } from "@/components/community/utils/time";
+import { PretendardFont } from "@/components/PretendardFont";
 import type { PostListItem } from "@/types/community";
 
 interface PostCardProps {
@@ -38,36 +44,35 @@ function PostCardComponent({ post, onPress }: PostCardProps) {
           <Feather name="user" size={14} color="#8b95a1" />
         </View>
         <View className="flex-1 min-w-0">
-          <Text
-            className="text-[13px] font-semibold"
-            style={{ color: "#191f28" }}
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 13, color: "#191f28" }}
             numberOfLines={1}
           >
             농부 · {post.postId}번째 게시글
-          </Text>
-          <Text className="text-[11px]" style={{ color: "#8b95a1" }}>
+          </PretendardFont>
+          <PretendardFont style={{ fontSize: 11, color: "#8b95a1" }}>
             {formatRelativeTime(post.createdAt)}
-          </Text>
+          </PretendardFont>
         </View>
       </View>
 
       {/* 제목 */}
-      <Text
-        className="text-[15px] font-semibold leading-5 mb-1.5"
-        style={{ color: "#191f28" }}
+      <PretendardFont
+        weight="semibold"
+        style={{ fontSize: 15, color: "#191f28", lineHeight: 20, marginBottom: 6 }}
         numberOfLines={2}
       >
         {post.title}
-      </Text>
+      </PretendardFont>
 
       {/* 본문 미리보기 */}
-      <Text
-        className="text-[13px] leading-5 mb-2.5"
-        style={{ color: "#6b7684" }}
+      <PretendardFont
+        style={{ fontSize: 13, color: "#6b7684", lineHeight: 20, marginBottom: 10 }}
         numberOfLines={2}
       >
         {post.content}
-      </Text>
+      </PretendardFont>
 
       {/* 액션 바 */}
       <View
@@ -77,9 +82,9 @@ function PostCardComponent({ post, onPress }: PostCardProps) {
         <LikeButton initialCount={post.likeCount} />
         <View className="flex-row items-center gap-1">
           <Feather name="message-square" size={15} color="#8b95a1" />
-          <Text className="text-xs font-medium" style={{ color: "#8b95a1" }}>
+          <PretendardFont weight="medium" style={{ fontSize: 12, color: "#8b95a1" }}>
             {post.commentCount}
-          </Text>
+          </PretendardFont>
         </View>
       </View>
     </Pressable>

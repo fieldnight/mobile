@@ -1,36 +1,41 @@
-import Animated, { FadeInDown } from "react-native-reanimated";
-
-const C = {
-  primary: "#3182F6",
-  bg: "#F4F5F7",
-  white: "#FFFFFF",
-  text: "#191F28",
-  sec: "#8B95A1",
-  ter: "#B0B8C1",
-  border: "#E5E8EB",
-  success: "#00C853",
-  warning: "#FF9100",
-  error: "#F44336",
-};
+/**
+ * 벌통 카드 컨테이너 (흰색 카드 UI)
+ * - 통계/설정/제어 화면에서 공통 사용하는 카드 래퍼
+ * - variant="setting": 반투명 배경 + 그림자 제거 (설정 화면용)
+ */
+import React from "react";
+import { View, type ViewStyle } from "react-native";
+import { C } from "@/constants/hive-colors";
 
 export function BeeBoxCard({
   children,
-  delay = 0,
   style,
+  variant,
 }: {
   children: React.ReactNode;
   delay?: number;
-  style?: any;
+  style?: ViewStyle;
+  variant?: "setting";
 }) {
+  const isSettingVariant = variant === "setting";
   return (
-    <Animated.View
-      entering={FadeInDown.delay(delay).duration(400).springify()}
+    <View
       style={[
-        { backgroundColor: C.white, borderRadius: 16, padding: 16 },
+        {
+          backgroundColor: isSettingVariant ? "rgba(255,255,255,0.80)" : C.white,
+          borderRadius: 20,
+          padding: 14,
+          shadowColor: C.sec,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.1,
+          shadowRadius: 20,
+          elevation: isSettingVariant ? 0 : 4,
+          ...(isSettingVariant && { marginHorizontal: -12 }),
+        },
         style,
       ]}
     >
       {children}
-    </Animated.View>
+    </View>
   );
 }

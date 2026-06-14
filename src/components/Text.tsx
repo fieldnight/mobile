@@ -1,3 +1,8 @@
+/**
+ * 접근성 폰트 크기 적용 Text 컴포넌트
+ * - 설정(useSettingsStore.fontOffset)에 따라 fontSize를 동적으로 오프셋 적용
+ * - Tailwind 클래스(text-xs~text-3xl)를 파싱해 기준 크기를 자동 추출
+ */
 import { Text as RNText, TextProps } from 'react-native';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 

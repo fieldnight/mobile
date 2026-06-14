@@ -23,9 +23,10 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { View, FlatList } from "react-native";
+import { View, FlatList, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRouter } from "expo-router";
+import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import { usePostList } from "@/features/community/post";
 import { HeroBanner } from "@/components/community/HeroBanner";
 import { ActiveFarmers } from "@/components/community/ActiveFarmers";
@@ -50,6 +51,7 @@ export default function CommunityScreen() {
   const [category, setCategory] = useState<CategoryTab>("all");
   const [sort, setSort] = useState<SortKey>("latest");
   const navigation = useNavigation();
+  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
 
   // desc만 지원 → sort state 변경해도 API 호출은 항상 desc
   const {
@@ -111,7 +113,7 @@ export default function CommunityScreen() {
       style={{ backgroundColor: "#f2f4f6" }}
       edges={["top"]}
     >
-      <AppHeader title="농부의 수다" onBack={() => navigation.goBack()} />
+      <AppHeader title="농부의 수다" onBack={() => navigation.goBack()} isScrolled={isScrolled} />
 
       {/* 본문 */}
       {isError ? (
@@ -123,6 +125,9 @@ export default function CommunityScreen() {
           renderItem={() => <PostCardSkeleton />}
           ListHeaderComponent={ListHeader}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={scrollEventThrottle}
+          contentContainerStyle={{ paddingTop: HEADER_HEIGHT }}
         />
       ) : (
         <FlatList
@@ -136,10 +141,19 @@ export default function CommunityScreen() {
           ListFooterComponent={<LoadMoreFooter loading={isFetchingNextPage} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
-          onRefresh={refetch}
-          refreshing={isRefetching}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor="#EA580C"
+              progressBackgroundColor="#FFFFFF"
+              colors={["#EA580C", "#F59E0B"]}
+            />
+          }
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingTop: HEADER_HEIGHT, paddingBottom: 100 }}
+          onScroll={onScroll}
+          scrollEventThrottle={scrollEventThrottle}
           // 성능 최적화
           removeClippedSubviews
           windowSize={5}

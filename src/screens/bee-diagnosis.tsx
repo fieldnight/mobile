@@ -28,6 +28,7 @@ import type {
 import type { CultivationType } from "@/types/farm";
 import { DISEASE_LABELS } from "@/types/bee-diagnosis";
 import AppHeader from "@/components/AppHeader";
+import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 
 const DISEASE_OPTIONS: { value: BeeDiseaseType | ""; label: string }[] = [
   { value: "", label: "질병 선택" },
@@ -150,6 +151,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 
 export default function BeeDiagnosisScreen() {
   const router = useRouter();
+  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("upload");
   const [formData, setFormData] = useState<FormData>({
@@ -379,11 +381,13 @@ export default function BeeDiagnosisScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["bottom"]}>
       {/* Header */}
-      <AppHeader title="꿀벌 질병 진단 " onBack={() => router.back()} />
+      <AppHeader title="꿀벌 질병 진단 " onBack={handleGoBack} isScrolled={isScrolled} />
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, paddingTop: HEADER_HEIGHT + 16, paddingBottom: 100 }}
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
       >
         {/* Step: Upload */}
         {step === "upload" && (

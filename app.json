@@ -13,17 +13,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "expo": {
-      "android": {
-        "softwareKeyboardLayoutMode": "pan"
-      }
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.webee.mo"
     },
     "android": {
       "package": "com.webee.mo",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",
         "backgroundColor": "#ffffff"
@@ -37,7 +33,8 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      "./plugins/withWeBeeHce"
     ],
     "extra": {
       "WEATHER_API_KEY": "af3abab5447ba09c9b99af1252e0808e",

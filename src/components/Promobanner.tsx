@@ -1,3 +1,10 @@
+/**
+ * 홈 화면 프로모 배너 (가로 슬라이더)
+ * - HIVE / REPORT 2개 슬라이드, SLIDE_INTERVAL마다 자동 전환
+ * - 각 슬라이드 내 카피는 COPY_INTERVAL마다 페이드 전환
+ * - CopyDots: 카피 진행 인디케이터 / AnimatedTitle: 카피 페이드 / TossButton: 스프링 CTA 버튼
+ * - 사용자가 수동 스크롤 시 타이머 리셋(resetSlideTimer)
+ */
 import { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -56,7 +63,7 @@ const SLIDES = [
     dotInactive: "rgba(6,95,70,0.2)",
     ctaColor: "#5f0634",
     ctaLabel: "AI에게 물어보기",
-    route: "/ai-report",
+    route: "/bee-chat",
   },
 ];
 
@@ -176,9 +183,8 @@ function TossButton({
         }}
       >
         <PretendardFont weight="medium" style={{ color }}>
-          {label}
+          {label} ›
         </PretendardFont>
-        <Text style={{ fontSize: 15, lineHeight: 18 }}> ›</Text>
       </Animated.View>
     </Pressable>
   );
@@ -256,7 +262,7 @@ export function PromoBanner() {
         renderItem={({ item, index }) => (
           <ImageBackground
             source={item.image}
-            style={{ width: BANNER_WIDTH, height: 240, overflow: "hidden" }}
+            style={{ width: BANNER_WIDTH, height: 250, overflow: "hidden" }}
             className="rounded-[18px]"
             imageStyle={{ borderRadius: 18 }}
             resizeMode="cover"

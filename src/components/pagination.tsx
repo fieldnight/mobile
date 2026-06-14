@@ -6,14 +6,15 @@
  */
 
 import { memo } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
+import { PretendardFont } from "@/components/PretendardFont";
 
 interface PaginationProps {
   page: number;
   totalPages: number;
   onPage: (p: number) => void;
-  groupSize?: number; // 한 번에 보여줄 페이지 수 (기본 5)
+  groupSize?: number;
 }
 
 const Pagination = memo(
@@ -27,7 +28,6 @@ const Pagination = memo(
 
     return (
       <View style={styles.pagination}>
-        {/* 이전 */}
         <Pressable
           onPress={() => page > 1 && onPage(page - 1)}
           disabled={page <= 1}
@@ -40,39 +40,33 @@ const Pagination = memo(
           />
         </Pressable>
 
-        {/* 앞 그룹 */}
         {start > 1 && (
           <Pressable onPress={() => onPage(start - 1)} style={styles.pageBtn}>
-            <Text style={styles.pageBtnText}>···</Text>
+            <PretendardFont weight="medium" style={styles.pageBtnText}>···</PretendardFont>
           </Pressable>
         )}
 
-        {/* 페이지 번호 */}
         {pages.map((p) => (
           <Pressable
             key={p}
             onPress={() => onPage(p)}
             style={[styles.pageBtn, p === page && styles.pageBtnActive]}
           >
-            <Text
-              style={[
-                styles.pageBtnText,
-                p === page && styles.pageBtnTextActive,
-              ]}
+            <PretendardFont
+              weight={p === page ? "bold" : "medium"}
+              style={[styles.pageBtnText, p === page && styles.pageBtnTextActive]}
             >
               {p}
-            </Text>
+            </PretendardFont>
           </Pressable>
         ))}
 
-        {/* 뒤 그룹 */}
         {end < totalPages && (
           <Pressable onPress={() => onPage(end + 1)} style={styles.pageBtn}>
-            <Text style={styles.pageBtnText}>···</Text>
+            <PretendardFont weight="medium" style={styles.pageBtnText}>···</PretendardFont>
           </Pressable>
         )}
 
-        {/* 다음 */}
         <Pressable
           onPress={() => page < totalPages && onPage(page + 1)}
           disabled={page >= totalPages}
@@ -114,11 +108,9 @@ const styles = StyleSheet.create({
   },
   pageBtnText: {
     fontSize: 14,
-    fontWeight: "500",
     color: "#6b7280",
   },
   pageBtnTextActive: {
     color: "#111827",
-    fontWeight: "700",
   },
 });

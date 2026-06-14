@@ -1,5 +1,11 @@
+/**
+ * 사이드 메뉴 (슬라이드인 드로어)
+ * - 왼쪽에서 슬라이드인, 딤 배경 탭/X 버튼으로 닫힘
+ * - 메뉴 항목 탭 시 햅틱 피드백 + 페이지 이동
+ * - SafeArea inset을 적용해 노치/상태바 아래에 콘텐츠 시작
+ */
 import React from "react";
-import { View, Text, Pressable, Modal, Dimensions, Image } from "react-native";
+import { View, Pressable, Modal, Dimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
@@ -8,6 +14,7 @@ import Animated, {
   useSharedValue,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { PretendardFont } from "@/components/PretendardFont";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MENU_WIDTH = SCREEN_WIDTH * 0.75;
@@ -19,11 +26,11 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { id: "bee-diagnosis", title: "꿀벌 질병 진단", icon: "activity" },
+  { id: "bee-diagnosis", title: "벌 건강검진", icon: "activity" },
   { id: "recommend", title: "수정벌 추천", icon: "thumbs-up" },
-  { id: "bee-news", title: "수정벌 뉴스", icon: "file-text" },
-  { id: "bee-chat", title: "채팅 및 문의", icon: "dribbble" },
-  { id: "pesticide", title: "맞춤 농약", icon: "droplet" },
+  { id: "bee-news", title: "관심뉴스", icon: "file-text" },
+  { id: "bee-chat", title: "뭐 물어볼래?", icon: "dribbble" },
+  { id: "pesticide", title: "안심농약찾기", icon: "droplet" },
 ];
 
 interface SideMenuProps {
@@ -76,7 +83,6 @@ export function SideMenu({ visible, onClose, onMenuPress }: SideMenuProps) {
       onRequestClose={onClose}
     >
       <View className="flex-1">
-        {/* Overlay */}
         <Animated.View
           className="absolute inset-0 bg-black/40"
           style={overlayStyle}
@@ -84,7 +90,6 @@ export function SideMenu({ visible, onClose, onMenuPress }: SideMenuProps) {
           <Pressable className="flex-1" onPress={handleClose} />
         </Animated.View>
 
-        {/* Menu */}
         <Animated.View
           className="absolute left-0 top-0 bottom-0 bg-white px-5"
           style={[
@@ -92,7 +97,6 @@ export function SideMenu({ visible, onClose, onMenuPress }: SideMenuProps) {
             menuStyle,
           ]}
         >
-          {/* Header */}
           <View className="flex-row items-center justify-between mb-6 pb-4 border-b border-gray-100">
             <Image
               source={require("../../assets/branding/webee_logo.png")}
@@ -104,7 +108,6 @@ export function SideMenu({ visible, onClose, onMenuPress }: SideMenuProps) {
             </Pressable>
           </View>
 
-          {/* Menu Items */}
           <View className="flex-1">
             {menuItems.map((item) => (
               <Pressable
@@ -115,17 +118,16 @@ export function SideMenu({ visible, onClose, onMenuPress }: SideMenuProps) {
                 <View className="w-10 h-10 rounded-xl bg-main-500 items-center justify-center mr-3">
                   <Feather name={item.icon} size={20} color="#F59E0B" />
                 </View>
-                <Text className="flex-1 text-base font-medium text-gray-900">
+                <PretendardFont weight="medium" className="flex-1 text-base text-gray-900">
                   {item.title}
-                </Text>
+                </PretendardFont>
                 <Feather name="chevron-right" size={18} color="#C7C7CC" />
               </Pressable>
             ))}
           </View>
 
-          {/* Footer */}
           <View className="py-4 items-center">
-            <Text className="text-xs text-gray-600">v1.0.0</Text>
+            <PretendardFont className="text-xs text-gray-600">v1.0.0</PretendardFont>
           </View>
         </Animated.View>
       </View>

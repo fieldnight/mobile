@@ -1,6 +1,13 @@
+/**
+ * 공용 텍스트 입력 컴포넌트
+ * - label: 입력창 위 라벨 텍스트 (선택)
+ * - error: 하단 오류 메시지 표시 + 빨간 테두리 (선택)
+ * - TextInputProps 전체 지원 (placeholder, keyboardType 등)
+ */
 import React from 'react';
-import { View, Text, TextInput, TextInputProps } from 'react-native';
+import { View, TextInput, TextInputProps } from 'react-native';
 import { clsx } from 'clsx';
+import { PretendardFont } from '@/components/PretendardFont';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -18,9 +25,9 @@ export function Input({
   return (
     <View className={clsx('w-full', containerClassName)}>
       {label && (
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <PretendardFont weight="medium" className="text-sm text-gray-700 mb-2">
           {label}
-        </Text>
+        </PretendardFont>
       )}
       <TextInput
         className={clsx(
@@ -33,9 +40,9 @@ export function Input({
         {...props}
       />
       {error && (
-        <Text className="text-sm text-red-500 mt-1">
+        <PretendardFont className="text-sm text-red-500 mt-1">
           {error}
-        </Text>
+        </PretendardFont>
       )}
     </View>
   );
