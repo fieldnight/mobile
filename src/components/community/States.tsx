@@ -1,3 +1,10 @@
+/**
+ * 커뮤니티 상태 UI 컴포넌트
+ * - PostCardSkeleton: 게시글 목록 로딩 중 스켈레톤
+ * - EmptyState: 게시글 없을 때 빈 상태 (글쓰기 버튼 선택 제공)
+ * - ErrorState: 네트워크 오류 상태 + 재시도 버튼
+ * - LoadMoreFooter: 무한 스크롤 다음 페이지 로딩 스피너
+ */
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";

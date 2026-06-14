@@ -1,3 +1,9 @@
+/**
+ * 커뮤니티 좋아요 버튼
+ * - 탭 시 낙관적 카운트 업/다운 + 하트 스프링 바운스
+ * - 좋아요 활성화 시 하트 파티클 float 애니메이션
+ * - initialLiked / initialCount prop 변경 시 내부 상태 동기화
+ */
 import { useState, useRef, useEffect } from "react";
 import { Pressable, Animated, Easing, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";

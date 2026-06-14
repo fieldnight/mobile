@@ -1,3 +1,8 @@
+/**
+ * 커뮤니티 상단 히어로 배너
+ * - 어두운 배경 + SVG 벌통 일러스트 (위아래 float 루프 애니메이션)
+ * - 커뮤니티 소개 문구 + 주황색 액센트
+ */
 import { View, Animated, Easing } from "react-native";
 import { useEffect, useRef } from "react";
 import Svg, {

@@ -1,3 +1,8 @@
+/**
+ * 커뮤니티 게시글 카드
+ * - 작성자(더미) / 제목 / 본문 미리보기 / 좋아요·댓글 수 표시
+ * - memo로 감싸 title·content·likeCount·commentCount 변경 시만 리렌더
+ */
 import { memo } from "react";
 import { View, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";

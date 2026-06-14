@@ -1,3 +1,11 @@
+/**
+ * 커스텀 당겨서 새로고침 컴포넌트
+ * - PullToRefresh: ScrollView 래퍼, onRefresh 완료까지 스피너 유지
+ *   - isRefreshingRef로 중복 호출 방지
+ *   - isRefreshing을 deps에서 제거 → handleRefresh 재생성 방지 (스피너 사라짐 버그 회피)
+ *   - Android: progressViewOffset=56 으로 AppHeader 아래에 스피너 표시
+ * - RotatingRefreshIcon: 헤더 우측 등에 사용하는 단독 회전 아이콘
+ */
 import React, { useCallback, useRef, forwardRef } from "react";
 import {
   View,

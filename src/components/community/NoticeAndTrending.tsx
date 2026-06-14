@@ -1,3 +1,8 @@
+/**
+ * 커뮤니티 공지·트렌딩 섹션
+ * - PinnedNotice: 상단 고정 공지 카드 (constants에서 데이터 주입)
+ * - TrendingTags: 지금 뜨는 해시태그 칩 목록 (constants에서 데이터 주입)
+ */
 import { View, Pressable } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";

@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import {
   View,
-  Text,
   Alert,
   Pressable,
   Platform,
@@ -18,9 +17,11 @@ import {
   useSaveRecommendation,
   getBeeTypeEnum,
 } from "@/features/recommendation";
-import { Card } from "@/components/Card";
+import { Card } from "@/components/hive/hive-shared";
 import { CropGuideSection } from "@/components/recommend/CropGuideSection";
 import { PretendardFont } from "@/components/PretendardFont";
+import { PageTitle } from "@/components/PageTitle";
+import { C } from "@/constants/hive-colors";
 import type {
   BeeRecommendationAiResponse,
   BeeRecommendationSaveRequest,
@@ -36,22 +37,42 @@ function formatDateKorean(dateStr: string) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-// 작물 이모지 맵핑
-function getCropEmoji(name: string): string {
-  const emojiMap: Record<string, string> = {
-    딸기: "🍓",
-    토마토: "🍅",
-    고추: "🌶️",
-    오이: "🥒",
-    호박: "🎃",
-    수박: "🍉",
-    참외: "🍈",
-    멜론: "🍈",
-    블루베리: "🫐",
-    사과: "🍎",
-    배: "🍐",
-  };
-  return emojiMap[name] || "🌱";
+function triggerHaptic(style: "light" | "medium") {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(
+      style === "light"
+        ? Haptics.ImpactFeedbackStyle.Light
+        : Haptics.ImpactFeedbackStyle.Medium,
+    );
+  }
+}
+
+// ── 섹션 헤더 (얇은 액센트 바 + 제목) — 미니멀 ─────────────────────────────────
+function SectionHeader({
+  title,
+  accent = C.primary,
+}: {
+  title: string;
+  accent?: string;
+}) {
+  return (
+    <View
+      className="flex-row items-center"
+      style={{ gap: 9, marginBottom: 16 }}
+    >
+      <View
+        style={{
+          width: 3.5,
+          height: 16,
+          borderRadius: 2,
+          backgroundColor: accent,
+        }}
+      />
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+        {title}
+      </PretendardFont>
+    </View>
+  );
 }
 
 type Tab = "farm" | "crop";
@@ -65,32 +86,17 @@ export default function RecommendScreen() {
   );
   const [selectedCrop, setSelectedCrop] = useState<UserCrop | null>(null);
 
-  // 사용자 농지 목록 조회 (최신순 정렬)
   const {
     data: crops,
     isLoading: cropsLoading,
     refetch: refetchFarms,
   } = useFarmList();
-
-  // AI 추천 요청
   const recommendMutation = useAiRecommendation();
-
-  // 추천 결과 저장
   const saveMutation = useSaveRecommendation();
 
   const handleRefresh = useCallback(async () => {
     await refetchFarms();
   }, [refetchFarms]);
-
-  const triggerHaptic = (style: "light" | "medium") => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(
-        style === "light"
-          ? Haptics.ImpactFeedbackStyle.Light
-          : Haptics.ImpactFeedbackStyle.Medium,
-      );
-    }
-  };
 
   const handleGetRecommendation = (crop: UserCrop) => {
     triggerHaptic("medium");
@@ -128,13 +134,16 @@ export default function RecommendScreen() {
   const beeInfo = result
     ? BEE_TYPE_INFO[result.beeType.toUpperCase()] || {
         icon: "zap",
-        color: "#7C4DFF",
+        color: C.primary,
       }
     : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-100" edges={["bottom"]}>
-      {/* Header */}
+    <SafeAreaView
+      className="flex-1"
+      style={{ backgroundColor: C.bg }}
+      edges={["bottom"]}
+    >
       <AppHeader
         title="수정벌 추천"
         onBack={() => router.back()}
@@ -147,19 +156,20 @@ export default function RecommendScreen() {
           padding: 16,
           paddingTop: HEADER_HEIGHT + 16,
           paddingBottom: 100,
+          gap: 16,
         }}
+        showsVerticalScrollIndicator={false}
         onRefresh={handleRefresh}
         onScroll={onScroll}
         scrollEventThrottle={scrollEventThrottle}
       >
-        {/* 탭 전환 */}
+        {/* 탭 전환 (세그먼트 컨트롤) */}
         <View
           style={{
             flexDirection: "row",
-            backgroundColor: "#F3F4F6",
+            backgroundColor: "#EDEFF2",
             borderRadius: 14,
             padding: 4,
-            marginBottom: 16,
           }}
         >
           {(
@@ -167,285 +177,394 @@ export default function RecommendScreen() {
               { key: "farm", label: "농지 기반 AI 추천" },
               { key: "crop", label: "작물별 가이드" },
             ] as { key: Tab; label: string }[]
-          ).map(({ key, label }) => (
-            <Pressable
-              key={key}
-              onPress={() => {
-                setActiveTab(key);
-                if (Platform.OS !== "web") {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
-              }}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                alignItems: "center",
-                backgroundColor: activeTab === key ? "#FFFFFF" : "transparent",
-                shadowColor: activeTab === key ? "#000" : "transparent",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: activeTab === key ? 0.08 : 0,
-                shadowRadius: 2,
-                elevation: activeTab === key ? 2 : 0,
-              }}
-            >
-              <PretendardFont
-                weight="bold"
+          ).map(({ key, label }) => {
+            const active = activeTab === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => {
+                  setActiveTab(key);
+                  triggerHaptic("light");
+                }}
                 style={{
-                  fontSize: 13,
-                  color: activeTab === key ? "#2563EB" : "#6B7280",
+                  flex: 1,
+                  paddingVertical: 11,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  backgroundColor: active ? C.white : "transparent",
+                  shadowColor: active ? "#64748B" : "transparent",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: active ? 0.12 : 0,
+                  shadowRadius: 4,
+                  elevation: active ? 2 : 0,
                 }}
               >
-                {label}
-              </PretendardFont>
-            </Pressable>
-          ))}
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 13, color: active ? C.primary : C.sec }}
+                >
+                  {label}
+                </PretendardFont>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* 작물별 가이드 탭 */}
+        {/* ── 작물별 가이드 탭 ─────────────────────────────────────────── */}
         {activeTab === "crop" && <CropGuideSection />}
 
-        {/* 농지 기반 AI 추천 탭 */}
+        {/* ── 농지 기반 AI 추천 탭 ─────────────────────────────────────── */}
         {activeTab === "farm" &&
           (!result ? (
             <>
+              <PageTitle
+                title={"농지 기반\nAI 수정벌 추천"}
+                subtitle="등록된 농지 정보로 가장 알맞은 수정벌을 추천해드려요"
+              />
+
               {/* 추천 기록 바로가기 */}
               <Pressable
                 onPress={() => router.push("/recommend-history")}
-                className="active:scale-[0.98]"
+                className="active:opacity-80"
               >
-                <Card className="mb-4">
-                  <View className="flex-row items-center">
-                    <View className="w-12 h-12 rounded-full bg-purple-100 items-center justify-center mr-3">
-                      <Feather name="clock" size={22} color="#7C4DFF" />
+                <Card style={{ padding: 14 }}>
+                  <View className="flex-row items-center" style={{ gap: 12 }}>
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: C.primarySoft,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Feather name="clock" size={20} color={C.primary} />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-base font-semibold text-gray-900">
-                        추천 기록
-                      </Text>
-                      <Text className="text-sm text-gray-500">
-                        이전에 받은 추천 결과 보기
-                      </Text>
+                      <PretendardFont
+                        weight="bold"
+                        style={{ fontSize: 15, color: C.text }}
+                      >
+                        지난 추천 기록
+                      </PretendardFont>
+                      <PretendardFont
+                        style={{ fontSize: 12.5, color: C.sec, marginTop: 1 }}
+                      >
+                        이전에 받은 추천 결과를 다시 확인하세요
+                      </PretendardFont>
                     </View>
-                    <Feather name="chevron-right" size={20} color="#9CA3AF" />
+                    <Feather name="chevron-right" size={20} color={C.ter} />
                   </View>
                 </Card>
               </Pressable>
 
-              {/* 농지 목록 또는 로딩 */}
+              {/* 농지 목록 */}
               {cropsLoading ? (
-                <Card className="items-center py-12">
-                  <ActivityIndicator size="large" color="#3B82F6" />
-                  <Text className="text-gray-500 mt-4">
+                <Card className="items-center" style={{ paddingVertical: 48 }}>
+                  <ActivityIndicator size="large" color={C.primary} />
+                  <PretendardFont
+                    style={{ fontSize: 14, color: C.sec, marginTop: 14 }}
+                  >
                     농지 정보를 불러오는 중...
-                  </Text>
+                  </PretendardFont>
                 </Card>
               ) : !crops || crops.length === 0 ? (
-                <Card className="items-center py-12">
-                  <View className="w-16 h-16 rounded-full bg-gray-100 items-center justify-center mb-4">
-                    <Feather name="alert-circle" size={32} color="#9CA3AF" />
+                <Card className="items-center" style={{ paddingVertical: 44 }}>
+                  <View
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 30,
+                      backgroundColor: C.bg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Feather name="map-pin" size={26} color={C.ter} />
                   </View>
-                  <Text className="text-lg font-semibold text-gray-900 mb-2">
-                    등록된 농지가 없습니다
-                  </Text>
-                  <Text className="text-gray-500 text-center mb-4">
-                    농지를 먼저 등록해주세요
-                  </Text>
+                  <PretendardFont
+                    weight="bold"
+                    style={{ fontSize: 16, color: C.text, marginBottom: 6 }}
+                  >
+                    등록된 농지가 없어요
+                  </PretendardFont>
+                  <PretendardFont
+                    style={{
+                      fontSize: 13,
+                      color: C.sec,
+                      textAlign: "center",
+                      marginBottom: 20,
+                    }}
+                  >
+                    농지를 먼저 등록하면 AI 추천을 받을 수 있어요
+                  </PretendardFont>
                   <Pressable
                     onPress={() => router.push("/add-farm")}
-                    className="bg-blue-600 px-6 py-3 rounded-xl"
+                    className="flex-row items-center active:opacity-90"
+                    style={{
+                      gap: 6,
+                      backgroundColor: C.primary,
+                      paddingHorizontal: 22,
+                      height: 48,
+                      borderRadius: 14,
+                    }}
                   >
-                    <Text className="text-white font-semibold">
+                    <Feather name="plus" size={18} color={C.white} />
+                    <PretendardFont
+                      weight="bold"
+                      style={{ fontSize: 14, color: C.white }}
+                    >
                       농지 등록하기
-                    </Text>
+                    </PretendardFont>
                   </Pressable>
                 </Card>
               ) : (
-                <View className="gap-3">
-                  {crops.map((crop) => (
-                    <Card key={crop.id}>
-                      {/* 작물 정보 */}
-                      <View className="flex-row items-center mb-4 pb-4 border-b border-gray-100">
-                        <View className="w-14 h-14 rounded-full bg-gray-100 items-center justify-center mr-3">
-                          <Text className="text-2xl">
-                            {getCropEmoji(crop.name || "")}
-                          </Text>
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-xl font-bold text-gray-900">
-                            {crop.name || "미지정"}
-                          </Text>
-                          {crop.variety &&
-                            crop.variety !== "0" &&
-                            crop.variety.trim() !== "" && (
-                              <Text className="text-sm text-gray-500">
-                                {crop.variety}
-                              </Text>
-                            )}
-                        </View>
-                      </View>
-
-                      {/* 상세 정보 */}
-                      <View className="gap-2 mb-4">
-                        <View className="flex-row justify-between">
-                          <Text className="text-sm text-gray-500">
-                            재배 방식
-                          </Text>
-                          <Text className="text-sm font-medium text-gray-900">
-                            {CULTIVATION_TYPE_LABELS[crop.cultivationType]}
-                          </Text>
-                        </View>
-                        {crop.cultivationAddress && (
-                          <View className="flex-row justify-between">
-                            <Text className="text-sm text-gray-500">
-                              재배 지역
-                            </Text>
-                            <Text className="text-sm font-medium text-gray-900">
-                              {crop.cultivationAddress}
-                            </Text>
-                          </View>
+                crops.map((crop, i) => {
+                  const isPending =
+                    recommendMutation.isPending && selectedCrop?.id === crop.id;
+                  const hasVariety =
+                    !!crop.variety &&
+                    crop.variety !== "0" &&
+                    crop.variety.trim() !== "";
+                  const infoItems = [
+                    CULTIVATION_TYPE_LABELS[crop.cultivationType],
+                    crop.cultivationAddress || null,
+                    `${crop.cultivationArea.toLocaleString()}㎡`,
+                    `정식일 ${crop.plantingDate}`,
+                  ].filter(Boolean) as string[];
+                  return (
+                    <Card key={crop.id} delay={i * 60}>
+                      {/* 작물 헤더 */}
+                      <View className="flex-row items-baseline mb-4 gap-2 ml-2">
+                        <PretendardFont
+                          weight="bold"
+                          style={{ fontSize: 19, color: C.text }}
+                        >
+                          {crop.name || "미지정"}
+                        </PretendardFont>
+                        {hasVariety && (
+                          <PretendardFont>{crop.variety}</PretendardFont>
                         )}
-                        <View className="flex-row justify-between">
-                          <Text className="text-sm text-gray-500">
-                            재배 면적
-                          </Text>
-                          <Text className="text-sm font-medium text-gray-900">
-                            {crop.cultivationArea.toLocaleString()}㎡
-                          </Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                          <Text className="text-sm text-gray-500">정식일</Text>
-                          <Text className="text-sm font-medium text-gray-900">
-                            {crop.plantingDate}
-                          </Text>
-                        </View>
                       </View>
 
-                      {/* 추천 버튼 */}
+                      {/* 정보 박스 (row 배열, 라벨 생략 · 정식일만 표기) */}
+                      <View className="flex-row items-center gap-8 ">
+                        {infoItems.map((it, idx) => (
+                          <View key={idx} className="flex-row items-center">
+                            {idx > 0 && <View />}
+                            <PretendardFont
+                              weight="semibold"
+                              style={{ fontSize: 15, color: C.text }}
+                            >
+                              {it}
+                            </PretendardFont>
+                          </View>
+                        ))}
+                      </View>
+
+                      {/* CTA */}
                       <Pressable
                         onPress={() => handleGetRecommendation(crop)}
                         disabled={recommendMutation.isPending}
-                        className="flex-row items-center justify-center gap-2 bg-blue-600 h-12 rounded-xl active:bg-blue-700"
+                        className="flex-row items-center justify-center active:opacity-90 rounded-xl h-40 bg-[#F0A878]"
                       >
-                        {recommendMutation.isPending &&
-                        selectedCrop?.id === crop.id ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        {isPending ? (
+                          <ActivityIndicator size="small" color={C.white} />
                         ) : (
                           <>
-                            <Text className="text-base font-semibold text-white">
+                            <PretendardFont
+                              weight="bold"
+                              style={{ fontSize: 16, color: C.white }}
+                            >
                               AI 수정벌 추천 받기
-                            </Text>
-                            <Feather
-                              name="arrow-right"
-                              size={18}
-                              color="#FFFFFF"
-                            />
+                            </PretendardFont>
                           </>
                         )}
                       </Pressable>
                     </Card>
-                  ))}
-                </View>
+                  );
+                })
               )}
             </>
           ) : (
             <>
-              {/* 추천 결과: 수정벌 타입 */}
-              <Card className="mb-4">
-                <View className="flex-row items-center">
+              <PageTitle
+                title="AI 추천 결과"
+                subtitle={`${selectedCrop?.name ?? "작물"}에 가장 알맞은 수정벌이에요`}
+              />
+
+              {/* 추천 수정벌 (히어로) */}
+              <Card>
+                <View className="flex-row items-center" style={{ gap: 14 }}>
                   <View
-                    className="w-16 h-16 rounded-full items-center justify-center mr-4"
-                    style={{ backgroundColor: `${beeInfo?.color}20` }}
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 16,
+                      backgroundColor: `${beeInfo?.color}14`,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
                   >
                     <Feather
                       name={beeInfo?.icon as any}
-                      size={32}
+                      size={26}
                       color={beeInfo?.color}
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-sm text-gray-500 mb-1">
+                    <PretendardFont
+                      style={{ fontSize: 13, color: C.sec, marginBottom: 3 }}
+                    >
                       추천 수정벌
-                    </Text>
-                    <Text className="text-2xl font-bold text-gray-900">
+                    </PretendardFont>
+                    <PretendardFont
+                      weight="bold"
+                      style={{ fontSize: 22, color: C.text }}
+                    >
                       {result.beeType}
-                    </Text>
+                    </PretendardFont>
                   </View>
                 </View>
-              </Card>
 
-              {/* 투입 기간 */}
-              <Card className="mb-4 items-center">
-                <View className="flex-row items-center gap-2 bg-blue-50 px-5 py-3 rounded-full">
-                  <Feather name="calendar" size={18} color="#3B82F6" />
-                  <Text className="text-base font-semibold text-blue-600">
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: C.border,
+                    marginVertical: 16,
+                  }}
+                />
+
+                {/* 권장 투입 기간 */}
+                <View className="flex-row items-center justify-between">
+                  <PretendardFont
+                    weight="semibold"
+                    style={{ fontSize: 14, color: C.sec }}
+                  >
+                    권장 투입 기간
+                  </PretendardFont>
+                  <PretendardFont
+                    weight="bold"
+                    style={{ fontSize: 16, color: C.text }}
+                  >
                     {formatDateKorean(result.inputStartDate)} ~{" "}
                     {formatDateKorean(result.inputEndDate)}
-                  </Text>
+                  </PretendardFont>
                 </View>
-                <Text className="text-xs text-gray-500 mt-2">
-                  권장 투입 기간
-                </Text>
               </Card>
 
-              {/* 특징 */}
-              <Card className="mb-4">
-                <Text className="text-lg font-semibold text-gray-900 mb-3">
-                  수정벌 특징
-                </Text>
+              {/* 수정벌 특징 */}
+              <Card>
+                <SectionHeader title="수정벌 특징" accent={C.success} />
                 {result.characteristics.map((char, index) => (
-                  <View key={index} className="flex-row items-start mb-3">
-                    <View className="w-5 h-5 rounded-full bg-green-100 items-center justify-center mr-3 mt-0.5">
-                      <Feather name="check" size={12} color="#10B981" />
-                    </View>
-                    <Text className="flex-1 text-base text-gray-700 leading-6">
+                  <View
+                    key={index}
+                    className="flex-row items-start"
+                    style={{
+                      gap: 10,
+                      marginBottom:
+                        index === result.characteristics.length - 1 ? 0 : 13,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 2.5,
+                        backgroundColor: C.success,
+                        marginTop: 9,
+                      }}
+                    />
+                    <PretendardFont
+                      style={{
+                        flex: 1,
+                        fontSize: 15.5,
+                        color: C.text,
+                        lineHeight: 24,
+                      }}
+                    >
                       {char}
-                    </Text>
+                    </PretendardFont>
                   </View>
                 ))}
               </Card>
 
               {/* 사용 팁 */}
-              <Card className="mb-4">
-                <Text className="text-lg font-semibold text-gray-900 mb-3">
-                  사용 팁
-                </Text>
+              <Card>
+                <SectionHeader title="사용 팁" accent={C.primary} />
                 {result.usageTip.map((tip, index) => (
-                  <View key={index} className="flex-row items-start mb-3">
-                    <View className="w-6 h-6 rounded-full bg-blue-600 items-center justify-center mr-3">
-                      <Text className="text-xs font-semibold text-white">
-                        {index + 1}
-                      </Text>
-                    </View>
-                    <Text className="flex-1 text-base text-gray-700 leading-6">
+                  <View
+                    key={index}
+                    className="flex-row items-start"
+                    style={{
+                      gap: 12,
+                      marginBottom:
+                        index === result.usageTip.length - 1 ? 0 : 13,
+                    }}
+                  >
+                    <PretendardFont
+                      weight="bold"
+                      style={{
+                        fontSize: 14,
+                        color: C.primary,
+                        width: 16,
+                        lineHeight: 24,
+                      }}
+                    >
+                      {index + 1}
+                    </PretendardFont>
+                    <PretendardFont
+                      style={{
+                        flex: 1,
+                        fontSize: 15.5,
+                        color: C.text,
+                        lineHeight: 24,
+                      }}
+                    >
                       {tip}
-                    </Text>
+                    </PretendardFont>
                   </View>
                 ))}
               </Card>
 
               {/* 주의사항 */}
-              <Card className="mb-4">
-                <View className="flex-row items-center gap-2 mb-3">
-                  <Feather name="alert-triangle" size={20} color="#F59E0B" />
-                  <Text className="text-lg font-semibold text-amber-600">
-                    주의사항
-                  </Text>
-                </View>
+              <Card>
+                <SectionHeader title="주의사항" accent={C.warning} />
                 {result.caution.map((caution, index) => (
                   <View
                     key={index}
-                    className="flex-row items-start bg-amber-50 p-3 rounded-lg mb-2"
+                    className="flex-row items-start"
+                    style={{
+                      gap: 10,
+                      marginBottom: index === result.caution.length - 1 ? 0 : 12,
+                    }}
                   >
-                    <View className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2 mr-3" />
-                    <Text className="flex-1 text-sm text-gray-700 leading-5">
+                    <View
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 2.5,
+                        backgroundColor: C.warning,
+                        marginTop: 9,
+                      }}
+                    />
+                    <PretendardFont
+                      style={{
+                        flex: 1,
+                        fontSize: 15,
+                        color: C.text,
+                        lineHeight: 23,
+                      }}
+                    >
                       {caution}
-                    </Text>
+                    </PretendardFont>
                   </View>
                 ))}
               </Card>
 
-              {/* 저장 및 기타 버튼 */}
+              {/* 저장 및 기타 */}
               <Card>
                 <Pressable
                   onPress={() => {
@@ -482,53 +601,85 @@ export default function RecommendScreen() {
                     });
                   }}
                   disabled={saveMutation.isPending}
-                  className="flex-row items-center justify-center gap-2 bg-blue-600 h-14 rounded-xl active:bg-blue-700"
+                  className="flex-row items-center justify-center active:opacity-90"
+                  style={{
+                    gap: 8,
+                    height: 54,
+                    borderRadius: 14,
+                    backgroundColor: C.primary,
+                  }}
                 >
                   {saveMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color={C.white} />
                   ) : (
                     <>
-                      <Feather name="bookmark" size={22} color="#FFFFFF" />
-                      <Text className="text-base font-bold text-white">
+                      <Feather name="bookmark" size={20} color={C.white} />
+                      <PretendardFont
+                        weight="bold"
+                        style={{ fontSize: 16, color: C.white }}
+                      >
                         추천 결과 저장하기
-                      </Text>
+                      </PretendardFont>
                     </>
                   )}
                 </Pressable>
 
-                {/* 구매처 찾기, 공유하기 버튼 */}
-                <View className="flex-row gap-3 mt-3">
+                <View className="flex-row" style={{ gap: 10, marginTop: 12 }}>
                   <Pressable
                     onPress={() => {
                       triggerHaptic("light");
                       router.push("/market");
                     }}
-                    className="flex-1 flex-row items-center justify-center gap-2 bg-gray-100 h-12 rounded-xl active:bg-gray-200"
+                    className="flex-1 flex-row items-center justify-center active:opacity-80"
+                    style={{
+                      gap: 6,
+                      backgroundColor: C.bg,
+                      height: 48,
+                      borderRadius: 12,
+                    }}
                   >
-                    <Feather name="shopping-bag" size={18} color="#6B7280" />
-                    <Text className="text-sm font-semibold text-gray-600">
+                    <Feather name="shopping-bag" size={17} color={C.sec} />
+                    <PretendardFont
+                      weight="semibold"
+                      style={{ fontSize: 13.5, color: C.textAlt }}
+                    >
                       구매처 찾기
-                    </Text>
+                    </PretendardFont>
                   </Pressable>
                   <Pressable
                     onPress={() => {
                       triggerHaptic("light");
                       Alert.alert("공유하기", "공유 기능은 준비 중입니다");
                     }}
-                    className="flex-1 flex-row items-center justify-center gap-2 bg-gray-100 h-12 rounded-xl active:bg-gray-200"
+                    className="flex-1 flex-row items-center justify-center active:opacity-80"
+                    style={{
+                      gap: 6,
+                      backgroundColor: C.bg,
+                      height: 48,
+                      borderRadius: 12,
+                    }}
                   >
-                    <Feather name="share-2" size={18} color="#6B7280" />
-                    <Text className="text-sm font-semibold text-gray-600">
+                    <Feather name="share-2" size={17} color={C.sec} />
+                    <PretendardFont
+                      weight="semibold"
+                      style={{ fontSize: 13.5, color: C.textAlt }}
+                    >
                       공유하기
-                    </Text>
+                    </PretendardFont>
                   </Pressable>
                 </View>
 
                 <Pressable
                   onPress={handleReset}
-                  className="items-center mt-4 py-2"
+                  className="items-center active:opacity-70"
+                  style={{ marginTop: 14, paddingVertical: 4 }}
                 >
-                  <Text className="text-sm text-gray-500">새로운 추천받기</Text>
+                  <PretendardFont
+                    weight="semibold"
+                    style={{ fontSize: 13.5, color: C.sec }}
+                  >
+                    다른 농지로 새로 추천받기
+                  </PretendardFont>
                 </Pressable>
               </Card>
             </>

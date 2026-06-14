@@ -1,3 +1,9 @@
+/**
+ * 농장 상세 정보 모달
+ * - farm prop이 null이면 숨김, 값이 있으면 fade 모달로 표시
+ * - 재배 지역·면적·정식일·수확일 등 Row 형태로 나열
+ * - 배경 탭 또는 X 버튼으로 닫기
+ */
 import { View, Pressable, Modal } from 'react-native';
 import Text from '@/components/Text';
 import { Feather } from '@expo/vector-icons';

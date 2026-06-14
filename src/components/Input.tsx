@@ -1,3 +1,9 @@
+/**
+ * 공용 텍스트 입력 컴포넌트
+ * - label: 입력창 위 라벨 텍스트 (선택)
+ * - error: 하단 오류 메시지 표시 + 빨간 테두리 (선택)
+ * - TextInputProps 전체 지원 (placeholder, keyboardType 등)
+ */
 import React from 'react';
 import { View, TextInput, TextInputProps } from 'react-native';
 import { clsx } from 'clsx';

@@ -1,3 +1,8 @@
+/**
+ * 커뮤니티 필터 컴포넌트
+ * - CategoryTabs: 카테고리 탭 (전체/꿀벌/수정벌 등) — 하단 밑줄 인디케이터
+ * - FilterChips: 정렬 칩 (최신순/인기순 등) — 비활성 옵션은 "준비중" 표시
+ */
 import { View, ScrollView, Pressable } from "react-native";
 import { CATEGORY_TABS, SORT_OPTIONS } from "@/constants/community";
 import { PretendardFont } from "@/components/PretendardFont";

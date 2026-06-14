@@ -1,3 +1,9 @@
+/**
+ * 스켈레톤 로딩 컴포넌트
+ * - Skeleton: 단일 블록 shimmer (opacity 루프 애니메이션)
+ * - NewsCardSkeleton: 뉴스 카드 전체 스켈레톤
+ * - KeywordChipSkeleton: 키워드 칩 목록 스켈레톤
+ */
 import { useEffect, useRef } from 'react';
 import { View, Animated, ViewStyle } from 'react-native';
 

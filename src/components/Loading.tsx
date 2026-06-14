@@ -1,3 +1,7 @@
+/**
+ * 전체 화면 로딩 인디케이터
+ * - 데이터 패칭 중 화면 중앙에 스피너 + 선택적 텍스트 표시
+ */
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { PretendardFont } from '@/components/PretendardFont';

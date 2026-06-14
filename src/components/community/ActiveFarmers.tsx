@@ -1,3 +1,8 @@
+/**
+ * 커뮤니티 활동 중인 농부 목록
+ * - 가로 스크롤 아바타 + 이름 + 게시글 수 표시
+ * - 활동 중(active) 여부에 따라 테두리 색상 및 초록 dot 표시
+ */
 import { View, ScrollView, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ACTIVE_FARMERS } from "@/constants/community";

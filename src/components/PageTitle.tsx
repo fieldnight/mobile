@@ -29,10 +29,9 @@ export function PageTitle({
   const lineHeight = size === "large" ? 30 : 26;
 
   return (
-    <View style={{ paddingHorizontal: 4, paddingBottom: 4 }}>
+    <View className=" ml-1">
       <View
         style={{
-          flexDirection: "row",
           alignItems: "flex-start",
           justifyContent: "space-between",
         }}

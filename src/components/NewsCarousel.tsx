@@ -1,14 +1,15 @@
-import {
-  View,
-  Pressable,
-  FlatList,
-  Dimensions,
-  Linking,
-} from "react-native";
+/**
+ * 뉴스 카드 가로 캐러셀
+ * - keyword 기반 뉴스 API 호출, 최대 maxItems개 표시
+ * - 카드 탭 시 외부 링크(Linking.openURL) 열기
+ * - 로딩/빈 상태 별도 처리
+ */
+import { View, Pressable, FlatList, Dimensions, Linking } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useNews } from "@/features/news";
 import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const NEWS_CARD_WIDTH = SCREEN_WIDTH - 44;
@@ -21,7 +22,7 @@ interface NewsCarouselProps {
 
 export function NewsCarousel({
   keyword = "수정벌",
-  title = "수정벌 뉴스",
+  title = "둘러봤으니, 소식도 한 줄",
   maxItems = 5,
 }: NewsCarouselProps) {
   const { data: newsList = [], isLoading: loading } = useNews(keyword);
@@ -30,71 +31,40 @@ export function NewsCarousel({
 
   const formatDate = (dateStr: string) => {
     try {
-      const date = new Date(dateStr);
-      return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+      const d = new Date(dateStr);
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
     } catch {
       return "";
     }
   };
 
-  const cleanTitle = (title: string, source: string) => {
-    // 제목 끝의 " - 출처명" 패턴 제거
-    const suffixPattern = new RegExp(`\\s*[-–—]\\s*${source}\\s*$`, "i");
-    return title.replace(suffixPattern, "").trim();
-  };
+  const cleanTitle = (raw: string, source: string) =>
+    raw.replace(new RegExp(`\\s*[-–—]\\s*${source}\\s*$`, "i"), "").trim();
 
-  if (loading) {
+  const header = (
+    <View className="px-5 mb-3 flex-row items-center">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text, flex: 1 }}>
+        {title}
+      </PretendardFont>
+      <Pressable
+        onPress={() => router.push("/bee-news")}
+        className="flex-row items-center gap-1 active:opacity-70"
+      >
+        <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.sec }}>
+          더보기
+        </PretendardFont>
+        <Feather name="arrow-right" size={14} color={C.sec} />
+      </Pressable>
+    </View>
+  );
+
+  if (loading || news.length === 0) {
     return (
       <View className="mb-8">
-        <View className="px-4 mb-4">
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 20, color: "#111827", marginBottom: 4 }}
-          >
-            {title}
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 13, color: "#6B7280" }}
-          >
-            매일 업데이트되는 {keyword} 관련 뉴스
-          </PretendardFont>
-        </View>
+        {header}
         <View className="mx-4 bg-white rounded-2xl p-8 items-center">
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 14, color: "#9CA3AF" }}
-          >
-            뉴스 로딩중...
-          </PretendardFont>
-        </View>
-      </View>
-    );
-  }
-
-  if (news.length === 0) {
-    return (
-      <View className="mb-8">
-        <View className="px-4 mb-4">
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 20, color: "#111827", marginBottom: 4 }}
-          >
-            {title}
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 13, color: "#6B7280" }}
-          >
-            매일 업데이트되는 {keyword} 관련 뉴스
-          </PretendardFont>
-        </View>
-        <View className="mx-4 bg-white rounded-2xl p-8 items-center">
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 14, color: "#9CA3AF" }}
-          >
-            뉴스를 불러올 수 없습니다
+          <PretendardFont weight="regular" style={{ fontSize: 14, color: C.ter }}>
+            {loading ? "뉴스 로딩중..." : "뉴스를 불러올 수 없습니다"}
           </PretendardFont>
         </View>
       </View>
@@ -102,85 +72,51 @@ export function NewsCarousel({
   }
 
   return (
-    <View className="mb-8">
-      <View className="px-4 mb-4">
-        <View style={{ flexDirection: "column", gap: 2 }}>
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 20, color: "#111827" }}
-            numberOfLines={1}
-          >
-            {title}
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 13, color: "#6B7280", lineHeight: 18 }}
-          >
-            매일 업데이트되는 {keyword} 소식
-          </PretendardFont>
-        </View>
-        <Pressable
-          onPress={() => router.push("/bee-news")}
-          className="flex-row items-center absolute right-4 top-4"
-        >
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 14, color: "#2563EB", marginRight: 4 }}
-          >
-            뉴스 더보기
-          </PretendardFont>
-          <Feather name="arrow-right" size={14} color="#3B82F6" />
-        </Pressable>
-      </View>
+    <View className="mb-8" style={{ paddingBottom: 4 }}>
+      {header}
       <FlatList
         data={news}
         horizontal
         showsHorizontalScrollIndicator={false}
         snapToInterval={NEWS_CARD_WIDTH + 12}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 12 }}
         keyExtractor={(item, index) => `${item.link}-${index}`}
         renderItem={({ item }) => (
           <Pressable
             onPress={() => Linking.openURL(item.link)}
             className="bg-white rounded-2xl p-4 active:scale-[0.98]"
-            style={{ width: NEWS_CARD_WIDTH }}
+            style={{
+              width: NEWS_CARD_WIDTH,
+            }}
           >
-            <View className="flex-row justify-between mb-2">
-              <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 12, color: "#2563EB" }}
-              >
-                {item.source}
-              </PretendardFont>
-              <PretendardFont
-                weight="regular"
-                style={{ fontSize: 12, color: "#9CA3AF" }}
-              >
+            {/* 출처 + 날짜 */}
+            <View className="flex-row justify-between items-center mb-2.5">
+              <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: C.bgAlt }}>
+                <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.sec }}>
+                  {item.source}
+                </PretendardFont>
+              </View>
+              <PretendardFont weight="regular" style={{ fontSize: 12, color: C.ter }}>
                 {formatDate(item.pubDate)}
               </PretendardFont>
             </View>
+
+            {/* 제목 */}
             <PretendardFont
-              weight="semibold"
-              style={{
-                fontSize: 16,
-                color: "#111827",
-                marginBottom: 8,
-                lineHeight: 24,
-              }}
+              weight="bold"
+              style={{ fontSize: 16, color: C.text, marginBottom: 10, lineHeight: 24 }}
               numberOfLines={2}
             >
               {cleanTitle(item.title, item.source)}
             </PretendardFont>
 
-            <View className="flex-row items-center">
-              <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 13, color: "#2563EB" }}
-              >
+            {/* 더보기 */}
+            <View className="flex-row items-center gap-1">
+              <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.sec }}>
                 자세히 보기
               </PretendardFont>
-              <Feather name="arrow-right" size={14} color="#3B82F6" />
+              <Feather name="arrow-right" size={13} color={C.sec} />
             </View>
           </Pressable>
         )}

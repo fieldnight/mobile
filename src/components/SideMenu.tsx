@@ -1,3 +1,9 @@
+/**
+ * 사이드 메뉴 (슬라이드인 드로어)
+ * - 왼쪽에서 슬라이드인, 딤 배경 탭/X 버튼으로 닫힘
+ * - 메뉴 항목 탭 시 햅틱 피드백 + 페이지 이동
+ * - SafeArea inset을 적용해 노치/상태바 아래에 콘텐츠 시작
+ */
 import React from "react";
 import { View, Pressable, Modal, Dimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
