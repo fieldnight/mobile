@@ -123,6 +123,10 @@ function buildLinePath(points: { x: number; y: number; hasData?: boolean }[]) {
     .join(" ");
 }
 
+function chartGuideTop(percent: number) {
+  return CHART_PADDING_V / 2 + (percent / 100) * USABLE_HEIGHT;
+}
+
 function hourLabel(label: string) {
   return label.replace("시", "").replace("??", "");
 }
@@ -188,7 +192,7 @@ export function MiniChart({
                 key={percent}
                 className="absolute left-0 h-px"
                 style={{
-                  top: (percent / 100) * CHART_HEIGHT,
+                  top: chartGuideTop(percent),
                   width: chartWidth,
                   backgroundColor: C.border,
                   opacity: 0.5,
