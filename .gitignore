@@ -11,6 +11,7 @@ web-build/
 # Native
 .kotlin/
 *.orig.*
+*.apk
 *.jks
 *.p8
 *.p12
