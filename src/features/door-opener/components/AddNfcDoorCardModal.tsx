@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
-import { BottomSheet, FieldLabel, useBottomSheetScroll } from "@/components/BottomSheet";
+import { BottomSheet, useBottomSheetScroll } from "@/components/BottomSheet";
 import { C } from "@/constants/hive-colors";
 import type { NfcDoorFunction } from "./nfcDoorCards";
 
@@ -27,6 +27,7 @@ const MOMENTUM_DECAY = 1.14;
 const MOMENTUM_MIN_VELOCITY = 0.18;
 const MAX_MOMENTUM_STEPS = 30;
 const FORM_PANEL_BG = "#EEF2F6";
+const INFO_PANEL_BG = "#EAF4FF";
 
 export function AddNfcDoorCardModal({
   visible,
@@ -88,22 +89,18 @@ export function AddNfcDoorCardModal({
       title="NFC 카드 추가"
       contentScrollEnabled={false}
     >
-      <FieldLabel label="제목" />
-      <TextInput
+      <SheetInfo>
+        제목과 기능을 선택하면 개폐기 NFC 카드 목록에 추가돼요.
+      </SheetInfo>
+
+      <SheetFieldLabel label="제목" />
+      <SheetTextInput
         value={title}
         onChangeText={setTitle}
         placeholder="예: 새벽 환기 카드"
-        placeholderTextColor={C.ter}
-        className="h-12 rounded-2xl px-4"
-        style={{
-          backgroundColor: FORM_PANEL_BG,
-          fontFamily: "Pretendard-Medium",
-          fontSize: 14,
-          color: C.text,
-        }}
       />
 
-      <FieldLabel label="기능" />
+      <SheetFieldLabel label="기능" />
       <View className="flex-row gap-2">
         {FUNCTION_OPTIONS.map((option) => {
           const selected = option.value === functionType;
@@ -125,7 +122,7 @@ export function AddNfcDoorCardModal({
         })}
       </View>
 
-      <FieldLabel label="세부" />
+      <SheetFieldLabel label="세부" />
       {functionType === "cycle" ? (
         <RangeWheelPicker
           startHour={startHour}
@@ -180,6 +177,58 @@ export function AddNfcDoorCardModal({
         </Pressable>
       </View>
     </BottomSheet>
+  );
+}
+
+/** 같은 Add 계열 모달에서 반복되는 안내 문구 패널입니다. */
+function SheetInfo({ children }: { children: string }) {
+  return (
+    <View className="mb-2 rounded-2xl p-4" style={{ backgroundColor: INFO_PANEL_BG }}>
+      <PretendardFont
+        weight="semibold"
+        style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
+      >
+        {children}
+      </PretendardFont>
+    </View>
+  );
+}
+
+/** NFC 카드 추가 모달 안에서만 쓰는 border 없는 폼 라벨입니다. */
+function SheetFieldLabel({ label }: { label: string }) {
+  return (
+    <View className="mb-2 mt-5 flex-row items-center">
+      <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text }}>
+        {label}
+      </PretendardFont>
+    </View>
+  );
+}
+
+/** Pretendard를 직접 지정한 Add 모달용 입력 필드입니다. */
+function SheetTextInput({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={C.ter}
+      className="h-12 rounded-2xl px-4"
+      style={{
+        backgroundColor: FORM_PANEL_BG,
+        color: C.text,
+        fontFamily: "Pretendard-Medium",
+        fontSize: 14,
+      }}
+    />
   );
 }
 
