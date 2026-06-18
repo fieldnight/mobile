@@ -11,7 +11,9 @@ export interface ControlSetting {
 
 export interface HiveData {
   id: string;
+  macAddress: string;
   name: string;
+  region: string;
   status: "online" | "offline";
   temperature: number;
   humidity: number;
@@ -40,13 +42,24 @@ export interface HiveControlState {
   circOn: boolean;
 }
 
+export interface HiveFormInput {
+  id?: string;
+  macAddress: string;
+  name: string;
+  region: string;
+  location: string;
+  memo?: string;
+  replacedAt?: string;
+}
+
 export function getDisabledState(controls: ControlSetting[]) {
   const heatingAuto =
-    controls.find((c) => c.id === "heating")?.enabled ?? false;
+    controls.find((control) => control.id === "heating")?.enabled ?? false;
   const humidityAuto =
-    controls.find((c) => c.id === "humidity")?.enabled ?? false;
+    controls.find((control) => control.id === "humidity")?.enabled ?? false;
   const ventilationAuto =
-    controls.find((c) => c.id === "ventilation")?.enabled ?? false;
+    controls.find((control) => control.id === "ventilation")?.enabled ?? false;
+
   return {
     heaterDisabled: heatingAuto,
     coolerDisabled: heatingAuto,
@@ -61,22 +74,29 @@ const TAG_MAP: Record<string, string> = {
   ventilation: "자동환기",
 };
 
-export function buildActiveTags(hc: HiveControlState): ActiveTag[] {
-  const dis = getDisabledState(hc.controls);
+export function buildActiveTags(hiveControl: HiveControlState): ActiveTag[] {
+  const disabled = getDisabledState(hiveControl.controls);
   const tags: ActiveTag[] = [];
-  hc.controls.forEach((c) => {
-    if (c.enabled && TAG_MAP[c.id]) {
-      tags.push({ label: TAG_MAP[c.id], color: C.primary, bg: C.primarySoft });
+
+  hiveControl.controls.forEach((control) => {
+    if (control.enabled && TAG_MAP[control.id]) {
+      tags.push({ label: TAG_MAP[control.id], color: C.primary, bg: C.primarySoft });
     }
   });
-  if (hc.heaterOn && !dis.heaterDisabled)
+
+  if (hiveControl.heaterOn && !disabled.heaterDisabled) {
     tags.push({ label: "히터", color: C.primary, bg: C.primarySoft });
-  if (hc.coolerOn && !dis.coolerDisabled)
+  }
+  if (hiveControl.coolerOn && !disabled.coolerDisabled) {
     tags.push({ label: "쿨러", color: C.primary, bg: C.primarySoft });
-  if (hc.ventOn && !dis.ventDisabled)
+  }
+  if (hiveControl.ventOn && !disabled.ventDisabled) {
     tags.push({ label: "환기팬", color: C.primary, bg: C.primarySoft });
-  if (hc.circOn && !dis.circDisabled)
+  }
+  if (hiveControl.circOn && !disabled.circDisabled) {
     tags.push({ label: "순환", color: C.primary, bg: C.primarySoft });
+  }
+
   return tags;
 }
 
@@ -97,8 +117,8 @@ export const initialControls: ControlSetting[] = [
   },
   {
     id: "ventilation",
-    name: "공기 시스템",
-    description: "벌통 내부 공기 자동 조절",
+    name: "환기 시스템",
+    description: "벌통 내부 환기 자동 조절",
     icon: "wind",
     enabled: true,
   },

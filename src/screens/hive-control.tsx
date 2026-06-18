@@ -23,6 +23,7 @@ import { useHiveStore } from "@/stores/useHiveStore";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { HiveControlSection } from "@/features/hive-control";
+import { useSyncHiveList } from "@/features/hive";
 import type { HiveControlState } from "@/types/hive-control";
 
 
@@ -35,6 +36,7 @@ import type { HiveControlState } from "@/types/hive-control";
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 
