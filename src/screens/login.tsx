@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View, Image, TextInput, Alert, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -66,10 +66,16 @@ function SocialButton({ icon, label, bgColor, textColor, borderColor, onPress }:
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const { login, socialLogin, isLoading } = useAuthStore();
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  const getLoginDestination = () => {
+    if (redirect && redirect !== '/login') return redirect as any;
+    return '/home';
+  };
 
   const handleSocialLogin = async (provider: 'KAKAO' | 'NAVER') => {
     try {
@@ -99,7 +105,7 @@ export default function LoginScreen() {
       if (result2.isNewUser) {
         router.replace('/oauth-register');
       } else {
-        router.replace('/home');
+        router.replace(getLoginDestination());
       }
     } catch (error: any) {
       const message = error.response?.data?.message || '소셜 로그인에 실패했습니다';
@@ -119,7 +125,7 @@ export default function LoginScreen() {
 
     try {
       await login({ username: username.trim(), password });
-      router.replace('/home');
+      router.replace(getLoginDestination());
     } catch (error: any) {
       const message = error.response?.data?.message || '로그인에 실패했습니다';
       Alert.alert('로그인 실패', message);
@@ -128,6 +134,10 @@ export default function LoginScreen() {
 
   const handleGoToRegister = () => {
     router.push('/register');
+  };
+
+  const handleBackToHome = () => {
+    router.replace('/home');
   };
 
   const { isVisible: isKeyboardVisible, keyboardHeight } = useKeyboard();
@@ -219,6 +229,15 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
+      <View className="absolute left-4 top-3 z-10">
+        <Pressable
+          onPress={handleBackToHome}
+          className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+        >
+          <Feather name="arrow-left" size={24} color="#111827" />
+        </Pressable>
+      </View>
+
       <View className="flex-1 justify-between pb-8">
         <Animated.View
           entering={FadeIn.delay(100).duration(500)}

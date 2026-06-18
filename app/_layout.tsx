@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import "../global.css";
-import { StatusBar, View, Dimensions } from "react-native";
+import { StatusBar, View, Dimensions, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Slot, usePathname, useRouter, useSegments } from "expo-router";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 
@@ -22,6 +22,10 @@ import Header from "@/navigation/Header";
 import Footer from "@/navigation/Footer";
 import { SideMenu } from "@/components/SideMenu";
 import { ToastProvider } from "@/components/ToastContext";
+import { BottomSheet } from "@/components/BottomSheet";
+import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -65,11 +69,33 @@ const HIDE_FOOTER_ROUTES = [
   "oauth-register",
 ];
 
+// 서버에 저장된 사용자 데이터가 필요한 화면에서는 로그인 안내 모달을 띄웁니다.
+const AUTH_REQUIRED_ROUTES = [
+  "bee-chat",
+  "bee-chat-inquiry",
+  "bee-news",
+  "diagnose-history",
+  "hive-add",
+  "hive-control",
+  "hive-overview",
+  "hive-setting",
+  "hive-stats",
+  "iot-home",
+  "profile",
+  "recommend-history",
+  "settings",
+];
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_EDGE_WIDTH = 30; // 스와이프 감지 영역 너비
 const SWIPE_THRESHOLD = 80; // 뒤로가기 트리거 거리
 
 export default function RootLayout() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [authHydrated, setAuthHydrated] = useState(
+    useAuthStore.persist.hasHydrated(),
+  );
+  const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const [loaded] = useFonts({
     "Pretendard-Thin": require("../assets/font/Pretendard-Thin.ttf"),
     "Pretendard-Light": require("../assets/font/Pretendard-Light.ttf"),
@@ -83,6 +109,7 @@ export default function RootLayout() {
 
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
   const translateX = useSharedValue(0);
   const [menuVisible, setMenuVisible] = useState(false);
   const animatedStyle = useAnimatedStyle(() => ({
@@ -94,14 +121,28 @@ export default function RootLayout() {
     if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  // 폰트가 아직 로드 중이면 아무것도 렌더링하지 않음
-  // (스플래시가 유지되므로 사용자 눈에는 보이지 않음)
-  if (!loaded) return null;
+  // Zustand persist 복구 전에는 로그인 여부를 확정하지 않아 불필요한 redirect를 막습니다.
+  useEffect(() => {
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setAuthHydrated(true);
+    });
+    return unsubscribe;
+  }, []);
 
   // 현재 라우트가 헤더를 숨겨야 하는 페이지인지 확인
   const currentRoute = segments[0] || "index";
   const showHeader = !HIDE_HEADER_ROUTES.includes(currentRoute);
   const showFooter = !HIDE_FOOTER_ROUTES.includes(currentRoute);
+  const needsAuth = AUTH_REQUIRED_ROUTES.includes(currentRoute);
+
+  useEffect(() => {
+    if (!authHydrated) return;
+    setLoginPromptVisible(needsAuth && !isAuthenticated);
+  }, [authHydrated, isAuthenticated, needsAuth]);
+
+  // 폰트가 아직 로드 중이면 아무것도 렌더링하지 않음
+  // (스플래시가 유지되므로 사용자 눈에는 보이지 않음)
+  if (!loaded) return null;
 
   const handleMenuPress = (menuId: string) => {
     setMenuVisible(false);
@@ -161,6 +202,19 @@ export default function RootLayout() {
     translateX.value = withTiming(0, { duration: 200 });
   };
 
+  const closeLoginPrompt = () => {
+    setLoginPromptVisible(false);
+    router.replace("/home");
+  };
+
+  const goToLogin = () => {
+    setLoginPromptVisible(false);
+    router.push({
+      pathname: "/login",
+      params: { redirect: pathname },
+    });
+  };
+
   // 왼쪽 가장자리 스와이프 제스처
   const edgeSwipeGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -211,6 +265,12 @@ export default function RootLayout() {
             onMenuPress={handleMenuPress}
           />
 
+          <LoginRequiredSheet
+            visible={loginPromptVisible}
+            onClose={closeLoginPrompt}
+            onLogin={goToLogin}
+          />
+
           {/* 왼쪽 가장자리 스와이프 감지 영역 */}
           <GestureDetector gesture={edgeSwipeGesture}>
             <Animated.View
@@ -228,5 +288,56 @@ export default function RootLayout() {
       </ToastProvider>
       </Providers>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * 인증이 필요한 화면 위에 표시하는 로그인 안내 바텀시트입니다.
+ * ConfirmSheet는 확인 후 onClose를 같이 호출하므로 라우팅 버튼이 있는 이 화면은 전용 UI로 분리합니다.
+ */
+function LoginRequiredSheet({
+  visible,
+  onClose,
+  onLogin,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onLogin: () => void;
+}) {
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="로그인이 필요해요"
+      snapHeight={0.36}
+    >
+      <PretendardFont
+        style={{ fontSize: 14, color: C.sec, lineHeight: 22, marginBottom: 24 }}
+      >
+        해당 기능을 사용하시려면 먼저 로그인해주세요.
+      </PretendardFont>
+
+      <View className="gap-3">
+        <Pressable
+          onPress={onLogin}
+          className="items-center rounded-2xl py-4 active:opacity-70"
+          style={{ backgroundColor: C.primary }}
+        >
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+            로그인하기
+          </PretendardFont>
+        </Pressable>
+
+        <Pressable
+          onPress={onClose}
+          className="items-center rounded-2xl py-4 active:opacity-70"
+          style={{ backgroundColor: C.bgAlt }}
+        >
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.textAlt }}>
+            홈으로 돌아가기
+          </PretendardFont>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }
