@@ -38,7 +38,12 @@
     ],
     "extra": {
       "WEATHER_API_KEY": "af3abab5447ba09c9b99af1252e0808e",
-      "apiUrl": "https://webeelab.site"
-    }
+      "apiUrl": "https://webeelab.site",
+      "router": {},
+      "eas": {
+        "projectId": "898c11e9-20c6-46b4-bf40-1e91f030aaee"
+      }
+    },
+    "owner": "minari0120"
   }
 }
