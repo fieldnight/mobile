@@ -5,7 +5,14 @@
  * - InterestMarketSection  : 바로가기 카드 목록 표시 + 우상단 절대 고정 시세 등록 버튼
  */
 import { useState } from "react";
-import { View, Pressable, ScrollView, Modal, ActivityIndicator } from "react-native";
+import {
+  View,
+  Pressable,
+  ScrollView,
+  Modal,
+  ActivityIndicator,
+  type GestureResponderEvent,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import {
   useInterestMarkets,
@@ -29,18 +36,27 @@ const EMOJI: Record<string, string> = {
 const emoji = (name: string) => EMOJI[name] ?? "";
 
 // ── 작물 카드 ─────────────────────────────────────────────────────────────────
-function MarketCard({ item, onPress, onDelete }: { item: InterestMarket; onPress: () => void; onDelete: () => void }) {
+function MarketCard({
+  item,
+  onPress,
+  onDelete,
+}: {
+  item: InterestMarket;
+  onPress: () => void;
+  onDelete: () => void;
+}) {
+  const handleDelete = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    onDelete();
+  };
+
   return (
     <Pressable
       onPress={onPress}
+      className="mr-2.5 min-w-[152px] rounded-[14px] border-[1.5px] p-3 active:opacity-90"
       style={({ pressed }) => ({
         backgroundColor: pressed ? C.primarySoft : C.white,
-        borderRadius: 14,
-        borderWidth: 1.5,
         borderColor: pressed ? C.primary : C.border,
-        padding: 12,
-        marginRight: 10,
-        minWidth: 130,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -48,21 +64,33 @@ function MarketCard({ item, onPress, onDelete }: { item: InterestMarket; onPress
         elevation: 2,
       })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <PretendardFont style={{ fontSize: 24 }}>{emoji(item.cropMidName)}</PretendardFont>
+      {/* 작물명과 삭제 버튼을 한 줄에 배치해 카드 상단에서 바로 인지되도록 합니다. */}
+      <View className="mb-2 flex-row items-start justify-between gap-2">
+        <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
+          {emoji(item.cropMidName) ? (
+            <PretendardFont style={{ fontSize: 18 }}>
+              {emoji(item.cropMidName)}
+            </PretendardFont>
+          ) : null}
+          <PretendardFont
+            weight="bold"
+            className="flex-1"
+            style={{ fontSize: 18, color: C.text, lineHeight: 23 }}
+            numberOfLines={1}
+          >
+            {item.cropMidName}
+          </PretendardFont>
+        </View>
         <Pressable
-          onPress={onDelete}
+          onPress={handleDelete}
           hitSlop={8}
-          className="active:opacity-60"
-          style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}
+          className="h-7 w-7 items-center justify-center rounded-full active:opacity-60"
+          style={{ backgroundColor: C.bg }}
         >
-          <Feather name="x" size={12} color={C.ter} />
+          <Feather name="x" size={15} color={C.ter} />
         </Pressable>
       </View>
 
-      <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text, marginBottom: 2 }} numberOfLines={1}>
-        {item.cropMidName}
-      </PretendardFont>
       {item.cropMinorName ? (
         <PretendardFont style={{ fontSize: 11, color: C.sec, marginBottom: 8 }} numberOfLines={1}>
           {item.cropMinorName}

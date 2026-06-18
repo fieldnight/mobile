@@ -11,8 +11,6 @@
  * InterestMarket.cropMajorCode = 화면의 largeCode(gds_lclsf_cd)와 동일한 값
  */
 
-
-
 import axios from "axios";
 import type { Row } from "@/types";
 import qs from "qs";
@@ -20,8 +18,16 @@ import { api } from "@/lib/api";
 
 export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL!;
 export const SERVICE_KEY = process.env.EXPO_PUBLIC_SERVICE_KEY!;
+const PAGE_SIZE = 1000;
+const MAX_PAGE_COUNT = 20;
+const PAGE_BATCH_SIZE = 4;
 
 // ── 공공 API ─────────────────────────────────────────────────────────────────
+
+interface TradePage {
+  rows: Row[];
+  totalCount: number;
+}
 
 export function parseRows(data: any): { rows: Row[]; totalCount: number } {
   const resultCode = data?.response?.header?.resultCode;
@@ -34,37 +40,75 @@ export function parseRows(data: any): { rows: Row[]; totalCount: number } {
   };
 }
 
-export async function apiFetch(params: Record<string, string>) {
+function serializeTradeParams(params: Record<string, string | number>) {
+  const { serviceKey, ...rest } = params;
+  return `serviceKey=${encodeURIComponent(serviceKey)}&${qs.stringify(rest, { encode: false })}`;
+}
+
+async function fetchTradePage(
+  params: Record<string, string>,
+  pageNo: number,
+): Promise<TradePage> {
+  const { data } = await axios.get(BASE_URL, {
+    timeout: 15_000,
+    params: {
+      serviceKey: SERVICE_KEY,
+      returnType: "json",
+      numOfRows: String(PAGE_SIZE),
+      pageNo,
+      ...params,
+    },
+    paramsSerializer: serializeTradeParams,
+  });
+
+  return parseRows(data);
+}
+
+async function fetchTradePagesInBatches(
+  params: Record<string, string>,
+  startPage: number,
+  endPage: number,
+) {
+  const pages: TradePage[] = [];
+
+  // 공공 API에 한꺼번에 요청을 몰아치지 않도록 4페이지 단위로 병렬 조회합니다.
+  for (let pageNo = startPage; pageNo <= endPage; pageNo += PAGE_BATCH_SIZE) {
+    const pageNumbers = Array.from(
+      { length: Math.min(PAGE_BATCH_SIZE, endPage - pageNo + 1) },
+      (_, index) => pageNo + index,
+    );
+    pages.push(
+      ...(await Promise.all(
+        pageNumbers.map((nextPageNo) => fetchTradePage(params, nextPageNo)),
+      )),
+    );
+  }
+
+  return pages;
+}
+
+export async function apiFetch(params: Record<string, string>): Promise<TradePage> {
   try {
-    const { data, config } = await axios.get(BASE_URL, {
-      timeout: 15_000,
-      params: {
-        serviceKey: SERVICE_KEY,
-        returnType: "json",
-        numOfRows: "300",
-        pageNo: "1",
-        ...params,
-      },
-      paramsSerializer: (p) => {
-        const { serviceKey, ...rest } = p;
-        return `serviceKey=${encodeURIComponent(serviceKey)}&${qs.stringify(rest, { encode: false })}`;
-      },
-    });
-    
- console.log(
-      "실제 URL:",
-      config.url +
-        "?" +
-        qs.stringify(config.params, { encode: true, encodeValuesOnly: true }),
+    // 드롭다운 옵션은 조회된 rows에서 파생되므로 첫 페이지만 받으면 일부 작물이 누락됩니다.
+    const firstPage = await fetchTradePage(params, 1);
+    const totalPages = Math.min(
+      MAX_PAGE_COUNT,
+      Math.ceil(firstPage.totalCount / PAGE_SIZE),
     );
 
-    return parseRows(data);
+    if (totalPages <= 1) return firstPage;
+
+    const restPages = await fetchTradePagesInBatches(params, 2, totalPages);
+
+    return {
+      rows: [...firstPage.rows, ...restPages.flatMap((page) => page.rows)],
+      totalCount: firstPage.totalCount,
+    };
   } catch (e: any) {
     const msg = e?.response?.data?.resultMsg ?? e?.message ?? "네트워크 오류";
     throw new Error(msg);
   }
-}/*https://apis.data.go.kr/B552845/katRealTime2/trades2?serviceKey=xNPW3bBwt8j3dOB9niigELSJ6hRgpxaeIun8XdyUN93%2FDJTyc%2BvpMpAcoCjcesOF96l0wsLx65PrA9fHgZYzMQ%3D%3D&pageNo=1&numOfRows=10&returnType=json&cond[whsl_mrkt_cd::EQ]=110001&cond[trd_clcln_ymd::EQ]=2026-03-21 */
-
+}
 
 // ── 관심 시장 API ─────────────────────────────────────────────────────────────
 
