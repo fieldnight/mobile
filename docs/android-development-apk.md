@@ -140,8 +140,7 @@ pnpm start:dev
 ```
 
 ## 정리
-
 - NFC/HCE 작업이 아니면 `pnpm start:go`
 - NFC/HCE 작업이면 APK 설치 후 `pnpm start:dev`
 - APK 파일은 PR에 올리지 않음
-- APK가 필요한 사람에게만 EAS 빌드 링크 공유
+- APK 링크는 요청 시 공유!
