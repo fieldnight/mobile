@@ -4,6 +4,7 @@ export {
   getLargeOptions,
   getMiddleOptions,
   getSmallOptions,
+  getQuickMiddleName,
 } from "./hooks/utils";
 
 export {

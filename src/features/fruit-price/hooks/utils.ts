@@ -2,6 +2,18 @@ import { LARGE_CATEGORY } from "@/constants";
 import type { Row } from "@/types";
 
 type Option = { code: string; name: string };
+export const QUICK_MIDDLE_PREFIX = "__quick_middle__:";
+
+const FEATURED_MIDDLE_OPTIONS: Record<string, Option[]> = {
+  "06": ["사과", "배", "포도"].map((name) => ({
+    code: `${QUICK_MIDDLE_PREFIX}${name}`,
+    name,
+  })),
+  "08": ["딸기", "토마토"].map((name) => ({
+    code: `${QUICK_MIDDLE_PREFIX}${name}`,
+    name,
+  })),
+};
 
 function uniqueBy<T>(arr: T[], keyFn: (item: T) => string): T[] {
   const seen = new Set<string>();
@@ -13,43 +25,64 @@ function uniqueBy<T>(arr: T[], keyFn: (item: T) => string): T[] {
   });
 }
 
-// 대/중/소분류 옵션 파생 유틸 
+// 첫 조회 rows에 누락되기 쉬운 대표 작물은 빠른검색 후보로 보강합니다.
 export function getLargeOptions(rows: Row[]): Option[] {
   return uniqueBy(
-    rows
-      .filter((r) => r.gds_lclsf_cd)
-      .map((r) => ({
-        code: r.gds_lclsf_cd,
-        name: LARGE_CATEGORY[r.gds_lclsf_cd] ?? `기타(${r.gds_lclsf_cd})`,
+    [
+      ...Object.keys(FEATURED_MIDDLE_OPTIONS).map((code) => ({
+        code,
+        name: LARGE_CATEGORY[code] ?? `기타(${code})`,
       })),
+      ...rows
+        .filter((r) => r.gds_lclsf_cd)
+        .map((r) => ({
+          code: r.gds_lclsf_cd,
+          name: LARGE_CATEGORY[r.gds_lclsf_cd] ?? `기타(${r.gds_lclsf_cd})`,
+        })),
+    ],
     (o) => o.code,
   );
 }
 
 export function getMiddleOptions(rows: Row[], largeCode: string): Option[] {
   return uniqueBy(
-    rows
-      .filter(
-        (r) =>
-          r.gds_mclsf_cd &&
-          r.gds_mclsf_nm &&
-          (!largeCode || r.gds_lclsf_cd === largeCode),
-      )
-      .map((r) => ({ code: r.gds_mclsf_cd, name: r.gds_mclsf_nm })),
-    (o) => o.code,
+    [
+      ...rows
+        .filter(
+          (r) =>
+            r.gds_mclsf_cd &&
+            r.gds_mclsf_nm &&
+            (!largeCode || r.gds_lclsf_cd === largeCode),
+        )
+        .map((r) => ({ code: r.gds_mclsf_cd, name: r.gds_mclsf_nm })),
+      ...(FEATURED_MIDDLE_OPTIONS[largeCode] ?? []),
+    ],
+    (o) => o.name,
   );
 }
 
-export function getSmallOptions(rows: Row[], middleCode: string): Option[] {
+export function getSmallOptions(
+  rows: Row[],
+  middleCode: string,
+  middleName = "",
+): Option[] {
   return uniqueBy(
     rows
       .filter(
         (r) =>
           r.gds_sclsf_cd &&
           r.gds_sclsf_nm &&
-          (!middleCode || r.gds_mclsf_cd === middleCode),
+          (!middleCode ||
+            r.gds_mclsf_cd === middleCode ||
+            (!!middleName && r.gds_mclsf_nm === middleName)),
       )
       .map((r) => ({ code: r.gds_sclsf_cd, name: r.gds_sclsf_nm })),
     (o) => o.code,
   );
+}
+
+export function getQuickMiddleName(code: string) {
+  return code.startsWith(QUICK_MIDDLE_PREFIX)
+    ? code.replace(QUICK_MIDDLE_PREFIX, "")
+    : "";
 }
