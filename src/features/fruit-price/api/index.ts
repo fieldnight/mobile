@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 
 export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL!;
 export const SERVICE_KEY = process.env.EXPO_PUBLIC_SERVICE_KEY!;
+const INITIAL_PREVIEW_SIZE = 15;
 const PAGE_SIZE = 1000;
 const MAX_PAGE_COUNT = 20;
 const PAGE_BATCH_SIZE = 4;
@@ -27,6 +28,10 @@ const PAGE_BATCH_SIZE = 4;
 interface TradePage {
   rows: Row[];
   totalCount: number;
+}
+
+interface ApiFetchOptions {
+  onProgress?: (page: TradePage) => void;
 }
 
 export function parseRows(data: any): { rows: Row[]; totalCount: number } {
@@ -48,13 +53,14 @@ function serializeTradeParams(params: Record<string, string | number>) {
 async function fetchTradePage(
   params: Record<string, string>,
   pageNo: number,
+  pageSize = PAGE_SIZE,
 ): Promise<TradePage> {
   const { data } = await axios.get(BASE_URL, {
     timeout: 15_000,
     params: {
       serviceKey: SERVICE_KEY,
       returnType: "json",
-      numOfRows: String(PAGE_SIZE),
+      numOfRows: String(pageSize),
       pageNo,
       ...params,
     },
@@ -68,6 +74,7 @@ async function fetchTradePagesInBatches(
   params: Record<string, string>,
   startPage: number,
   endPage: number,
+  onProgress?: (page: TradePage) => void,
 ) {
   const pages: TradePage[] = [];
 
@@ -77,20 +84,33 @@ async function fetchTradePagesInBatches(
       { length: Math.min(PAGE_BATCH_SIZE, endPage - pageNo + 1) },
       (_, index) => pageNo + index,
     );
-    pages.push(
-      ...(await Promise.all(
-        pageNumbers.map((nextPageNo) => fetchTradePage(params, nextPageNo)),
-      )),
+    const batchPages = await Promise.all(
+      pageNumbers.map((nextPageNo) => fetchTradePage(params, nextPageNo)),
     );
+    pages.push(...batchPages);
+
+    onProgress?.({
+      rows: pages.flatMap((page) => page.rows),
+      totalCount: pages[0]?.totalCount ?? 0,
+    });
   }
 
   return pages;
 }
 
-export async function apiFetch(params: Record<string, string>): Promise<TradePage> {
+export async function apiFetch(
+  params: Record<string, string>,
+  options?: ApiFetchOptions,
+): Promise<TradePage> {
   try {
-    // 드롭다운 옵션은 조회된 rows에서 파생되므로 첫 페이지만 받으면 일부 작물이 누락됩니다.
+    // 첫 화면 체감을 위해 15건 미리보기를 먼저 내려주고, 전체 옵션용 데이터는 뒤에서 보강합니다.
+    const previewPage = await fetchTradePage(params, 1, INITIAL_PREVIEW_SIZE);
+    options?.onProgress?.(previewPage);
+
+    // 드롭다운 옵션은 조회된 rows에서 파생되므로 1000건 단위로 더 넓게 받아 작물 누락을 줄입니다.
     const firstPage = await fetchTradePage(params, 1);
+    options?.onProgress?.(firstPage);
+
     const totalPages = Math.min(
       MAX_PAGE_COUNT,
       Math.ceil(firstPage.totalCount / PAGE_SIZE),
@@ -98,7 +118,17 @@ export async function apiFetch(params: Record<string, string>): Promise<TradePag
 
     if (totalPages <= 1) return firstPage;
 
-    const restPages = await fetchTradePagesInBatches(params, 2, totalPages);
+    const restPages = await fetchTradePagesInBatches(
+      params,
+      2,
+      totalPages,
+      (page) => {
+        options?.onProgress?.({
+          rows: [...firstPage.rows, ...page.rows],
+          totalCount: firstPage.totalCount,
+        });
+      },
+    );
 
     return {
       rows: [...firstPage.rows, ...restPages.flatMap((page) => page.rows)],

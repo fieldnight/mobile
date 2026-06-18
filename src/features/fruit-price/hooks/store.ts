@@ -20,6 +20,11 @@ function setError(set: any, key: string, msg: string | null) {
   set((s: TradeStore) => ({ error: { ...s.error, [key]: msg } }));
 }
 
+function setProgressCache(set: any, key: string, rows: Row[], totalCount: number) {
+  if (!rows.length) return;
+  setCache(set, key, rows, totalCount);
+}
+
 export const useTradeStore = create<TradeStore>((set, get) => ({
   cache: {},
   loading: {},
@@ -41,7 +46,17 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
       // marketCode 있을 때만 도매시장 조건 추가
       if (marketCode) params["cond[whsl_mrkt_cd::EQ]"] = marketCode;
 
-      const { rows, totalCount } = await apiFetch(params);
+      let hasFirstPaint = false;
+      const { rows, totalCount } = await apiFetch(params, {
+        // 첫 페이지가 도착하면 바로 화면에 띄우고, 나머지 페이지는 뒤에서 계속 병합합니다.
+        onProgress: (page) => {
+          setProgressCache(set, key, page.rows, page.totalCount);
+          if (!hasFirstPaint && page.rows.length > 0) {
+            hasFirstPaint = true;
+            setLoading(set, key, false);
+          }
+        },
+      });
       setCache(set, key, rows, totalCount);
     } catch (e: any) {
       setError(set, key, e?.message ?? "오류");
@@ -65,7 +80,17 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
       };
       if (marketCode) params["cond[whsl_mrkt_cd::EQ]"] = marketCode;
 
-      const { rows, totalCount } = await apiFetch(params);
+      let hasFirstPaint = false;
+      const { rows, totalCount } = await apiFetch(params, {
+        // 빠른 검색도 첫 응답을 먼저 보여줘서 빈 로딩 시간을 줄입니다.
+        onProgress: (page) => {
+          setProgressCache(set, key, page.rows, page.totalCount);
+          if (!hasFirstPaint && page.rows.length > 0) {
+            hasFirstPaint = true;
+            setLoading(set, key, false);
+          }
+        },
+      });
       setCache(set, key, rows, totalCount);
     } catch (e: any) {
       setError(set, key, e?.message ?? "오류");

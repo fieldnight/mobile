@@ -424,6 +424,7 @@ export default function FruitPriceScreen() {
   const isLoading = loading[cacheKey] ?? false;
   const errorMsg = error[cacheKey] ?? null;
   const rows = cache[cacheKey]?.rows ?? EMPTY_ROWS;
+  const hasRows = rows.length > 0;
 
   useEffect(() => {
     if (quickItem) fetchByMiddle(quickItem, selectedDate, marketCode);
@@ -798,7 +799,7 @@ export default function FruitPriceScreen() {
             )}
 
             {/* 로딩/빈화면/테이블 */}
-            {isLoading ? (
+            {isLoading && !hasRows ? (
               <View
                 style={{ paddingVertical: 60, alignItems: "center", gap: 8 }}
               >
@@ -883,7 +884,7 @@ export default function FruitPriceScreen() {
           </View>
 
           {/* 페이지네이션 */}
-          {!isLoading && sortedRows.length > 0 && (
+          {sortedRows.length > 0 && (
             <View
               style={{
                 flexDirection: "row",
