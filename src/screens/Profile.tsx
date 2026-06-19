@@ -74,28 +74,28 @@ export default function Profile() {
         {/* 프로필 섹션 */}
         <View className="px-4 pt-4 mb-4 gap-2">
           {/* 이미지 + 이름 */}
-          <View className="flex-row items-center bg-white rounded-2xl p-4">
+          <View className="flex-row items-center bg-white rounded-2xl p-5">
             <Pressable
               onPress={handleProfileImagePress}
               disabled={isUploading}
               className="mr-3"
             >
-              <View className="w-14 h-14 rounded-full bg-gray-100 items-center justify-center overflow-hidden">
+              <View className="h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100">
                 {isUploading ? (
                   <ActivityIndicator size="small" color="#8E8E93" />
                 ) : user?.profileImageUrl ? (
                   <Image
                     source={{ uri: user.profileImageUrl }}
-                    className="w-14 h-14"
+                    className="h-16 w-16"
                   />
                 ) : (
-                  <Feather name="user" size={30} color="#8E8E93" />
+                  <Feather name="user" size={32} color="#8E8E93" />
                 )}
               </View>
               {/* 카메라 배지 */}
               {!isUploading && (
-                <View className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-gray-500 items-center justify-center border-2 border-white">
-                  <Feather name="camera" size={10} color="#fff" />
+                <View className="absolute bottom-0 right-0 h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-500">
+                  <Feather name="camera" size={11} color="#fff" />
                 </View>
               )}
             </Pressable>
@@ -105,9 +105,9 @@ export default function Profile() {
           </View>
 
           {/* 프로필 관리 버튼 */}
-          <Pressable className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 active:bg-gray-50">
+          <Pressable className="flex-row items-center bg-white rounded-2xl px-4 py-4 active:bg-gray-50">
             <Feather name="edit-2" size={16} color="#6B7280" />
-            <Text className="flex-1 text-sm font-medium text-gray-700 ml-3">
+            <Text className="ml-3 flex-1 text-base font-medium text-gray-700">
               프로필 관리
             </Text>
             <Feather name="chevron-right" size={16} color="#C7C7CC" />
@@ -129,12 +129,12 @@ export default function Profile() {
               <>
                 <Pressable
                   onPress={handleAddFarmland}
-                  className="flex-row items-center px-4 py-3 active:bg-gray-50"
+                  className="flex-row items-center px-4 py-4 active:bg-gray-50"
                 >
-                  <View className="w-9 h-9 rounded-xl bg-gray-100 items-center justify-center mr-3">
-                    <Feather name="plus" size={16} color="#6B7280" />
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+                    <Feather name="plus" size={17} color="#6B7280" />
                   </View>
-                  <Text className="flex-1 text-sm font-semibold text-gray-600">
+                  <Text className="flex-1 text-base font-semibold text-gray-600">
                     농지 추가
                   </Text>
                 </Pressable>
@@ -146,22 +146,22 @@ export default function Profile() {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setSelectedFarm(farm);
                       }}
-                      className="flex-row items-center px-4 py-3 active:bg-gray-50"
+                      className="flex-row items-center px-4 py-4 active:bg-gray-50"
                     >
-                      <View className="w-9 h-9 rounded-xl bg-blue-50 items-center justify-center mr-3">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
                         <Feather
                           name={
                             farm.cultivationType === "CONTROLLED"
                               ? "home"
                               : "sun"
                           }
-                          size={16}
+                          size={17}
                           color="#3B82F6"
                         />
                       </View>
                       <View className="flex-1 mr-2">
                         <Text
-                          className="text-sm font-semibold text-gray-900"
+                          className="text-base font-semibold text-gray-900"
                           numberOfLines={1}
                           ellipsizeMode="tail"
                         >
@@ -178,9 +178,9 @@ export default function Profile() {
                     <View className="h-px bg-gray-100" />
                     <Pressable
                       onPress={() => setVisibleCount((v) => v + PAGE_SIZE)}
-                      className="py-3 items-center active:bg-gray-50"
+                      className="items-center py-4 active:bg-gray-50"
                     >
-                      <Text className="text-sm text-blue-500">더보기</Text>
+                      <Text className="text-base font-medium text-blue-500">더보기</Text>
                     </Pressable>
                   </>
                 )}
