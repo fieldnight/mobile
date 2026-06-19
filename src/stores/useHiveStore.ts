@@ -1,9 +1,16 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { HiveControlState, HiveData } from "@/types/hive-control";
+import type { HiveControlState, HiveData, HiveFormInput } from "@/types/hive-control";
 import { initialControls } from "@/types";
 
+/** 화면 표시용 오늘 날짜를 yyyy-MM-dd로 만듭니다. */
+function todayLabel() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/** 새 벌통이 추가될 때 기본 자동/수동 제어 상태를 만듭니다. */
 function createDefaultControlState(): HiveControlState {
   return {
     controls: initialControls.map((control) => ({ ...control })),
@@ -14,6 +21,7 @@ function createDefaultControlState(): HiveControlState {
   };
 }
 
+/** 벌통 목록에 맞춰 제어 상태 맵을 초기화합니다. */
 function createInitialHiveControls(hives: HiveData[]) {
   return hives.reduce<Record<string, HiveControlState>>((acc, hive) => {
     acc[hive.id] = createDefaultControlState();
@@ -21,10 +29,45 @@ function createInitialHiveControls(hives: HiveData[]) {
   }, {});
 }
 
+/** 등록 폼 입력값을 기존 화면에서 쓰는 HiveData 형태로 변환합니다. */
+function createHiveData(input: HiveFormInput): HiveData {
+  const id =
+    input.id ??
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return {
+    id,
+    macAddress: input.macAddress,
+    name: input.name,
+    region: input.region,
+    location: input.location,
+    memo: input.memo ?? "",
+    registeredAt: todayLabel(),
+    replacedAt: input.replacedAt,
+    status: "online",
+    temperature: 34,
+    humidity: 60,
+    externalTemperature: 22,
+    externalHumidity: 48,
+    weight: 28,
+    beeActivity: "medium",
+    lastUpdate: "방금",
+  };
+}
+
+/**
+ * 개발/서버 실패 fallback용 기본 벌통 목록
+ * - 요청대로 맥주소, 이름, 지역, 위치, 메모가 있는 벌통 2개만 유지합니다.
+ */
 const initialHives: HiveData[] = [
   {
     id: "1",
-    name: "벌통 1호",
+    macAddress: "AA:BB:CC:DD:EE:FF",
+    name: "딸기 벌통",
+    region: "충청북도 청주시 오창읍",
+    location: "과수원 남쪽",
+    memo: "월동 후 점검 필요",
+    registeredAt: "2024-03-15",
     status: "online",
     temperature: 34.5,
     humidity: 62,
@@ -33,13 +76,15 @@ const initialHives: HiveData[] = [
     weight: 28.3,
     beeActivity: "high",
     lastUpdate: "2분 전",
-    location: "동쪽 과수원 옆",
-    memo: "벌들이 잘 모여 있어요. 다음 검사 주기는 2일 후가 좋습니다.",
-    registeredAt: "2026-04-14",
   },
   {
     id: "2",
-    name: "벌통 2호",
+    macAddress: "11:22:33:44:55:66",
+    name: "딸기 벌통 2호",
+    region: "충청북도 청주시 오창읍",
+    location: "과수원 북쪽",
+    memo: "월동 후 점검 완료",
+    registeredAt: "2024-03-16",
     status: "online",
     temperature: 33.8,
     humidity: 58,
@@ -48,75 +93,87 @@ const initialHives: HiveData[] = [
     weight: 31.2,
     beeActivity: "medium",
     lastUpdate: "5분 전",
-    location: "서쪽 과수원 중앙",
-    memo: "이번 주에 꿀 채집이 예상됩니다.",
-    registeredAt: "2026-04-20",
-  },
-  {
-    id: "3",
-    name: "벌통 3호",
-    status: "offline",
-    temperature: 0,
-    humidity: 0,
-    weight: 25.1,
-    beeActivity: "low",
-    lastUpdate: "3시간 전",
-    location: "남쪽 창고 옆",
-    memo: "네트워크 연결이 끊어졌어요. 현장 점검이 필요합니다.",
-    registeredAt: "2026-04-25",
   },
 ];
 
 interface HiveStoreState {
   hives: HiveData[];
   hiveControls: Record<string, HiveControlState>;
-  addHive: (name: string, location: string, memo: string, replacedAt?: string) => void;
+  setHives: (hives: HiveData[]) => void;
+  addHive: (input: HiveFormInput) => void;
+  updateHive: (id: string, input: Omit<HiveFormInput, "id" | "macAddress">) => void;
+  deleteHive: (id: string) => void;
   reorderHives: (nextHives: HiveData[]) => void;
   updateReplacedAt: (id: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
 }
 
+/**
+ * 벌통 화면 공용 store
+ * - 기존 스마트벌통/개폐기 화면이 모두 이 store를 바라봅니다.
+ * - API 조회 성공 시 setHives로 서버 목록을 주입하고, 실패 시 기본 목록을 유지합니다.
+ */
 export const useHiveStore = create<HiveStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       hives: initialHives,
       hiveControls: createInitialHiveControls(initialHives),
-      addHive: (name, location, memo, replacedAt) => {
-        const now = new Date();
-        const id = `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
-        const registeredAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const newHive: HiveData = {
-          id,
-          name,
-          location,
-          memo,
-          registeredAt,
-          replacedAt,
-          status: "online",
-          temperature: 34,
-          humidity: 60,
-          weight: 28.0,
-          beeActivity: "medium",
-          lastUpdate: "방금",
-        };
+      setHives: (hives) => {
+        set((state) => {
+          const nextControls = { ...state.hiveControls };
+          // 서버에서 새 벌통이 내려와도 제어 UI가 깨지지 않도록 기본 상태를 보강합니다.
+          hives.forEach((hive) => {
+            if (!nextControls[hive.id]) {
+              nextControls[hive.id] = createDefaultControlState();
+            }
+          });
 
+          return { hives, hiveControls: nextControls };
+        });
+      },
+      addHive: (input) => {
+        const newHive = createHiveData(input);
         set((state) => ({
           hives: [...state.hives, newHive],
           hiveControls: {
             ...state.hiveControls,
-            [id]: createDefaultControlState(),
+            [newHive.id]: createDefaultControlState(),
           },
         }));
+      },
+      updateHive: (id, input) => {
+        set((state) => ({
+          hives: state.hives.map((hive) =>
+            hive.id === id
+              ? {
+                  ...hive,
+                  name: input.name,
+                  region: input.region,
+                  location: input.location,
+                  memo: input.memo ?? "",
+                  replacedAt: input.replacedAt,
+                }
+              : hive,
+          ),
+        }));
+      },
+      deleteHive: (id) => {
+        set((state) => {
+          // 삭제된 벌통의 제어 상태도 함께 제거해 persist 데이터가 불어나지 않게 합니다.
+          const { [id]: _removed, ...nextControls } = state.hiveControls;
+          return {
+            hives: state.hives.filter((hive) => hive.id !== id),
+            hiveControls: nextControls,
+          };
+        });
       },
       reorderHives: (nextHives) => {
         set({ hives: nextHives });
       },
       updateReplacedAt: (id) => {
-        const now = new Date();
-        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         set((state) => ({
           hives: state.hives.map((hive) =>
-            hive.id === id ? { ...hive, replacedAt: today } : hive,
+            hive.id === id ? { ...hive, replacedAt: todayLabel() } : hive,
           ),
         }));
       },
@@ -132,28 +189,33 @@ export const useHiveStore = create<HiveStoreState>()(
     {
       name: "webee-hive-store",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
-      migrate: (persistedState: any) => {
+      version: 3,
+      migrate: (persistedState: unknown, version) => {
         const state = persistedState as Partial<HiveStoreState> | undefined;
-        const safeHives = state?.hives ?? initialHives;
+        // v3부터 macAddress/region이 필수라서 이전 더미 데이터는 새 기본 데이터로 교체합니다.
+        const safeHives = version < 3 ? initialHives : (state?.hives ?? initialHives);
         const prevControls = state?.hiveControls ?? {};
-        const fresh = initialControls.map((c) => ({ ...c }));
+        const fresh = initialControls.map((control) => ({ ...control }));
         const nextControls: Record<string, HiveControlState> = {};
 
-        for (const hive of safeHives) {
+        safeHives.forEach((hive) => {
           const prev = prevControls[hive.id];
           nextControls[hive.id] = prev
             ? {
                 ...prev,
-                controls: fresh.map((fc) => {
-                  const existing = prev.controls.find((c) => c.id === fc.id);
-                  return existing ? { ...fc, enabled: existing.enabled } : { ...fc };
+                controls: fresh.map((control) => {
+                  const existing = prev.controls.find((item) => item.id === control.id);
+                  return existing ? { ...control, enabled: existing.enabled } : { ...control };
                 }),
               }
             : createDefaultControlState();
-        }
+        });
 
-        return { ...state, hives: safeHives, hiveControls: nextControls } as HiveStoreState;
+        return {
+          ...state,
+          hives: safeHives,
+          hiveControls: nextControls,
+        } as HiveStoreState;
       },
     },
   ),

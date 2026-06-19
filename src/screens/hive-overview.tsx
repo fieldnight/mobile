@@ -10,6 +10,7 @@ const BG_IMAGE = require("../../assets/df.jpg");
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { useSyncHiveList } from "@/features/hive";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 
@@ -22,6 +23,7 @@ const ITEM_WIDTH = Dimensions.get("window").width - 32;
  */
 export default function HiveOverviewScreen() {
   const insets = useSafeAreaInsets();
+  useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 

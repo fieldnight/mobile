@@ -12,22 +12,33 @@ import type { HiveData } from "@/types/hive-control";
 
 const BEE_ICON = require("../../../../assets/homeIcons/bee.png");
 
+/**
+ * 개폐기 화면에서 쓰는 벌통 카드
+ * - 기본 상태에서는 수정 버튼과 연결 상태를 보여줍니다.
+ * - 삭제 모드에서는 전원 아이콘 대신 삭제 버튼(-)을 노출합니다.
+ */
 export function DoorOpenerHiveCard({
   hive,
   size,
+  editable,
   dragging,
   panHandlers,
   dragOffset,
   onPress,
+  onEdit,
+  onDelete,
   onLongPress,
   onPressOut,
 }: {
   hive: HiveData;
   size: number;
+  editable?: boolean;
   dragging?: boolean;
   panHandlers?: GestureResponderHandlers;
   dragOffset?: Animated.ValueXY;
   onPress: () => void;
+  onEdit: () => void;
+  onDelete?: () => void;
   onLongPress?: () => void;
   onPressOut?: () => void;
 }) {
@@ -74,19 +85,44 @@ export function DoorOpenerHiveCard({
               style={{ width: 34, height: 34, opacity: offline ? 0.45 : 1 }}
               resizeMode="contain"
             />
-            <View
-              className="items-center justify-center rounded-full"
-              style={{
-                width: 30,
-                height: 30,
-                backgroundColor: "rgba(255,255,255,0.22)",
-              }}
-            >
-              <Feather
-                name="power"
-                size={15}
-                color={offline ? "rgba(255,255,255,0.5)" : C.white}
-              />
+
+            <View className="flex-row" style={{ gap: 6 }}>
+              <RoundIconButton icon="edit-2" onPress={onEdit} />
+
+              {editable && onDelete ? (
+                <Pressable
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    onDelete();
+                  }}
+                  hitSlop={8}
+                  className="items-center justify-center rounded-full active:opacity-70"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    backgroundColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  <PretendardFont weight="bold" style={{ fontSize: 18, color: C.white }}>
+                    -
+                  </PretendardFont>
+                </Pressable>
+              ) : (
+                <View
+                  className="items-center justify-center rounded-full"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    backgroundColor: "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  <Feather
+                    name="power"
+                    size={15}
+                    color={offline ? "rgba(255,255,255,0.5)" : C.white}
+                  />
+                </View>
+              )}
             </View>
           </View>
 
@@ -114,5 +150,32 @@ export function DoorOpenerHiveCard({
         </View>
       </Pressable>
     </Animated.View>
+  );
+}
+
+/** 카드 우측 상단의 작은 원형 액션 버튼입니다. */
+function RoundIconButton({
+  icon,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+      hitSlop={8}
+      className="items-center justify-center rounded-full active:opacity-70"
+      style={{
+        width: 30,
+        height: 30,
+        backgroundColor: "rgba(255,255,255,0.22)",
+      }}
+    >
+      <Feather name={icon} size={14} color={C.white} />
+    </Pressable>
   );
 }

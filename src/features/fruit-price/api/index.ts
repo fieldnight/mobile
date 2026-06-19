@@ -11,8 +11,6 @@
  * InterestMarket.cropMajorCode = 화면의 largeCode(gds_lclsf_cd)와 동일한 값
  */
 
-
-
 import axios from "axios";
 import type { Row } from "@/types";
 import qs from "qs";
@@ -20,8 +18,14 @@ import { api } from "@/lib/api";
 
 export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL!;
 export const SERVICE_KEY = process.env.EXPO_PUBLIC_SERVICE_KEY!;
+const PAGE_SIZE = 300;
 
 // ── 공공 API ─────────────────────────────────────────────────────────────────
+
+interface TradePage {
+  rows: Row[];
+  totalCount: number;
+}
 
 export function parseRows(data: any): { rows: Row[]; totalCount: number } {
   const resultCode = data?.response?.header?.resultCode;
@@ -34,37 +38,41 @@ export function parseRows(data: any): { rows: Row[]; totalCount: number } {
   };
 }
 
-export async function apiFetch(params: Record<string, string>) {
-  try {
-    const { data, config } = await axios.get(BASE_URL, {
-      timeout: 15_000,
-      params: {
-        serviceKey: SERVICE_KEY,
-        returnType: "json",
-        numOfRows: "300",
-        pageNo: "1",
-        ...params,
-      },
-      paramsSerializer: (p) => {
-        const { serviceKey, ...rest } = p;
-        return `serviceKey=${encodeURIComponent(serviceKey)}&${qs.stringify(rest, { encode: false })}`;
-      },
-    });
-    
- console.log(
-      "실제 URL:",
-      config.url +
-        "?" +
-        qs.stringify(config.params, { encode: true, encodeValuesOnly: true }),
-    );
+function serializeTradeParams(params: Record<string, string | number>) {
+  const { serviceKey, ...rest } = params;
+  return `serviceKey=${encodeURIComponent(serviceKey)}&${qs.stringify(rest, { encode: false })}`;
+}
 
-    return parseRows(data);
+async function fetchTradePage(
+  params: Record<string, string>,
+  pageNo = 1,
+  pageSize = PAGE_SIZE,
+): Promise<TradePage> {
+  const { data } = await axios.get(BASE_URL, {
+    timeout: 15_000,
+    params: {
+      serviceKey: SERVICE_KEY,
+      returnType: "json",
+      numOfRows: String(pageSize),
+      pageNo,
+      ...params,
+    },
+    paramsSerializer: serializeTradeParams,
+  });
+
+  return parseRows(data);
+}
+
+export async function apiFetch(params: Record<string, string>): Promise<TradePage> {
+  try {
+    // 화면 첫 진입 속도를 위해 공공 API는 한 페이지만 조회합니다.
+    // 특정 작물은 빠른 검색처럼 서버 필터 조건을 붙여 별도로 조회하는 방식이 더 안정적입니다.
+    return await fetchTradePage(params);
   } catch (e: any) {
     const msg = e?.response?.data?.resultMsg ?? e?.message ?? "네트워크 오류";
     throw new Error(msg);
   }
-}/*https://apis.data.go.kr/B552845/katRealTime2/trades2?serviceKey=xNPW3bBwt8j3dOB9niigELSJ6hRgpxaeIun8XdyUN93%2FDJTyc%2BvpMpAcoCjcesOF96l0wsLx65PrA9fHgZYzMQ%3D%3D&pageNo=1&numOfRows=10&returnType=json&cond[whsl_mrkt_cd::EQ]=110001&cond[trd_clcln_ymd::EQ]=2026-03-21 */
-
+}
 
 // ── 관심 시장 API ─────────────────────────────────────────────────────────────
 

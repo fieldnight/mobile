@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { useSyncHiveList } from "@/features/hive";
 import {
   DoorOpenerBackground,
   DraggableHiveSection,
@@ -24,6 +25,7 @@ export default function DoorOpenerScreen() {
   const hives = useHiveStore((s) => s.hives);
   const reorderHives = useHiveStore((s) => s.reorderHives);
   const [deleting, setDeleting] = useState(false);
+  useSyncHiveList();
 
   return (
     <View className="flex-1">

@@ -1,175 +1,219 @@
-/**
- * 벌통 추가 바텀시트
- * - hive-add 페이지의 폼 로직을 바텀시트 안으로 이전
- * - BottomSheet 공용 컴포넌트 위에 올라갑니다
- * - 완료 시 토스트 알림 + 자동 닫힘
- */
-import { useState } from "react";
-import {
-  Modal,
-  Platform,
-  Pressable,
-  TextInput,
-  View,
-} from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { useEffect, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Feather } from "@expo/vector-icons";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
+import { useCreateHive, useUpdateHive } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { C } from "@/constants/hive-colors";
+import type { HiveData, HiveFormInput } from "@/types/hive-control";
 
 interface HiveAddSheetProps {
   visible: boolean;
   onClose: () => void;
+  hive?: HiveData | null;
 }
 
-const formatDate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const EMPTY_FORM: HiveFormInput = {
+  macAddress: "",
+  name: "",
+  region: "",
+  location: "",
+  memo: "",
+};
+const FORM_PANEL_BG = "#EEF2F6";
 
-export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
-  const addHive = useHiveStore((s) => s.addHive);
+function getApiErrorMessage(error: any, fallback: string) {
+  return error?.response?.data?.message ?? error?.message ?? fallback;
+}
+
+function isLocalFallbackHive(hive: HiveData) {
+  return (
+    (hive.id === "1" && hive.macAddress === "AA:BB:CC:DD:EE:FF") ||
+    (hive.id === "2" && hive.macAddress === "11:22:33:44:55:66")
+  );
+}
+
+/**
+ * 벌통 등록/수정 공용 바텀시트
+ * - 등록: macAddress/name/region/location/memo를 서버에 POST합니다.
+ * - 수정: 서버 수정 API 명세에 맞춰 name/region/location/memo만 전달합니다.
+ */
+export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
+  const editing = !!hive;
+  const addHive = useHiveStore((state) => state.addHive);
+  const updateHiveLocally = useHiveStore((state) => state.updateHive);
+  const createHiveMutation = useCreateHive();
+  const updateHiveMutation = useUpdateHive();
   const { show: showToast } = useAppToast();
+  const [form, setForm] = useState<HiveFormInput>(EMPTY_FORM);
 
-  const [name, setName]         = useState("");
-  const [location, setLocation] = useState("");
-  const [memo, setMemo]         = useState("");
-  const [replacedAt, setReplacedAt] = useState<Date | null>(null);
-  const [draftReplacedAt, setDraftReplacedAt] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    // 수정 모드에서는 기존 벌통 정보를 폼에 채워 사용자가 필요한 값만 바꾸게 합니다.
+    setForm(
+      hive
+        ? {
+            id: hive.id,
+            macAddress: hive.macAddress,
+            name: hive.name,
+            region: hive.region,
+            location: hive.location ?? "",
+            memo: hive.memo ?? "",
+            replacedAt: hive.replacedAt,
+          }
+        : EMPTY_FORM,
+    );
+  }, [hive, visible]);
 
-  const canSubmit = name.trim() !== "" && location.trim() !== "";
+  const submitting =
+    createHiveMutation.isPending || updateHiveMutation.isPending;
+  const canSubmit =
+    form.macAddress.trim() !== "" &&
+    form.name.trim() !== "" &&
+    form.region.trim() !== "" &&
+    form.location.trim() !== "" &&
+    !submitting;
+
+  const updateField = (key: keyof HiveFormInput, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const resetAndClose = () => {
-    setName(""); setLocation(""); setMemo(""); setReplacedAt(null);
-    setDraftReplacedAt(new Date());
+    setForm(EMPTY_FORM);
     onClose();
   };
 
   const handleSubmit = () => {
     if (!canSubmit) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addHive(name.trim(), location.trim(), memo.trim(), replacedAt ? formatDate(replacedAt) : undefined);
-    showToast(`${name.trim()} 벌통을 추가했어요.`, "success");
-    resetAndClose();
+
+    const payload = {
+      macAddress: form.macAddress.trim(),
+      name: form.name.trim(),
+      region: form.region.trim(),
+      location: form.location.trim(),
+      memo: form.memo?.trim() || undefined,
+    };
+
+    if (editing && hive) {
+      if (isLocalFallbackHive(hive)) {
+        // 서버에 등록되지 않은 fallback 벌통은 API 요청 없이 로컬 상태만 수정합니다.
+        updateHiveLocally(hive.id, {
+          name: payload.name,
+          region: payload.region,
+          location: payload.location,
+          memo: payload.memo ?? "",
+          replacedAt: form.replacedAt,
+        });
+        showToast(`${payload.name} 정보를 수정했어요`, "success");
+        resetAndClose();
+        return;
+      }
+
+      // 수정 API 명세에 맞춰 macAddress는 제외하고 변경 가능한 기본 정보만 보냅니다.
+      updateHiveMutation.mutate(
+        {
+          hiveId: hive.id,
+          body: {
+            name: payload.name,
+            region: payload.region,
+            location: payload.location,
+            memo: payload.memo,
+          },
+        },
+        {
+          onSuccess: () => {
+            updateHiveLocally(hive.id, {
+              name: payload.name,
+              region: payload.region,
+              location: payload.location,
+              memo: payload.memo ?? "",
+              replacedAt: form.replacedAt,
+            });
+            showToast(`${payload.name} 정보를 수정했어요`, "success");
+            resetAndClose();
+          },
+          onError: (error) => {
+            showToast(getApiErrorMessage(error, "벌통 수정에 실패했어요"), "error");
+          },
+        },
+      );
+      return;
+    }
+
+    createHiveMutation.mutate(payload, {
+      onSuccess: ({ hiveId }) => {
+        addHive({ ...payload, id: String(hiveId), memo: payload.memo ?? "" });
+        showToast(`${payload.name} 벌통을 등록했어요`, "success");
+        resetAndClose();
+      },
+      onError: (error) => {
+        showToast(getApiErrorMessage(error, "벌통 등록에 실패했어요"), "error");
+      },
+    });
   };
 
   return (
-    <BottomSheet visible={visible} onClose={resetAndClose} title="벌통 추가">
-      {/* 안내 배너 */}
-      <View
-        className="rounded-2xl p-4 mb-2"
-        style={{ backgroundColor: C.infoBg }}
-      >
-        <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}>
-          위치와 이름을 입력하면 내 벌통 목록에 바로 등록됩니다.
+    <BottomSheet
+      visible={visible}
+      onClose={resetAndClose}
+      title={editing ? "벌통 수정" : "벌통 등록"}
+    >
+      <View className="rounded-2xl p-4 mb-2" style={{ backgroundColor: C.infoBg }}>
+        <PretendardFont
+          weight="semibold"
+          style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
+        >
+          {editing
+            ? "등록된 벌통의 이름, 지역, 위치, 메모를 수정할 수 있어요."
+            : "맥주소와 기본 정보를 입력하면 벌통 목록에 등록돼요."}
         </PretendardFont>
       </View>
 
-      {/* 벌통 이름 */}
+      <FieldLabel label="맥주소" required hint={editing ? "수정 불가" : undefined} />
+      <FormInput
+        value={form.macAddress}
+        onChangeText={(value) => updateField("macAddress", value)}
+        placeholder="AA:BB:CC:DD:EE:FF"
+        editable={!editing}
+      />
+
       <FieldLabel label="벌통 이름" required />
-      <FakeInputRow
-        value={name}
-        onChangeText={setName}
-        placeholder="예: 벌통 4호"
-        active={!!name}
+      <FormInput
+        value={form.name}
+        onChangeText={(value) => updateField("name", value)}
+        placeholder="딸기 벌통 3호"
       />
 
-      {/* 위치 */}
-      <FieldLabel label="위치" required />
-      <FakeInputRow
-        value={location}
-        onChangeText={setLocation}
-        placeholder="예: 남쪽 창고 옆"
-        active={!!location}
+      <FieldLabel label="지역" required />
+      <FormInput
+        value={form.region}
+        onChangeText={(value) => updateField("region", value)}
+        placeholder="충청북도 청주시 오창읍"
       />
 
-      {/* 메모 */}
+      <FieldLabel label="사용자 지정 위치" required />
+      <FormInput
+        value={form.location}
+        onChangeText={(value) => updateField("location", value)}
+        placeholder="과수원 남쪽"
+      />
+
       <FieldLabel label="메모" />
-      <FakeInputMultiline
-        value={memo}
-        onChangeText={setMemo}
-        placeholder="벌통 상태, 특징, 점검 메모 등"
+      <FormInput
+        value={form.memo ?? ""}
+        onChangeText={(value) => updateField("memo", value)}
+        placeholder="점검 내용이나 특이사항을 적어주세요"
+        multiline
       />
 
-      {/* 교체일 (선택) */}
-      <FieldLabel label="교체일" hint="선택사항" />
-      <Pressable
-        onPress={() => {
-          setDraftReplacedAt(replacedAt ?? new Date());
-          setShowDatePicker(true);
-        }}
-        className="flex-row items-center justify-between rounded-2xl px-4"
-        style={{
-          height: 48,
-          backgroundColor: C.bgAlt,
-          borderWidth: 1,
-          borderColor: C.border,
-        }}
-      >
-        <PretendardFont style={{ fontSize: 14, color: replacedAt ? C.text : C.ter }}>
-          {replacedAt ? formatDate(replacedAt) : "날짜를 선택하세요"}
-        </PretendardFont>
-        <Feather name="calendar" size={16} color={C.ter} />
-      </Pressable>
-
-      {/* iOS 날짜 선택기 */}
-      {Platform.OS === "ios" && showDatePicker && (
-        <Modal transparent animationType="slide">
-          <View className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-            <View style={{ backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 }}>
-              <View className="flex-row justify-between items-center mb-2">
-                <Pressable
-                  onPress={() => {
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <PretendardFont style={{ fontSize: 16, color: C.ter }}>취소</PretendardFont>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setReplacedAt(draftReplacedAt);
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.primary }}>확인</PretendardFont>
-                </Pressable>
-              </View>
-              <DateTimePicker
-                value={draftReplacedAt}
-                mode="date"
-                display="inline"
-                maximumDate={new Date()}
-                onChange={(_, date) => { if (date) setDraftReplacedAt(date); }}
-                locale="ko-KR"
-              />
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Android 날짜 선택기 */}
-      {Platform.OS === "android" && showDatePicker && (
-        <DateTimePicker
-          value={replacedAt ?? new Date()}
-          mode="date"
-          display="calendar"
-          maximumDate={new Date()}
-          onChange={(event, date) => {
-            setShowDatePicker(false);
-            if (event.type === "set" && date) setReplacedAt(date);
-          }}
-        />
-      )}
-
-      {/* 하단 버튼 */}
       <View className="mt-6 flex-row" style={{ gap: 10 }}>
         <Pressable
           onPress={resetAndClose}
           className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
-          style={{ backgroundColor: C.bgAlt, borderWidth: 1, borderColor: C.border }}
+          style={{ backgroundColor: FORM_PANEL_BG }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 14, color: C.textAlt }}>
             취소
@@ -182,7 +226,7 @@ export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
           style={{ backgroundColor: canSubmit ? C.primary : C.border }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
-            등록하기
+            {submitting ? "저장 중" : editing ? "수정하기" : "등록하기"}
           </PretendardFont>
         </Pressable>
       </View>
@@ -190,112 +234,65 @@ export function HiveAddSheet({ visible, onClose }: HiveAddSheetProps) {
   );
 }
 
-/**
- * 단일 줄 입력 — placeholder를 PretendardFont로 오버레이
- * TextInput의 placeholder는 fontFamily 제어가 안 되므로 직접 그린다
- */
-function FakeInputRow({
-  value,
-  onChangeText,
-  placeholder,
-  active,
+/** Add 계열 모달에서 쓰는 border 없는 폼 라벨입니다. */
+function FieldLabel({
+  label,
+  required,
+  hint,
 }: {
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder: string;
-  active: boolean;
+  label: string;
+  required?: boolean;
+  hint?: string;
 }) {
-  return (
-    <View
-      className="rounded-2xl px-4 justify-center"
-      style={{
-        height: 48,
-        backgroundColor: C.bgAlt,
-        borderWidth: 1,
-        borderColor: active ? C.primary : C.border,
-      }}
-    >
-      {/* 값이 없을 때만 placeholder 오버레이 */}
-      {!value && (
-        <PretendardFont
-          weight="medium"
-          style={{ fontSize: 14, color: C.ter, position: "absolute", left: 16, pointerEvents: "none" }}
-        >
-          {placeholder}
-        </PretendardFont>
-      )}
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        style={{
-          fontFamily: "Pretendard-Medium",
-          fontSize: 14,
-          color: C.text,
-          padding: 0,
-        }}
-      />
-    </View>
-  );
-}
-
-/**
- * 멀티라인 입력 — placeholder를 PretendardFont로 오버레이
- */
-function FakeInputMultiline({
-  value,
-  onChangeText,
-  placeholder,
-}: {
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <View
-      className="rounded-2xl px-4 py-3"
-      style={{
-        minHeight: 88,
-        backgroundColor: C.bgAlt,
-        borderWidth: 1,
-        borderColor: C.border,
-      }}
-    >
-      {!value && (
-        <PretendardFont
-          style={{ fontSize: 14, color: C.ter, position: "absolute", top: 12, left: 16, pointerEvents: "none" }}
-        >
-          {placeholder}
-        </PretendardFont>
-      )}
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        multiline
-        style={{
-          fontFamily: "Pretendard-Regular",
-          fontSize: 14,
-          color: C.text,
-          textAlignVertical: "top",
-          padding: 0,
-          minHeight: 64,
-        }}
-      />
-    </View>
-  );
-}
-
-function FieldLabel({ label, required, hint }: { label: string; required?: boolean; hint?: string }) {
   return (
     <View className="flex-row items-center gap-1 mt-5 mb-2">
       <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text }}>
         {label}
       </PretendardFont>
       {required && (
-        <PretendardFont weight="bold" style={{ fontSize: 13, color: C.error }}>*</PretendardFont>
+        <PretendardFont weight="bold" style={{ fontSize: 13, color: C.error }}>
+          *
+        </PretendardFont>
       )}
       {hint && (
-        <PretendardFont style={{ fontSize: 12, color: C.ter }}>({hint})</PretendardFont>
+        <PretendardFont style={{ fontSize: 12, color: C.ter }}>
+          ({hint})
+        </PretendardFont>
       )}
     </View>
+  );
+}
+
+/** Pretendard를 직접 지정한 Add 모달용 입력 필드입니다. */
+function FormInput({
+  value,
+  onChangeText,
+  placeholder,
+  editable = true,
+  multiline,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  editable?: boolean;
+  multiline?: boolean;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      editable={editable}
+      multiline={multiline}
+      placeholder={placeholder}
+      placeholderTextColor={C.ter}
+      className="rounded-2xl px-4 py-3 text-[14px]"
+      style={{
+        minHeight: multiline ? 88 : 48,
+        backgroundColor: FORM_PANEL_BG,
+        color: editable ? C.text : C.sec,
+        fontFamily: "Pretendard-Medium",
+        textAlignVertical: multiline ? "top" : "center",
+      }}
+    />
   );
 }

@@ -1,6 +1,6 @@
 /**
- * IoT 홈 - 벌통 추가 카드 (벌통 카드와 동일 크기 · 글래스 점선)
- * - 탭하면 벌통 추가(hive-add) 페이지로 이동
+ * IoT 홈에서 쓰는 벌통 등록 카드입니다.
+ * 일반 벌통 카드와 같은 크기를 유지해서 그리드 레이아웃이 흔들리지 않게 합니다.
  */
 import { Pressable, View } from "react-native";
 import { Feather } from "@expo/vector-icons";

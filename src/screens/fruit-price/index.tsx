@@ -34,6 +34,7 @@ import {
   getLargeOptions,
   getMiddleOptions,
   getSmallOptions,
+  getQuickMiddleName,
   type InterestMarket,
 } from "@/features/fruit-price";
 import type { Row } from "@/types";
@@ -253,7 +254,7 @@ function ClassifyDropdown({
   label: string;
   value: string;
   options: { code: string; name: string }[];
-  onSelect: (code: string) => void;
+  onSelect: (code: string, name: string) => void;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -349,7 +350,7 @@ function ClassifyDropdown({
                     backgroundColor: o.code === value ? C.bg : "transparent",
                   }}
                   onPress={() => {
-                    onSelect(o.code);
+                    onSelect(o.code, o.name);
                     setOpen(false);
                   }}
                 >
@@ -424,6 +425,7 @@ export default function FruitPriceScreen() {
   const isLoading = loading[cacheKey] ?? false;
   const errorMsg = error[cacheKey] ?? null;
   const rows = cache[cacheKey]?.rows ?? EMPTY_ROWS;
+  const hasRows = rows.length > 0;
 
   useEffect(() => {
     if (quickItem) fetchByMiddle(quickItem, selectedDate, marketCode);
@@ -438,7 +440,7 @@ export default function FruitPriceScreen() {
       const smallRow = rows.find((r) => r.gds_sclsf_nm === item.cropMinorName);
       setMiddleCode(midRow?.gds_mclsf_cd ?? "");
       setSmallCode(smallRow?.gds_sclsf_cd ?? "");
-      setQuickItem(null);
+      setQuickItem(item.cropMidName || null);
       setPage(1);
     },
     [rows],
@@ -477,6 +479,14 @@ export default function FruitPriceScreen() {
     setPage(1);
   }, []);
 
+  const handleMiddleChange = useCallback((code: string, name: string) => {
+    const quickName = getQuickMiddleName(code);
+    setMiddleCode(code);
+    setSmallCode("");
+    setQuickItem(code ? quickName || name : null);
+    setPage(1);
+  }, []);
+
   const handleRefresh = useCallback(() => {
     invalidate(cacheKey);
     if (quickItem) fetchByMiddle(quickItem, selectedDate, marketCode);
@@ -489,8 +499,12 @@ export default function FruitPriceScreen() {
   }, [handleRefresh]);
 
   const currentMidName = useMemo(
-    () => rows.find((r) => r.gds_mclsf_cd === middleCode)?.gds_mclsf_nm ?? "",
-    [rows, middleCode],
+    () =>
+      quickItem ||
+      getQuickMiddleName(middleCode) ||
+      rows.find((r) => r.gds_mclsf_cd === middleCode)?.gds_mclsf_nm ||
+      "",
+    [quickItem, rows, middleCode],
   );
   const currentMinorName = useMemo(
     () => rows.find((r) => r.gds_sclsf_cd === smallCode)?.gds_sclsf_nm ?? "",
@@ -503,19 +517,33 @@ export default function FruitPriceScreen() {
     [rows, largeCode],
   );
   const smallOptions = useMemo(
-    () => getSmallOptions(rows, middleCode),
-    [rows, middleCode],
+    () => getSmallOptions(rows, middleCode, currentMidName),
+    [rows, middleCode, currentMidName],
   );
 
   const filteredRows = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          (!largeCode || r.gds_lclsf_cd === largeCode) &&
-          (!middleCode || r.gds_mclsf_cd === middleCode) &&
-          (!smallCode || r.gds_sclsf_cd === smallCode),
-      ),
-    [rows, largeCode, middleCode, smallCode],
+    () => {
+      const quickMiddleName = getQuickMiddleName(middleCode);
+      const selectedMiddleName = quickItem || quickMiddleName;
+
+      return rows.filter(
+        (r) => {
+          const matchesMiddle = selectedMiddleName
+            ? r.gds_mclsf_nm === selectedMiddleName
+            : !middleCode || r.gds_mclsf_cd === middleCode;
+          const matchesLarge = selectedMiddleName
+            ? true
+            : !largeCode || r.gds_lclsf_cd === largeCode;
+
+          return (
+            matchesLarge &&
+            matchesMiddle &&
+            (!smallCode || r.gds_sclsf_cd === smallCode)
+          );
+        },
+      );
+    },
+    [quickItem, rows, largeCode, middleCode, smallCode],
   );
 
   const sortedRows = useMemo(
@@ -709,6 +737,7 @@ export default function FruitPriceScreen() {
                   setLargeCode(c);
                   setMiddleCode("");
                   setSmallCode("");
+                  setQuickItem(null);
                   setPage(1);
                 }}
                 disabled={!largeOptions.length}
@@ -717,11 +746,7 @@ export default function FruitPriceScreen() {
                 label="중분류"
                 value={middleCode}
                 options={middleOptions}
-                onSelect={(c) => {
-                  setMiddleCode(c);
-                  setSmallCode("");
-                  setPage(1);
-                }}
+                onSelect={handleMiddleChange}
                 disabled={!largeCode}
               />
               <ClassifyDropdown
@@ -798,7 +823,7 @@ export default function FruitPriceScreen() {
             )}
 
             {/* 로딩/빈화면/테이블 */}
-            {isLoading ? (
+            {isLoading && !hasRows ? (
               <View
                 style={{ paddingVertical: 60, alignItems: "center", gap: 8 }}
               >
@@ -883,7 +908,7 @@ export default function FruitPriceScreen() {
           </View>
 
           {/* 페이지네이션 */}
-          {!isLoading && sortedRows.length > 0 && (
+          {sortedRows.length > 0 && (
             <View
               style={{
                 flexDirection: "row",

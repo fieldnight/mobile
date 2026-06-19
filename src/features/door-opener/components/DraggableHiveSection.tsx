@@ -1,8 +1,3 @@
-/**
- * 벌통 현황 섹션 (드래그 순서 변경)
- * - 벌통 카드 2열 그리드, 롱프레스로 순서 변경
- * - 벌통 추가: HiveAddSheet (바텀시트) — router.push 대체
- */
 import { useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -12,11 +7,16 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AddHiveCard } from "./AddHiveCard";
 import { DoorOpenerHiveCard } from "./DoorOpenerHiveCard";
 import { DoorOpenerSectionHeader } from "./DoorOpenerSectionHeader";
+import { ConfirmSheet } from "@/components/BottomSheet";
 import { HiveAddSheet } from "@/components/HiveAddSheet";
-import { useRouter } from "expo-router";
+import { useAppToast } from "@/components/ToastContext";
+import { HIVE_QUERY_KEYS, getHiveDetail, useDeleteHive } from "@/features/hive";
+import { useHiveStore } from "@/stores/useHiveStore";
 import type { HiveData } from "@/types/hive-control";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -26,6 +26,22 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
 
+function getApiErrorMessage(error: any, fallback: string) {
+  return error?.response?.data?.message ?? error?.message ?? fallback;
+}
+
+function isLocalFallbackHive(hive: HiveData) {
+  return (
+    (hive.id === "1" && hive.macAddress === "AA:BB:CC:DD:EE:FF") ||
+    (hive.id === "2" && hive.macAddress === "11:22:33:44:55:66")
+  );
+}
+
+/**
+ * 개폐기 화면의 벌통 현황 섹션
+ * - 벌통 카드 정렬은 기존처럼 롱프레스 드래그로 처리합니다.
+ * - 수정/삭제는 카드 우측 액션 버튼과 ConfirmSheet로 처리합니다.
+ */
 export function DraggableHiveSection({
   hives,
   cardWidth,
@@ -36,13 +52,21 @@ export function DraggableHiveSection({
   onReorder: (nextHives: HiveData[]) => void;
 }) {
   const router = useRouter();
-  const [draggingHiveId, setDraggingHiveId] = useState<string | null>(null);
-  const [addingHive, setAddingHive]         = useState(false);
+  const queryClient = useQueryClient();
+  const deleteHiveLocally = useHiveStore((state) => state.deleteHive);
+  const deleteHiveMutation = useDeleteHive();
+  const { show: showToast } = useAppToast();
 
-  const dragOffset          = useRef(new Animated.ValueXY()).current;
-  const hivesRef            = useRef(hives);
-  const draggingHiveIdRef   = useRef<string | null>(null);
-  const dragStartIndexRef   = useRef(0);
+  const [draggingHiveId, setDraggingHiveId] = useState<string | null>(null);
+  const [addingHive, setAddingHive] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editingHive, setEditingHive] = useState<HiveData | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<HiveData | null>(null);
+
+  const dragOffset = useRef(new Animated.ValueXY()).current;
+  const hivesRef = useRef(hives);
+  const draggingHiveIdRef = useRef<string | null>(null);
+  const dragStartIndexRef = useRef(0);
   const dragCurrentIndexRef = useRef(0);
   hivesRef.current = hives;
 
@@ -54,6 +78,7 @@ export function DraggableHiveSection({
   cellRef.current = cell;
 
   const reorderHives = (fromIndex: number, toIndex: number) => {
+    // 드래그 중 카드 위치가 바뀔 때 주변 카드가 자연스럽게 밀리도록 레이아웃 애니메이션 적용
     LayoutAnimation.configureNext({
       duration: 280,
       create: { type: "easeInEaseOut", property: "scaleXY" },
@@ -79,11 +104,19 @@ export function DraggableHiveSection({
     });
   };
 
+  const stopDragging = () => {
+    setDraggingHiveId(null);
+    draggingHiveIdRef.current = null;
+    dragOffset.setValue({ x: 0, y: 0 });
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: () => draggingHiveIdRef.current != null,
-      onPanResponderGrant: () => { dragOffset.setValue({ x: 0, y: 0 }); },
+      onPanResponderGrant: () => {
+        dragOffset.setValue({ x: 0, y: 0 });
+      },
       onPanResponderMove: (_, gesture) => {
         if (!draggingHiveIdRef.current) return;
         const currentCell = cellRef.current;
@@ -91,16 +124,22 @@ export function DraggableHiveSection({
         const rowDelta = Math.round(gesture.dy / currentCell.height);
         const targetIndex = Math.max(
           0,
-          Math.min(hivesRef.current.length - 1, dragStartIndexRef.current + rowDelta * GRID_COLUMNS + colDelta),
+          Math.min(
+            hivesRef.current.length - 1,
+            dragStartIndexRef.current + rowDelta * GRID_COLUMNS + colDelta,
+          ),
         );
+
         if (targetIndex !== dragCurrentIndexRef.current) {
           reorderHives(dragCurrentIndexRef.current, targetIndex);
           dragCurrentIndexRef.current = targetIndex;
         }
-        const startCol   = dragStartIndexRef.current % GRID_COLUMNS;
-        const startRow   = Math.floor(dragStartIndexRef.current / GRID_COLUMNS);
+
+        const startCol = dragStartIndexRef.current % GRID_COLUMNS;
+        const startRow = Math.floor(dragStartIndexRef.current / GRID_COLUMNS);
         const currentCol = dragCurrentIndexRef.current % GRID_COLUMNS;
         const currentRow = Math.floor(dragCurrentIndexRef.current / GRID_COLUMNS);
+
         dragOffset.setValue({
           x: gesture.dx - (currentCol - startCol) * currentCell.width,
           y: gesture.dy - (currentRow - startRow) * currentCell.height,
@@ -120,9 +159,59 @@ export function DraggableHiveSection({
     setDraggingHiveId(hive.id);
   };
 
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+
+    if (isLocalFallbackHive(pendingDelete)) {
+      // 서버에 아직 등록되지 않은 fallback 벌통은 API 요청 없이 로컬에서만 제거합니다.
+      deleteHiveLocally(pendingDelete.id);
+      showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "error");
+      setPendingDelete(null);
+      return;
+    }
+
+    deleteHiveMutation.mutate(pendingDelete.id, {
+      onSuccess: () => {
+        // 서버 삭제 성공 후에만 로컬 store를 갱신해 화면과 서버 상태가 엇갈리지 않게 합니다.
+        deleteHiveLocally(pendingDelete.id);
+        showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "error");
+        setPendingDelete(null);
+      },
+      onError: (error) => {
+        showToast(getApiErrorMessage(error, "벌통 삭제에 실패했어요"), "error");
+      },
+    });
+  };
+
+  const openHiveDetail = (hive: HiveData) => {
+    // IoT 화면에서 벌통을 탭하면 상세조회 API를 먼저 호출해 콘솔에서 응답을 확인합니다.
+    queryClient
+      .fetchQuery({
+        queryKey: HIVE_QUERY_KEYS.detail(hive.id),
+        queryFn: () => getHiveDetail(hive.id),
+      })
+      .catch((error) => {
+        showToast(getApiErrorMessage(error, "벌통 상세 조회에 실패했어요"), "error");
+      });
+
+    router.push({
+      pathname: "/hive-control",
+      params: { selectedHiveId: hive.id },
+    });
+  };
+
   return (
     <View>
-      <DoorOpenerSectionHeader title="벌통 현황" count={hives.length} />
+      <DoorOpenerSectionHeader
+        title="벌통 현황"
+        count={hives.length}
+        actionLabel={deleting ? "완료" : "삭제"}
+        actionActive={deleting}
+        onActionPress={() => {
+          if (deleting) stopDragging();
+          setDeleting((value) => !value);
+        }}
+      />
 
       <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
         {hives.map((hive) => {
@@ -132,27 +221,44 @@ export function DraggableHiveSection({
               key={hive.id}
               hive={hive}
               size={cardWidth}
+              editable={deleting}
               dragging={dragging}
               panHandlers={panResponder.panHandlers}
               dragOffset={dragging ? dragOffset : undefined}
+              onEdit={() => setEditingHive(hive)}
+              onDelete={() => setPendingDelete(hive)}
               onLongPress={() => startDrag(hive)}
               onPressOut={() => {
                 if (draggingHiveIdRef.current === hive.id) finishDrag();
               }}
               onPress={() => {
-                if (draggingHiveIdRef.current) return;
-                router.push({ pathname: "/hive-control", params: { selectedHiveId: hive.id } });
+                if (draggingHiveIdRef.current || deleting) return;
+                openHiveDetail(hive);
               }}
             />
           );
         })}
 
-        {/* 벌통 추가 버튼 — 바텀시트 열기 */}
         <AddHiveCard size={cardWidth} onPress={() => setAddingHive(true)} />
       </View>
 
-      {/* 벌통 추가 바텀시트 */}
       <HiveAddSheet visible={addingHive} onClose={() => setAddingHive(false)} />
+      <HiveAddSheet
+        visible={editingHive != null}
+        hive={editingHive}
+        onClose={() => setEditingHive(null)}
+      />
+
+      <ConfirmSheet
+        visible={pendingDelete != null}
+        onClose={() => setPendingDelete(null)}
+        title="벌통 삭제"
+        message={`${pendingDelete?.name ?? "선택한 벌통"}을 삭제할까요?`}
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
