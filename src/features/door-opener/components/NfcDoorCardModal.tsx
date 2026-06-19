@@ -143,7 +143,12 @@ export function NfcDoorCardModal({
 
         <Animated.View
           {...panResponder.panHandlers}
-          style={{ width: ACTIVE_CARD_W, transform: [{ translateY }] }}
+          style={{
+            position: "absolute",
+            top: 200 + ACTIVE_CARD_W * 0.46 - 70,
+            width: ACTIVE_CARD_W,
+            transform: [{ translateY }],
+          }}
         >
           <View
             style={{

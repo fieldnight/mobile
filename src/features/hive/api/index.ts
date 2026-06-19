@@ -4,7 +4,7 @@ import type { HiveData } from "@/types/hive-control";
 /**
  * 벌통 관리 API 레이어
  * - 화면과 React Query hook은 이 파일의 함수만 호출합니다.
- * - 서버 응답 래퍼(code/message/data)를 벗겨서 실제 data만 반환합니다.
+ * - 성공/실패 로그를 여기서 남기고, 에러는 다시 throw해서 React Query가 받을 수 있게 합니다.
  */
 interface ApiResponse<T> {
   code: string;
@@ -69,28 +69,55 @@ function isUpdateApplied(detail: HiveDetail, body: HiveUpdateRequest) {
 export async function createHive(
   body: HiveCreateRequest,
 ): Promise<{ hiveId: number }> {
-  const res = await api.post<ApiResponse<{ hiveId: number }>>(
-    "/api/v1/hives",
-    stripEmptyMemo(body),
-  );
-  return res.data.data;
+  const requestBody = stripEmptyMemo(body);
+
+  try {
+    const res = await api.post<ApiResponse<{ hiveId: number }>>(
+      "/api/v1/hives",
+      requestBody,
+    );
+    console.log("[Hive API] 벌통 등록 성공", {
+      body: requestBody,
+      data: res.data.data,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive API] 벌통 등록 실패", {
+      body: requestBody,
+      error,
+    });
+    throw error;
+  }
 }
 
 /** 사용자의 전체 벌통 목록을 조회합니다. */
 export async function getHives(): Promise<HiveListResponse> {
-  const res = await api.get<ApiResponse<HiveListResponse>>("/api/v1/hives");
-  console.log("[Hive API] 전체 조회", res.data.data);
-  return res.data.data;
+  try {
+    const res = await api.get<ApiResponse<HiveListResponse>>("/api/v1/hives");
+    console.log("[Hive API] 벌통 전체 조회 성공", res.data.data);
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive API] 벌통 전체 조회 실패", error);
+    throw error;
+  }
 }
 
 /** 특정 벌통의 상세 정보를 조회합니다. */
 export async function getHiveDetail(hiveId: string | number): Promise<HiveDetail> {
-  const res = await api.get<ApiResponse<HiveDetail>>(`/api/v1/hives/${hiveId}`);
-  console.log("[Hive API] 상세 조회", res.data.data);
-  return res.data.data;
+  try {
+    const res = await api.get<ApiResponse<HiveDetail>>(`/api/v1/hives/${hiveId}`);
+    console.log("[Hive API] 벌통 상세 조회 성공", {
+      hiveId,
+      data: res.data.data,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive API] 벌통 상세 조회 실패", { hiveId, error });
+    throw error;
+  }
 }
 
-/** 벌통 기본 정보를 수정합니다. 서버가 반영 후 에러를 주는 경우 상세조회로 실제 반영 여부를 확인합니다. */
+/** 벌통 기본 정보를 수정합니다. 서버가 에러를 줘도 상세 조회로 실제 반영 여부를 한 번 더 확인합니다. */
 export async function updateHive(
   hiveId: string | number,
   body: HiveUpdateRequest,
@@ -102,35 +129,64 @@ export async function updateHive(
       `/api/v1/hives/${hiveId}`,
       requestBody,
     );
+    console.log("[Hive API] 벌통 수정 성공", {
+      hiveId,
+      body: requestBody,
+      data: res.data.data,
+    });
     return res.data.data;
   } catch (error) {
-    // 현재 서버가 DB 반영 후에도 400 응답을 주는 케이스가 있어, 상세조회로 성공 여부를 한 번 더 검증합니다.
-    console.warn("[Hive API] 수정 응답 에러, 상세조회로 반영 여부 확인", error);
+    // 현재 서버가 DB 반영 후 400을 주는 케이스가 있어, 상세 조회로 성공 여부를 한 번 더 검증합니다.
+    console.warn("[Hive API] 벌통 수정 응답 에러, 상세 조회로 반영 여부 확인", {
+      hiveId,
+      body: requestBody,
+      error,
+    });
     const detail = await getHiveDetail(hiveId);
 
     if (isUpdateApplied(detail, body)) {
+      console.log("[Hive API] 벌통 수정 반영 확인 성공", {
+        hiveId,
+        detail,
+      });
       return "OK";
     }
 
+    console.error("[Hive API] 벌통 수정 실패", {
+      hiveId,
+      body: requestBody,
+      error,
+    });
     throw error;
   }
 }
 
-/** 벌통을 삭제합니다. */
+/** 벌통을 삭제합니다. 서버가 에러를 줘도 목록 조회로 실제 삭제 여부를 한 번 더 확인합니다. */
 export async function deleteHive(hiveId: string | number): Promise<string> {
   try {
     const res = await api.delete<ApiResponse<string>>(`/api/v1/hives/${hiveId}`);
+    console.log("[Hive API] 벌통 삭제 성공", {
+      hiveId,
+      data: res.data.data,
+    });
     return res.data.data;
   } catch (error) {
-    // 현재 서버가 DB 삭제 후에도 500 응답을 주는 케이스가 있어, 목록 조회로 실제 삭제 여부를 확인합니다.
-    console.warn("[Hive API] 삭제 응답 에러, 전체조회로 반영 여부 확인", error);
+    // 현재 서버가 DB 삭제 후 500을 주는 케이스가 있어, 목록 조회로 성공 여부를 한 번 더 검증합니다.
+    console.warn("[Hive API] 벌통 삭제 응답 에러, 전체 조회로 반영 여부 확인", {
+      hiveId,
+      error,
+    });
     const list = await getHives();
-    const deleted = !list.hives.some((hive) => String(hive.hiveId) === String(hiveId));
+    const deleted = !list.hives.some(
+      (hive) => String(hive.hiveId) === String(hiveId),
+    );
 
     if (deleted) {
+      console.log("[Hive API] 벌통 삭제 반영 확인 성공", { hiveId });
       return "OK";
     }
 
+    console.error("[Hive API] 벌통 삭제 실패", { hiveId, error });
     throw error;
   }
 }
@@ -145,13 +201,11 @@ function formatDateLabel(value?: string | null) {
 
 /**
  * 서버 벌통 모델을 기존 화면 컴포넌트가 쓰는 HiveData로 변환합니다.
- * 센서값 API가 아직 분리되어 있어 온습도는 임시 표시값을 유지합니다.
+ * 일서/API가 아직 분리되어 있어 온습도는 임시 표시값을 유지합니다.
  */
 export function toHiveData(hive: HiveListItem | HiveDetail): HiveData {
   const online =
-    "connectionStatus" in hive
-      ? hive.connectionStatus === "ONLINE"
-      : true;
+    "connectionStatus" in hive ? hive.connectionStatus === "ONLINE" : true;
 
   return {
     id: String(hive.hiveId),

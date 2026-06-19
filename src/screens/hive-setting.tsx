@@ -120,7 +120,7 @@ export default function HiveSettingsScreen() {
 
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
-      <HiveTabBar  />
+      <HiveTabBar />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
@@ -130,62 +130,24 @@ export default function HiveSettingsScreen() {
           paddingBottom: 100,
         }}
         showsVerticalScrollIndicator={false}
-
       >
-        <BeeBoxCard variant="setting">
-          <View className="mb-3 flex-row items-center gap-2.5">
-            <View
-              className="items-center justify-center rounded-lg p-2"
-              style={{ backgroundColor: C.bg }}
-            >
-              <Feather name="clock" size={18} color={C.text} />
+        {/* 센서 데이터 수신 주기 안내: 전체보기의 얇은 스트립 UI와 같은 톤입니다. */}
+        <View className="flex-row items-center justify-between rounded-2xl border border-white/50 bg-white/70 px-4 py-3">
+          <View className="flex-row items-center gap-2.5">
+            <View className="h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+              <Feather name="clock" size={16} color={C.white} />
             </View>
-            <View className="flex-1">
-              <PretendardFont
-                weight="bold"
-                className="text-[18px] text-toss-text"
-              >
-                데이터 기록 주기
+            <View>
+              <PretendardFont weight="bold" className="text-[14px] text-gray-900">
+                실시간 온·습도는 5분마다 업데이트돼요
               </PretendardFont>
-              <PretendardFont className="mt-0.5 text-[14px] leading-[20px] text-toss-sec">
-                센서 데이터를 얼마나 자주 기록할지 선택하세요
+              <PretendardFont className="mt-0.5 text-[12px] leading-[17px] text-gray-800">
+                센서 데이터는 최대 5분 전 기준이에요
               </PretendardFont>
             </View>
           </View>
-
-          <View className="flex-row gap-2.5">
-            {DATA_INTERVALS.map((item) => {
-              const isSelected = item.value === dataInterval;
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() => handleSelectInterval(item.value)}
-                  className="flex-1 items-center rounded-xl border py-3"
-                  style={{
-                    borderColor: isSelected ? C.primary : C.border,
-                    backgroundColor: isSelected ? C.primarySoft : C.white,
-                  }}
-                  data-testid={`button-interval-${item.value}`}
-                >
-                  <PretendardFont
-                    weight={isSelected ? "bold" : "medium"}
-                    style={{
-                      fontSize: 16,
-                      color: isSelected ? C.primary : C.text,
-                    }}
-                  >
-                    {item.label}
-                  </PretendardFont>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <PretendardFont className="mt-3 text-[13px] leading-[18px] text-toss-ter">
-            주기가 짧을수록 더 정밀한 데이터를 볼 수 있지만, 저장 공간을 더 많이
-            사용해요.
-          </PretendardFont>
-        </BeeBoxCard>
+          <Feather name="info" size={18} color={C.sec} />
+        </View>
 
         <BeeBoxCard delay={100} variant="setting">
           <View className="mb-3 flex-row items-center gap-2.5">
