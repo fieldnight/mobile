@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, Switch } from 'react-native';
+import { View, ScrollView, Pressable, Switch, Alert } from 'react-native';
 import Text from '@/components/Text';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -39,6 +39,7 @@ function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuIt
       <Text className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}>
         {label}
       </Text>
+
       {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
     </Pressable>
   );
@@ -46,14 +47,13 @@ function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuIt
 
 export default function Settings() {
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { logout, withdraw } = useAuthStore();
   const { fontOffset, increaseFontSize, decreaseFontSize } = useSettingsStore();
   const [newsNotificationEnabled, setNewsNotificationEnabled] = useState(false);
   const [communityNotificationEnabled, setCommunityNotificationEnabled] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(true);
   const [inquiryVisible, setInquiryVisible] = useState(false);
   const insets = useSafeAreaInsets();
-
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -65,8 +65,25 @@ export default function Settings() {
 
   const handleDeleteAccount = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: 계정 삭제 확인 모달
-    console.log('계정 삭제');
+    Alert.alert(
+      '계정 삭제',
+      '정말 탈퇴하시겠습니까?\n탈퇴 후 데이터는 복구할 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '탈퇴',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await withdraw();
+              router.replace('/login');
+            } catch {
+              Alert.alert('오류', '탈퇴 처리 중 문제가 발생했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (

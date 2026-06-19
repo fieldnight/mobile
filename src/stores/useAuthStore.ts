@@ -16,6 +16,7 @@ interface AuthState {
   socialLogin: (platform: 'KAKAO' | 'NAVER', code: string) => Promise<OAuthSignInResponse>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  withdraw: () => Promise<void>;
   setUser: (user: User | null) => void;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -171,9 +172,17 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
-          // 토큰 제거
           delete api.defaults.headers.common['Authorization'];
-          // React Query 캐시 초기화 (다른 계정 데이터 제거)
+          queryClient.clear();
+          set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+        }
+      },
+
+      withdraw: async () => {
+        try {
+          await api.delete('/api/v1/users/me');
+        } finally {
+          delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
