@@ -28,6 +28,19 @@ const getTag = (str: string, tag: string): string => {
 const getItems = (xml: string): string[] =>
   xml.match(/<item>[\s\S]*?<\/item>/g) ?? [];
 
+export function assertNongsaroSuccess(xml: string) {
+  const resultCode = getTag(xml, "resultCode");
+  const resultMsg = getTag(xml, "resultMsg");
+
+  if (resultCode && resultCode !== "00" && resultCode !== "0") {
+    throw new Error(
+      resultMsg
+        ? `Nongsaro API error ${resultCode}: ${resultMsg}`
+        : `Nongsaro API error ${resultCode}`,
+    );
+  }
+}
+
 export const parseOptions = (xml: string): SelectOption[] =>
   getItems(xml).map((item) => ({
     code: getTag(item, "code"),

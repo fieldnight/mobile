@@ -13,16 +13,22 @@ interface ApiResponse<T> {
   data: T;
 }
 
-// 벌 한글명 → enum 매핑
 const BEE_TYPE_MAP: Record<string, string> = {
-  '뒤영벌': 'BUMBLEBEE',
   '꿀벌': 'HONEYBEE',
-  '가위벌': 'MASON_BEE',
+  '뒤영벌': 'BUMBLEBEE',
   '호박벌': 'BUMBLEBEE',
   '서양뒤영벌': 'BUMBLEBEE',
+  '가위벌': 'MASON_BEE',
 };
 
-// 벌 타입을 enum으로 변환
+const logRecommendation = (message: string, payload?: unknown) => {
+  if (__DEV__) console.log(`[RecommendationAI] ${message}`, payload ?? '');
+};
+
+const logRecommendationError = (message: string, error: unknown) => {
+  if (__DEV__) console.error(`[RecommendationAI] ${message}`, error);
+};
+
 export function getBeeTypeEnum(beeType: string): string {
   if (['HONEYBEE', 'BUMBLEBEE', 'MASON_BEE'].includes(beeType.toUpperCase())) {
     return beeType.toUpperCase();
@@ -30,49 +36,95 @@ export function getBeeTypeEnum(beeType: string): string {
   return BEE_TYPE_MAP[beeType] || 'BUMBLEBEE';
 }
 
-// AI 추천 요청
 export async function getAiRecommendation(
-  request: BeeRecommendationAiRequest
+  request: BeeRecommendationAiRequest,
 ): Promise<BeeRecommendationAiResponse> {
-  const response = await api.post<ApiResponse<BeeRecommendationAiResponse>>(
-    '/api/v1/bee/recommendations/ai',
-    request
-  );
-  return response.data.data;
+  logRecommendation('ai request', request);
+
+  try {
+    const response = await api.post<ApiResponse<BeeRecommendationAiResponse>>(
+      '/api/v1/bee/recommendations/ai',
+      request,
+    );
+    const data = response.data.data;
+
+    logRecommendation('ai response', {
+      beeType: data?.beeType,
+      inputStartDate: data?.inputStartDate,
+      inputEndDate: data?.inputEndDate,
+      characteristicCount: data?.characteristics?.length ?? 0,
+      cautionCount: data?.caution?.length ?? 0,
+      usageTipCount: data?.usageTip?.length ?? 0,
+      raw: data,
+    });
+
+    return data;
+  } catch (error) {
+    logRecommendationError('ai error', error);
+    throw error;
+  }
 }
 
-// 추천 결과 저장
 export async function saveRecommendation(
-  request: BeeRecommendationSaveRequest
+  request: BeeRecommendationSaveRequest,
 ): Promise<{ beeRecommendationId: number }> {
-  const response = await api.post<ApiResponse<{ beeRecommendationId: number }>>(
-    '/api/v1/bee/recommendations',
-    request
-  );
-  return response.data.data;
+  logRecommendation('save request', request);
+
+  try {
+    const response = await api.post<ApiResponse<{ beeRecommendationId: number }>>(
+      '/api/v1/bee/recommendations',
+      request,
+    );
+
+    logRecommendation('save response', response.data.data);
+    return response.data.data;
+  } catch (error) {
+    logRecommendationError('save error', error);
+    throw error;
+  }
 }
 
-// 추천 목록 조회
 export async function getRecommendationList(): Promise<BeeRecommendationListItem[]> {
-  const response = await api.get<ApiResponse<BeeRecommendationListItem[]>>(
-    '/api/v1/bee/recommendations'
-  );
-  const list = response.data.data || [];
-  // 최신순 정렬
-  return list.sort((a, b) => {
-    if (a.createdAt && b.createdAt) {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    return b.beeRecommendationId - a.beeRecommendationId;
-  });
+  logRecommendation('list request');
+
+  try {
+    const response = await api.get<ApiResponse<BeeRecommendationListItem[]>>(
+      '/api/v1/bee/recommendations',
+    );
+    const list = response.data.data || [];
+    const sorted = list.sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return b.beeRecommendationId - a.beeRecommendationId;
+    });
+
+    logRecommendation('list response', {
+      count: sorted.length,
+      latestId: sorted[0]?.beeRecommendationId,
+    });
+
+    return sorted;
+  } catch (error) {
+    logRecommendationError('list error', error);
+    throw error;
+  }
 }
 
-// 추천 상세 조회
 export async function getRecommendationDetail(
-  id: string | number
+  id: string | number,
 ): Promise<BeeRecommendationDetailResponse> {
-  const response = await api.get<ApiResponse<BeeRecommendationDetailResponse>>(
-    `/api/v1/bee/recommendations/${id}`
-  );
-  return response.data.data;
+  logRecommendation('detail request', { id });
+
+  try {
+    const response = await api.get<ApiResponse<BeeRecommendationDetailResponse>>(
+      `/api/v1/bee/recommendations/${id}`,
+    );
+
+    logRecommendation('detail response', response.data.data);
+    return response.data.data;
+  } catch (error) {
+    logRecommendationError('detail error', error);
+    throw error;
+  }
 }

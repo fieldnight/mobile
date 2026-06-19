@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { parseOptions, parseResults } from "./utils";
+import { assertNongsaroSuccess, parseOptions, parseResults } from "./utils";
 import { usePesticideStore } from "./store";
 
 const BASE = process.env.EXPO_PUBLIC_NONGSARO_BASE_URL!;
@@ -44,6 +44,7 @@ export const useCodeOptions = () => {
           responseType: "text",
         });
 
+        assertNongsaroSuccess(data);
         const opts = parseOptions(data);
         const result = {
           aList: opts.filter((d) => d.code === "A").map((d) => d.codeNm),
@@ -63,6 +64,7 @@ export const useCodeOptions = () => {
         setIsLoading(false);
         return;
       } catch (err) {
+        console.error("[Pesticide API] code options request failed", err);
         if (attempt === MAX_RETRY) {
           setIsError(true);
           setIsLoading(false);
@@ -100,6 +102,7 @@ export const usePesticideList = () => {
           responseType: "text",
         });
 
+        assertNongsaroSuccess(data);
         const items = parseResults(data);
         if (!items.length) throw new Error("데이터가 비어있습니다.");
 
@@ -107,6 +110,7 @@ export const usePesticideList = () => {
         setIsFetching(false);
         return;
       } catch (err) {
+        console.error("[Pesticide API] pesticide list request failed", err);
         if (attempt === MAX_RETRY) {
           setIsError(true);
           setIsFetching(false);

@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import {
+  Image,
+  Linking,
   View,
   ScrollView,
   Pressable,
@@ -7,11 +9,15 @@ import {
   TextInput,
   Modal,
   Alert,
-  Text,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
+
+const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/g6FQjhAi";
+const QR_IMAGE = require("../../assets/images/qr.png");
 
 // ── Props ─────────────────────────────────────────────
 interface InquiryModalProps {
@@ -23,16 +29,37 @@ interface InquiryModalProps {
 export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
   const insets = useSafeAreaInsets();
 
-  const [extra, seTextra] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [extra, setExtra] = useState("");
   const [consent, setConsent] = useState(false);
 
-  const canSubmit = consent;
+  const canSubmit = name.trim() !== "" && email.trim() !== "" && extra.trim() !== "" && consent;
+  const inputStyle = {
+    borderColor: C.border,
+    color: C.text,
+    fontFamily: "Pretendard-Medium",
+  };
 
   const handleClose = () => {
-    seTextra("");
+    setName("");
+    setEmail("");
+    setExtra("");
     setConsent(false);
     onClose();
   };
+
+  const openKakaoChat = useCallback(async () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const supported = await Linking.canOpenURL(KAKAO_OPEN_CHAT_URL);
+    if (!supported) {
+      Alert.alert("링크를 열 수 없어요", "잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    Linking.openURL(KAKAO_OPEN_CHAT_URL);
+  }, []);
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
@@ -45,8 +72,6 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
     );
     handleClose();
   }, [canSubmit]);
-
-  const labelStyle = "text-[13px] font-semibold text-[#8B95A1] mb-2 tracking-wide";
 
   return (
     <Modal
@@ -89,10 +114,11 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
             {/* 닫기 */}
             <Pressable
               onPress={handleClose}
-              className="w-8 h-8 rounded-full bg-[#F4F5F7] items-center justify-center"
+              className="h-8 w-8 items-center justify-center rounded-full"
+              style={{ backgroundColor: C.bg }}
               data-testid="button-close-inquiry"
             >
-              <Feather name="x" size={18} color="#8B95A1" />
+              <Feather name="x" size={18} color={C.sec} />
             </Pressable>
           </View>
 
@@ -105,24 +131,83 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
               paddingBottom: Math.max(insets.bottom, 24),
             }}
           >
-            {/* 타이틀 */}
-            <Text className="text-[22px] font-bold text-[#191F28] leading-[30px] mb-1.5">
-              Webee가 궁금하신가요?
-            </Text>
-            <Text className="text-sm text-[#8B95A1] leading-[21px] mb-7">
-              도입 문의나 궁금한 점을 남겨주시면,{"\n"}확인 후 빠르게 답변드릴게요.
-            </Text>
+            {/* 오픈톡방 안내: 소식과 실시간 소통을 가장 먼저 안내합니다. */}
+            <View
+              className="rounded-3xl border p-4"
+              style={{ backgroundColor: C.bgAlt, borderColor: C.border }}
+            >
+              <View className="flex-row items-start" style={{ gap: 14 }}>
+                <Image
+                  source={QR_IMAGE}
+                  className="h-24 w-24 rounded-2xl"
+                  resizeMode="cover"
+                />
+                <View className="flex-1">
+                  <PretendardFont weight="bold" style={{ fontSize: 20, color: C.text, lineHeight: 28 }}>
+                    Webee 오픈톡방에 들어오세요
+                  </PretendardFont>
+                  <PretendardFont style={{ fontSize: 13.5, color: C.textAlt, lineHeight: 21, marginTop: 6 }}>
+                    새소식과 업데이트를 빠르게 보고, 관리자나 다른 사용자들과 실시간으로 소통할 수 있어요.
+                  </PretendardFont>
+                </View>
+              </View>
 
-            {/* 추가 내용 */}
-            <Text className={labelStyle}>추가로 남기고 싶은 내용</Text>
+              <Pressable
+                onPress={openKakaoChat}
+                className="mt-4 flex-row items-center justify-center rounded-2xl py-3.5 active:opacity-80"
+                style={{ backgroundColor: C.primary, gap: 8 }}
+              >
+                <Feather name="message-circle" size={18} color={C.white} />
+                <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+                  카카오톡 오픈톡방 이동
+                </PretendardFont>
+              </Pressable>
+            </View>
+
+            {/* B2G/B2B 도입문의 폼 */}
+            <View className="mt-6">
+              <PretendardFont weight="bold" style={{ fontSize: 22, color: C.text, lineHeight: 30 }}>
+                도입 문의가 필요하신가요?
+              </PretendardFont>
+              <PretendardFont style={{ fontSize: 14, color: C.sec, lineHeight: 21, marginTop: 4, marginBottom: 22 }}>
+                B2G·B2B 도입 문의나 궁금한 점을 남겨주시면 확인 후 빠르게 답변드릴게요.
+              </PretendardFont>
+            </View>
+
+            <FormLabel label="이름" />
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="홍길동"
+              placeholderTextColor={C.ter}
+              className="mb-4 rounded-xl border bg-white px-3.5 py-3 text-base"
+              style={inputStyle}
+              data-testid="input-inquiry-name"
+            />
+
+            <FormLabel label="이메일" />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="webee@example.com"
+              placeholderTextColor={C.ter}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              className="mb-4 rounded-xl border bg-white px-3.5 py-3 text-base"
+              style={inputStyle}
+              data-testid="input-inquiry-email"
+            />
+
+            <FormLabel label="문의 내용" />
             <TextInput
               value={extra}
-              onChangeText={seTextra}
+              onChangeText={setExtra}
               placeholder="도입 배경, 궁금한 점 등을 자유롭게 남겨주세요"
-              placeholderTextColor="#CDD1D6"
+              placeholderTextColor={C.ter}
               multiline
               textAlignVertical="top"
-              className="border border-[#E5E8EB] rounded-xl px-3.5 py-3 text-base text-[#191F28] mb-6 bg-white min-h-[200px]"
+              className="mb-6 min-h-[220px] rounded-xl border bg-white px-3.5 py-3 text-base"
+              style={inputStyle}
               data-testid="input-inquiry-extra"
             />
 
@@ -139,19 +224,19 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
                   height: 20,
                   borderRadius: 4,
                   borderWidth: consent ? 0 : 1.5,
-                  borderColor: "#CDD1D6",
-                  backgroundColor: consent ? "#191F28" : "#FFFFFF",
+                  borderColor: C.border,
+                  backgroundColor: consent ? C.text : C.white,
                 }}
               >
-                {consent && <Feather name="check" size={14} color="#FFFFFF" />}
+                {consent && <Feather name="check" size={14} color={C.white} />}
               </View>
               <View className="flex-1">
-                <Text className="text-[13px] text-[#191F28] leading-[19px]">
+                <PretendardFont style={{ fontSize: 13, color: C.text, lineHeight: 19 }}>
                   (필수) 문의 답변 및 관련 안내 수신에 동의합니다.
-                </Text>
-                <Text className="text-xs text-[#B0B8C1] leading-[17px] mt-0.5">
+                </PretendardFont>
+                <PretendardFont style={{ fontSize: 12, color: C.ter, lineHeight: 17, marginTop: 2 }}>
                   동의해주셔야 문의 접수가 가능합니다.
-                </Text>
+                </PretendardFont>
               </View>
             </Pressable>
 
@@ -159,18 +244,32 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
             <Pressable
               onPress={handleSubmit}
               disabled={!canSubmit}
-              className={`items-center rounded-xl py-4 ${canSubmit ? "bg-[#191F28]" : "bg-[#E5E8EB]"}`}
+              className="items-center rounded-xl py-4"
+              style={{ backgroundColor: canSubmit ? C.text : C.border }}
               data-testid="button-submit-inquiry"
             >
-              <Text
-                className={`text-base font-semibold ${canSubmit ? "text-white" : "text-[#B0B8C1]"}`}
+              <PretendardFont
+                weight="semibold"
+                style={{ fontSize: 16, color: canSubmit ? C.white : C.ter }}
               >
                 문의 보내기
-              </Text>
+              </PretendardFont>
             </Pressable>
           </ScrollView>
         </View>
       </View>
     </Modal>
+  );
+}
+
+/** 문의 폼의 라벨 스타일을 한 곳에서 맞춥니다. */
+function FormLabel({ label }: { label: string }) {
+  return (
+    <PretendardFont
+      weight="semibold"
+      style={{ fontSize: 13, color: C.sec, marginBottom: 8 }}
+    >
+      {label}
+    </PretendardFont>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../global.css";
-import { StatusBar, View, Dimensions, Pressable } from "react-native";
+import { StatusBar, View, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Slot, usePathname, useRouter, useSegments } from "expo-router";
 import { useFonts } from "expo-font";
@@ -22,9 +22,7 @@ import Header from "@/navigation/Header";
 import Footer from "@/navigation/Footer";
 import { SideMenu } from "@/components/SideMenu";
 import { ToastProvider } from "@/components/ToastContext";
-import { BottomSheet } from "@/components/BottomSheet";
-import { PretendardFont } from "@/components/PretendardFont";
-import { C } from "@/constants/hive-colors";
+import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 SplashScreen.preventAutoHideAsync();
@@ -45,7 +43,6 @@ const HIDE_HEADER_ROUTES = [
   "hive-setting",
   "hive-add",
   "bee-chat",
-  "bee-chat-inquiry",
   "bee-news",
   "bee-diagnosis",
   "diagnose-history",
@@ -72,7 +69,6 @@ const HIDE_FOOTER_ROUTES = [
 // 서버에 저장된 사용자 데이터가 필요한 화면에서는 로그인 안내 모달을 띄웁니다.
 const AUTH_REQUIRED_ROUTES = [
   "bee-chat",
-  "bee-chat-inquiry",
   "bee-news",
   "diagnose-history",
   "hive-add",
@@ -293,7 +289,7 @@ export default function RootLayout() {
 
 /**
  * 인증이 필요한 화면 위에 표시하는 로그인 안내 바텀시트입니다.
- * ConfirmSheet는 확인 후 onClose를 같이 호출하므로 라우팅 버튼이 있는 이 화면은 전용 UI로 분리합니다.
+ * NoticeBottomSheet를 사용해 다른 안내성 바텀시트와 같은 UI 톤을 유지합니다.
  */
 function LoginRequiredSheet({
   visible,
@@ -305,39 +301,17 @@ function LoginRequiredSheet({
   onLogin: () => void;
 }) {
   return (
-    <BottomSheet
+    <NoticeBottomSheet
       visible={visible}
       onClose={onClose}
       title="로그인이 필요해요"
-      snapHeight={0.36}
-    >
-      <PretendardFont
-        style={{ fontSize: 14, color: C.sec, lineHeight: 22, marginBottom: 24 }}
-      >
-        해당 기능을 사용하시려면 먼저 로그인해주세요.
-      </PretendardFont>
-
-      <View className="gap-3">
-        <Pressable
-          onPress={onLogin}
-          className="items-center rounded-2xl py-4 active:opacity-70"
-          style={{ backgroundColor: C.primary }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
-            로그인하기
-          </PretendardFont>
-        </Pressable>
-
-        <Pressable
-          onPress={onClose}
-          className="items-center rounded-2xl py-4 active:opacity-70"
-          style={{ backgroundColor: C.bgAlt }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.textAlt }}>
-            홈으로 돌아가기
-          </PretendardFont>
-        </Pressable>
-      </View>
-    </BottomSheet>
+      message="해당 기능을 사용하시려면 먼저 로그인해주세요."
+      icon="lock"
+      snapHeight={0.4}
+      actions={[
+        { label: "로그인하기", onPress: onLogin },
+        { label: "홈으로 돌아가기", onPress: onClose, variant: "secondary" },
+      ]}
+    />
   );
 }

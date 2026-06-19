@@ -6,7 +6,7 @@
  * - ToastContext(useAppToast)를 통해 어디서든 호출 가능
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Animated, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -72,42 +72,37 @@ export function Toast({
   const { icon, iconColor } = CONFIG[type];
 
   return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        // SafeArea 상단 inset 기준, 탭바 높이(약 48) + 여백을 더해 탭바 아래에 위치
-        top: insets.top + 56,
-        left: 24,
-        right: 24,
-        zIndex: 9999,
-        alignItems: "center",
-        transform: [{ translateY }],
-        opacity,
-      }}
-    >
-      {/* 탭하면 즉시 닫히는 pill 카드 */}
-      <Pressable
-        onPress={dismiss}
-        className="flex-row items-center active:opacity-75"
-        style={{
-          backgroundColor: C.white,
-          borderRadius: 999,
-          paddingHorizontal: 20,
-          paddingVertical: 14,
-          gap: 10,
-          shadowColor: C.shadow,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.14,
-          shadowRadius: 16,
-          elevation: 10,
-        }}
-      >
-        <Feather name={icon as any} size={20} color={iconColor} />
-        <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.text }}>
-          {message}
-        </PretendardFont>
-      </Pressable>
-    </Animated.View>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
+      <View pointerEvents="box-none" className="flex-1">
+        <Animated.View
+          className="absolute left-6 right-6 z-[99999] items-center"
+          style={{
+            // SafeArea 상단 inset 기준, 탭바 높이(약 48) + 여백을 더해 탭바 아래에 위치
+            top: insets.top + 56,
+            transform: [{ translateY }],
+            opacity,
+          }}
+        >
+          {/* 토스트를 Modal로 띄워 바텀시트보다 높은 레이어에서 보여줍니다. */}
+          <Pressable
+            onPress={dismiss}
+            className="flex-row items-center gap-2.5 rounded-full bg-white px-5 py-3.5 active:opacity-75"
+            style={{
+              shadowColor: C.shadow,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.14,
+              shadowRadius: 16,
+              elevation: 10,
+            }}
+          >
+            <Feather name={icon as any} size={20} color={iconColor} />
+            <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.text }}>
+              {message}
+            </PretendardFont>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 

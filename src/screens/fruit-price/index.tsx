@@ -56,6 +56,7 @@ import { C } from "@/constants/hive-colors";
 import { Card } from "@/components/hive/hive-shared";
 import { InterestMarketSection } from "./InterestMarketSection";
 import { FilterPanel } from "./FilterPanel";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const NUM_OF_ROWS = 15;
 const BASE_FONT = 13;
@@ -401,6 +402,7 @@ export default function FruitPriceScreen() {
   const router = useRouter();
   const { toastState, show: showToast, hide: hideToast } = useToast();
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [marketCode, setMarketCode] = useState(() =>
     getDefaultMarket(getTodayKST()),
@@ -605,6 +607,7 @@ export default function FruitPriceScreen() {
               currentLargeCode={largeCode}
               currentMidName={currentMidName}
               currentMinorName={currentMinorName}
+              isAuthenticated={isAuthenticated}
               onSelectMarket={handleSelectInterestMarket}
               onShowToast={showToast}
             />

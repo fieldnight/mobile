@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useFarmList } from "@/features/farm";
@@ -18,6 +18,7 @@ import {
   getBeeTypeEnum,
 } from "@/features/recommendation";
 import { Card } from "@/components/hive/hive-shared";
+import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { CropGuideSection } from "@/components/recommend/CropGuideSection";
 import { PretendardFont } from "@/components/PretendardFont";
 import { PageTitle } from "@/components/PageTitle";
@@ -30,6 +31,7 @@ import type { UserCrop } from "@/types/farm";
 import { CULTIVATION_TYPE_LABELS, BEE_TYPE_INFO } from "@/constants/recommend";
 import AppHeader from "@/components/AppHeader";
 import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 // 날짜 포맷팅 헬퍼
 function formatDateKorean(dateStr: string) {
@@ -75,12 +77,41 @@ function SectionHeader({
   );
 }
 
+function FarmMetaItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View
+      className="flex-row items-center rounded-full border bg-white px-3 py-2"
+      style={{ borderColor: C.border, gap: 6 }}
+    >
+      <Feather name={icon} size={13} color={C.sec} />
+      <PretendardFont style={{ fontSize: 11.5, color: C.sec }}>
+        {label}
+      </PretendardFont>
+      <PretendardFont weight="bold" style={{ fontSize: 12.5, color: C.text }}>
+        {value}
+      </PretendardFont>
+    </View>
+  );
+}
+
 type Tab = "farm" | "crop";
 
 export default function RecommendScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
-  const [activeTab, setActiveTab] = useState<Tab>("farm");
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [activeTab, setActiveTab] = useState<Tab>("crop");
+  const [devNoticeVisible, setDevNoticeVisible] = useState(false);
+  const [loginNoticeVisible, setLoginNoticeVisible] = useState(false);
   const [result, setResult] = useState<BeeRecommendationAiResponse | null>(
     null,
   );
@@ -98,24 +129,54 @@ export default function RecommendScreen() {
     await refetchFarms();
   }, [refetchFarms]);
 
+  const showLoginNotice = () => {
+    triggerHaptic("light");
+    setLoginNoticeVisible(true);
+  };
+
+  const goToLogin = () => {
+    setLoginNoticeVisible(false);
+    router.push({
+      pathname: "/login",
+      params: { redirect: pathname },
+    });
+  };
+
+  const goToAddFarm = () => {
+    if (!isAuthenticated) {
+      showLoginNotice();
+      return;
+    }
+    router.push("/add-farm");
+  };
+
   const handleGetRecommendation = (crop: UserCrop) => {
     triggerHaptic("medium");
     setSelectedCrop(crop);
+    const request = {
+      name: crop.name || "",
+      variety: crop.variety || undefined,
+      cultivationType: crop.cultivationType,
+      cultivationAddress: crop.cultivationAddress || "",
+      cultivationArea: crop.cultivationArea,
+      plantingDate: crop.plantingDate,
+    };
+
+    if (__DEV__) {
+      console.log("[RecommendationAI] selected farm", crop);
+      console.log("[RecommendationAI] request from farm", request);
+    }
+
     recommendMutation.mutate(
-      {
-        name: crop.name || "",
-        variety: crop.variety || undefined,
-        cultivationType: crop.cultivationType,
-        cultivationAddress: crop.cultivationAddress || "",
-        cultivationArea: crop.cultivationArea,
-        plantingDate: crop.plantingDate,
-      },
+      request,
       {
         onSuccess: (data) => {
+          if (__DEV__) console.log("[RecommendationAI] screen success", data);
           setResult(data);
           triggerHaptic("medium");
         },
         onError: (error: any) => {
+          if (__DEV__) console.error("[RecommendationAI] screen error", error);
           Alert.alert(
             "오류",
             error.response?.data?.message || "추천 요청에 실패했습니다",
@@ -163,7 +224,7 @@ export default function RecommendScreen() {
         onScroll={onScroll}
         scrollEventThrottle={scrollEventThrottle}
       >
-        {/* 탭 전환 (세그먼트 컨트롤) */}
+        {/* 탭 전환: 작물별 가이드를 먼저 보여주고, AI 추천은 두 번째에 배치합니다. */}
         <View
           style={{
             flexDirection: "row",
@@ -174,8 +235,8 @@ export default function RecommendScreen() {
         >
           {(
             [
-              { key: "farm", label: "농지 기반 AI 추천" },
               { key: "crop", label: "작물별 가이드" },
+              { key: "farm", label: "농지 기반 AI 추천" },
             ] as { key: Tab; label: string }[]
           ).map(({ key, label }) => {
             const active = activeTab === key;
@@ -183,6 +244,11 @@ export default function RecommendScreen() {
               <Pressable
                 key={key}
                 onPress={() => {
+                  if (key === "farm") {
+                    setDevNoticeVisible(true);
+                    triggerHaptic("light");
+                    return;
+                  }
                   setActiveTab(key);
                   triggerHaptic("light");
                 }}
@@ -211,7 +277,12 @@ export default function RecommendScreen() {
         </View>
 
         {/* ── 작물별 가이드 탭 ─────────────────────────────────────────── */}
-        {activeTab === "crop" && <CropGuideSection />}
+        {activeTab === "crop" && (
+          <CropGuideSection
+            isAuthenticated={isAuthenticated}
+            onRequireLogin={showLoginNotice}
+          />
+        )}
 
         {/* ── 농지 기반 AI 추천 탭 ─────────────────────────────────────── */}
         {activeTab === "farm" &&
@@ -301,7 +372,7 @@ export default function RecommendScreen() {
                     농지를 먼저 등록하면 AI 추천을 받을 수 있어요
                   </PretendardFont>
                   <Pressable
-                    onPress={() => router.push("/add-farm")}
+                    onPress={goToAddFarm}
                     className="flex-row items-center active:opacity-90"
                     style={{
                       gap: 6,
@@ -328,58 +399,102 @@ export default function RecommendScreen() {
                     !!crop.variety &&
                     crop.variety !== "0" &&
                     crop.variety.trim() !== "";
-                  const infoItems = [
-                    CULTIVATION_TYPE_LABELS[crop.cultivationType],
-                    crop.cultivationAddress || null,
-                    `${crop.cultivationArea.toLocaleString()}㎡`,
-                    `정식일 ${crop.plantingDate}`,
-                  ].filter(Boolean) as string[];
+                  const cropTypeLabel =
+                    CULTIVATION_TYPE_LABELS[crop.cultivationType] ?? "재배";
                   return (
                     <Card key={crop.id} delay={i * 60}>
-                      {/* 작물 헤더 */}
-                      <View className="flex-row items-baseline mb-4 gap-2 ml-2">
-                        <PretendardFont
-                          weight="bold"
-                          style={{ fontSize: 19, color: C.text }}
-                        >
-                          {crop.name || "미지정"}
-                        </PretendardFont>
+                      {/* 작물명과 품종을 카드 상단에서 명확하게 분리합니다. */}
+                      <View className="mb-4 flex-row items-start justify-between" style={{ gap: 10 }}>
+                        <View className="flex-1">
+                          <PretendardFont
+                            weight="bold"
+                            style={{ fontSize: 20, color: C.text }}
+                          >
+                            {crop.name || "미지정"}
+                          </PretendardFont>
+                          <PretendardFont style={{ fontSize: 12.5, color: C.sec, marginTop: 3 }}>
+                            등록 농지 정보 기반 추천
+                          </PretendardFont>
+                        </View>
                         {hasVariety && (
-                          <PretendardFont>{crop.variety}</PretendardFont>
+                          <View
+                            className="rounded-full border px-3 py-1.5"
+                            style={{ backgroundColor: C.bgAlt, borderColor: C.border }}
+                          >
+                            <PretendardFont
+                              weight="semibold"
+                              style={{ fontSize: 12.5, color: C.textAlt }}
+                            >
+                              {crop.variety}
+                            </PretendardFont>
+                          </View>
                         )}
                       </View>
 
-                      {/* 정보 박스 (row 배열, 라벨 생략 · 정식일만 표기) */}
-                      <View className="flex-row items-center gap-8 ">
-                        {infoItems.map((it, idx) => (
-                          <View key={idx} className="flex-row items-center">
-                            {idx > 0 && <View />}
-                            <PretendardFont
-                              weight="semibold"
-                              style={{ fontSize: 15, color: C.text }}
-                            >
-                              {it}
-                            </PretendardFont>
-                          </View>
-                        ))}
+                      {/* 작은 화면에서 날짜가 잘리지 않도록 정보는 wrap 가능한 칩으로 보여줍니다. */}
+                      <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                        <FarmMetaItem icon="layers" label="방식" value={cropTypeLabel} />
+                        {crop.cultivationAddress && (
+                          <FarmMetaItem icon="map-pin" label="지역" value={crop.cultivationAddress} />
+                        )}
+                        <FarmMetaItem
+                          icon="maximize-2"
+                          label="면적"
+                          value={`${crop.cultivationArea.toLocaleString()}㎡`}
+                        />
+                        <FarmMetaItem icon="calendar" label="정식일" value={crop.plantingDate} />
                       </View>
 
-                      {/* CTA */}
+                      {/* CTA: 농지 카드 내부에서 부담스럽지 않게 보이는 컴팩트 액션입니다. */}
                       <Pressable
                         onPress={() => handleGetRecommendation(crop)}
                         disabled={recommendMutation.isPending}
-                        className="flex-row items-center justify-center active:opacity-90 rounded-xl h-40 bg-[#F0A878]"
+                        className="mt-4 flex-row items-center justify-between rounded-2xl border px-3.5 py-3 active:opacity-90"
+                        style={{
+                          backgroundColor: C.recommendCtaBg,
+                          borderColor: C.recommendCtaBorder,
+                          opacity: recommendMutation.isPending && !isPending ? 0.55 : 1,
+                        }}
                       >
                         {isPending ? (
-                          <ActivityIndicator size="small" color={C.white} />
-                        ) : (
-                          <>
+                          <View className="flex-row items-center" style={{ gap: 10 }}>
+                            <View
+                              className="h-9 w-9 items-center justify-center rounded-full"
+                              style={{ backgroundColor: C.white }}
+                            >
+                              <ActivityIndicator size="small" color={C.primary} />
+                            </View>
                             <PretendardFont
                               weight="bold"
-                              style={{ fontSize: 16, color: C.white }}
+                              style={{ fontSize: 14, color: C.text }}
                             >
-                              AI 수정벌 추천 받기
+                              AI가 추천 중이에요
                             </PretendardFont>
+                          </View>
+                        ) : (
+                          <>
+                            <View className="flex-1 flex-row items-center" style={{ gap: 10 }}>
+                              <View
+                                className="h-9 w-9 items-center justify-center rounded-full"
+                                style={{ backgroundColor: C.white }}
+                              >
+                                <Feather name="zap" size={17} color={C.primary} />
+                              </View>
+                              <View>
+                                <PretendardFont
+                                  weight="bold"
+                                  style={{ fontSize: 14, color: C.text }}
+                                >
+                                  AI 수정벌 추천받기
+                                </PretendardFont>
+                                <PretendardFont
+                                  style={{ fontSize: 11.5, color: C.textAlt, marginTop: 1 }}
+                                >
+                                  이 농지 정보로 바로 분석해요
+                                </PretendardFont>
+                              </View>
+                            </View>
+                            <Feather name="arrow-right" size={18} color={C.primary} />
                           </>
                         )}
                       </Pressable>
@@ -685,6 +800,43 @@ export default function RecommendScreen() {
             </>
           ))}
       </PullToRefresh>
+
+      <NoticeBottomSheet
+        visible={devNoticeVisible}
+        onClose={() => setDevNoticeVisible(false)}
+        title="지금은 개발 중이에요"
+        message="농지 기반 AI 추천은 더 정확하게 다듬는 중이에요. 지금은 작물별 가이드를 이용하거나 이전 화면으로 돌아가 주세요."
+        icon="tool"
+        snapHeight={0.42}
+        actions={[
+          { label: "작물별 가이드 보기", onPress: () => setDevNoticeVisible(false) },
+          {
+            label: "뒤로가기",
+            variant: "secondary",
+            onPress: () => {
+              setDevNoticeVisible(false);
+              router.back();
+            },
+          },
+        ]}
+      />
+
+      <NoticeBottomSheet
+        visible={loginNoticeVisible}
+        onClose={() => setLoginNoticeVisible(false)}
+        title="로그인이 필요해요"
+        message="작물별 가이드 조회와 농지 등록은 로그인 후 이용할 수 있어요."
+        icon="lock"
+        snapHeight={0.4}
+        actions={[
+          { label: "로그인하기", onPress: goToLogin },
+          {
+            label: "계속 둘러보기",
+            variant: "secondary",
+            onPress: () => setLoginNoticeVisible(false),
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }

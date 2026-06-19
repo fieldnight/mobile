@@ -143,7 +143,8 @@ function TagRow({
     <View>
       <PretendardFont
         weight="bold"
-        style={{ marginBottom: 3, fontSize: 13, color: C.textSx }}
+        className="text-[13px] mb-[3px]"
+        style={{ color: C.text }}
       >
         제어 기능
       </PretendardFont>
@@ -181,7 +182,8 @@ function TagRow({
         ) : (
           <PretendardFont
             weight="semibold"
-            style={{ fontSize: 13, color: C.ter }}
+            className="text-[13px]"
+            style={{ color: C.textSx }}
           >
             켜진 기능 없음
           </PretendardFont>

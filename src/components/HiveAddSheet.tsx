@@ -35,6 +35,44 @@ function isLocalFallbackHive(hive: HiveData) {
   );
 }
 
+function normalizeMacAddress(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeHiveName(value: string) {
+  return value.trim();
+}
+
+/**
+ * 저장 전에 로컬 벌통 목록에서 중복을 먼저 확인합니다.
+ * 서버 요청 전에 막아야 모달은 유지되고, 사용자는 바로 어떤 값이 문제인지 알 수 있습니다.
+ */
+function getDuplicateHiveMessage({
+  hives,
+  macAddress,
+  name,
+  currentHiveId,
+}: {
+  hives: HiveData[];
+  macAddress: string;
+  name: string;
+  currentHiveId?: string;
+}) {
+  const normalizedMac = normalizeMacAddress(macAddress);
+  const normalizedName = normalizeHiveName(name);
+  const targetHives = hives.filter((item) => item.id !== currentHiveId);
+
+  if (targetHives.some((item) => normalizeMacAddress(item.macAddress) === normalizedMac)) {
+    return "이미 등록된 벌통 번호에요. 번호를 다시 확인해주세요! ";
+  }
+
+  if (targetHives.some((item) => normalizeHiveName(item.name) === normalizedName)) {
+    return "이미 등록된 이름의 벌통이에요. 이름을 바꿔주세요! ";
+  }
+
+  return null;
+}
+
 /**
  * 벌통 등록/수정 공용 바텀시트
  * - 등록: macAddress/name/region/location/memo를 서버에 POST합니다.
@@ -42,6 +80,7 @@ function isLocalFallbackHive(hive: HiveData) {
  */
 export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   const editing = !!hive;
+  const hives = useHiveStore((state) => state.hives);
   const addHive = useHiveStore((state) => state.addHive);
   const updateHiveLocally = useHiveStore((state) => state.updateHive);
   const createHiveMutation = useCreateHive();
@@ -96,6 +135,17 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
       location: form.location.trim(),
       memo: form.memo?.trim() || undefined,
     };
+    const duplicateMessage = getDuplicateHiveMessage({
+      hives,
+      macAddress: payload.macAddress,
+      name: payload.name,
+      currentHiveId: hive?.id,
+    });
+
+    if (duplicateMessage) {
+      showToast(duplicateMessage, "error");
+      return;
+    }
 
     if (editing && hive) {
       if (isLocalFallbackHive(hive)) {

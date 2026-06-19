@@ -172,7 +172,7 @@ export default function HiveStatsScreen() {
           )}
         </PeriodCard>
 
-        <HiveReplacementTable />
+        <HiveReplacementTable hiveId={selectedHive} />
 
         <HiveEnvironmentGuide />
       </PullToRefresh>

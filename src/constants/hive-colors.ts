@@ -6,6 +6,8 @@ export const C = {
   top: "#EA580C", // 상단 강조 (로고, 배지 등)
   primary: "#69b4d5", // 브랜드 오렌지 (CTA, 강조)
   primarySoft: "rgba(234, 88, 12, 0.08)", // 강조 소프트 배경
+  recommendCtaBg: "#EAF6FB", // 수정벌 추천 CTA 배경
+  recommendCtaBorder: "#BFE4F2", // 수정벌 추천 CTA 보더
   selected: "#EBF4FF", // 선택 상태 배경
   infoBg: "#E8F2FF", // 아이콘 / 보조 강조 배경
   shadow: "#000000", // 그림자 색상

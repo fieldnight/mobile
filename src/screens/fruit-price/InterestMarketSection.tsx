@@ -2,7 +2,7 @@
  * 내 맞춤 시세 바로가기 섹션
  * - MarketCard             : 등록된 작물·시장 조합 카드 (탭 → 해당 시세로 이동, X → 삭제)
  * - AddMarketModal         : 시세 등록 바텀시트 — 현재 선택 중인 시장·작물 조합을 바로가기로 저장
- * - InterestMarketSection  : 바로가기 카드 목록 표시 + 우상단 절대 고정 시세 등록 버튼
+ * - InterestMarketSection  : 바로가기 카드 목록 표시 + 시세 등록 액션
  */
 import { useState } from "react";
 import {
@@ -34,16 +34,25 @@ const EMOJI: Record<string, string> = {
   망고: "🥭", 키위: "🥝", 자두: "🍒",
 };
 const emoji = (name: string) => EMOJI[name] ?? "";
+const GUEST_SAMPLE_MARKET: InterestMarket = {
+  interestMarketId: -1,
+  marketCode: "110001",
+  cropMajorCode: "06",
+  cropMidName: "딸기",
+  cropMinorName: "설향",
+};
 
 // ── 작물 카드 ─────────────────────────────────────────────────────────────────
 function MarketCard({
   item,
   onPress,
   onDelete,
+  readonly = false,
 }: {
   item: InterestMarket;
   onPress: () => void;
   onDelete: () => void;
+  readonly?: boolean;
 }) {
   const handleDelete = (event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -81,14 +90,25 @@ function MarketCard({
             {item.cropMidName}
           </PretendardFont>
         </View>
-        <Pressable
-          onPress={handleDelete}
-          hitSlop={8}
-          className="h-7 w-7 items-center justify-center rounded-full active:opacity-60"
-          style={{ backgroundColor: C.bg }}
-        >
-          <Feather name="x" size={15} color={C.ter} />
-        </Pressable>
+        {readonly ? (
+          <View
+            className="rounded-full px-2 py-1"
+            style={{ backgroundColor: C.infoBg }}
+          >
+            <PretendardFont weight="semibold" style={{ fontSize: 10, color: C.primary }}>
+              예시
+            </PretendardFont>
+          </View>
+        ) : (
+          <Pressable
+            onPress={handleDelete}
+            hitSlop={8}
+            className="h-7 w-7 items-center justify-center rounded-full active:opacity-60"
+            style={{ backgroundColor: C.bg }}
+          >
+            <Feather name="x" size={15} color={C.ter} />
+          </Pressable>
+        )}
       </View>
 
       {item.cropMinorName ? (
@@ -193,14 +213,84 @@ interface InterestMarketSectionProps {
   currentLargeCode: string;
   currentMidName: string;
   currentMinorName: string;
+  isAuthenticated: boolean;
   onSelectMarket: (item: InterestMarket) => void;
   onShowToast: (msg: string, type?: "success" | "error") => void;
 }
 
 export function InterestMarketSection({
   currentMarketCode, currentLargeCode, currentMidName, currentMinorName,
-  onSelectMarket, onShowToast,
+  isAuthenticated, onSelectMarket, onShowToast,
 }: InterestMarketSectionProps) {
+  if (!isAuthenticated) {
+    return <GuestInterestMarketSection onSelectMarket={onSelectMarket} />;
+  }
+
+  return (
+    <MemberInterestMarketSection
+      currentMarketCode={currentMarketCode}
+      currentLargeCode={currentLargeCode}
+      currentMidName={currentMidName}
+      currentMinorName={currentMinorName}
+      onSelectMarket={onSelectMarket}
+      onShowToast={onShowToast}
+    />
+  );
+}
+
+function GuestInterestMarketSection({
+  onSelectMarket,
+}: {
+  onSelectMarket: (item: InterestMarket) => void;
+}) {
+  return (
+    <View className="border-t" style={{ borderTopColor: C.bg }}>
+      {/* 비로그인 사용자는 저장 API를 호출하지 않고 예시 바로가기만 보여줍니다. */}
+      <View className="px-4 pb-3 pt-3">
+        <View
+          className="flex-row items-start rounded-2xl border px-3.5 py-3"
+          style={{ backgroundColor: C.infoBg, borderColor: C.sectionBorder, gap: 10 }}
+        >
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-white">
+            <Feather name="lock" size={15} color={C.primary} />
+          </View>
+          <View className="flex-1">
+            <PretendardFont weight="bold" style={{ fontSize: 13.5, color: C.text }}>
+              로그인하면 내 맞춤 시세를 저장할 수 있어요
+            </PretendardFont>
+            <PretendardFont style={{ fontSize: 12.5, color: C.textAlt, lineHeight: 18, marginTop: 3 }}>
+              지금은 예시로 서울가락 · 딸기 · 설향 바로가기를 보여드릴게요.
+            </PretendardFont>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+      >
+        <MarketCard
+          item={GUEST_SAMPLE_MARKET}
+          onPress={() => onSelectMarket(GUEST_SAMPLE_MARKET)}
+          onDelete={() => {}}
+          readonly
+        />
+      </ScrollView>
+    </View>
+  );
+}
+
+type MemberInterestMarketSectionProps = Omit<InterestMarketSectionProps, "isAuthenticated">;
+
+function MemberInterestMarketSection({
+  currentMarketCode,
+  currentLargeCode,
+  currentMidName,
+  currentMinorName,
+  onSelectMarket,
+  onShowToast,
+}: MemberInterestMarketSectionProps) {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const { data: markets = [], isLoading } = useInterestMarkets();
   const { mutate: deleteMarket } = useDeleteInterestMarket();
@@ -229,35 +319,33 @@ export function InterestMarketSection({
   };
 
   return (
-    <View style={{ borderTopWidth: 1, borderTopColor: C.bg }}>
-      {/* 시세 등록 버튼 - 우상단 절대 고정 */}
-      <Pressable
-        onPress={() => setAddModalVisible(true)}
-        className="flex-row items-center gap-1.5 active:opacity-80"
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 16,
-          zIndex: 10,
-          backgroundColor: C.primary,
-          borderRadius: 999,
-          paddingHorizontal: 14,
-          paddingVertical: 8,
-        }}
-      >
-        <Feather name="plus" size={13} color={C.white} />
-        <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.white }}>시세 등록</PretendardFont>
-      </Pressable>
+    <View className="border-t" style={{ borderTopColor: C.bg }}>
+      {/* 카드 위에 겹치지 않도록 등록 액션을 일반 레이아웃 흐름 안에 둡니다. */}
+      <View className="flex-row items-center justify-between px-4 pb-2 pt-3">
+        <PretendardFont style={{ fontSize: 12, color: C.sec }}>
+          자주 보는 시장·작물을 바로 열어요
+        </PretendardFont>
+        <Pressable
+          onPress={() => setAddModalVisible(true)}
+          className="flex-row items-center rounded-full px-3 py-2 active:opacity-80"
+          style={{ backgroundColor: C.primary, gap: 6 }}
+        >
+          <Feather name="plus" size={13} color={C.white} />
+          <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.white }}>
+            시세 등록
+          </PretendardFont>
+        </Pressable>
+      </View>
 
       {/* 카드 목록 */}
       {isLoading ? (
-        <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}>
+        <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingBottom: 20 }}>
           {[130, 130, 130].map((w, i) => (
             <Skeleton key={i} height={100} width={w} borderRadius={14} />
           ))}
         </View>
       ) : markets.length === 0 ? (
-        <View style={{ paddingHorizontal: 16, paddingTop: 48, paddingBottom: 20 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
           <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.sec, marginBottom: 4 }}>
             등록된 바로가기가 없어요
           </PretendardFont>
@@ -271,7 +359,7 @@ export function InterestMarketSection({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         >
           {markets.map((item) => (
             <MarketCard

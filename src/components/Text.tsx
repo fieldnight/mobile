@@ -22,11 +22,18 @@ export default function Text({ className, style, ...props }: TextProps) {
   const baseSize = className
     ? Object.entries(TAILWIND_SIZES).find(([cls]) => className.includes(cls))?.[1]
     : undefined;
+  const fontFamily = className?.includes('font-bold')
+    ? 'Pretendard-Bold'
+    : className?.includes('font-semibold')
+      ? 'Pretendard-SemiBold'
+      : className?.includes('font-medium')
+        ? 'Pretendard-Medium'
+        : 'Pretendard-Regular';
 
   return (
     <RNText
       className={className}
-      style={[baseSize != null && { fontSize: baseSize + fontOffset }, style]}
+      style={[{ fontFamily }, baseSize != null && { fontSize: baseSize + fontOffset }, style]}
       {...props}
     />
   );

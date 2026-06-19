@@ -22,15 +22,15 @@ export function BeeBoxCard({
     <View
       style={[
         {
-          backgroundColor: isSettingVariant ? "rgba(255,255,255,0.80)" : C.white,
+          backgroundColor: isSettingVariant ? "rgba(255, 255, 255, 0.704)" : C.white,
           borderRadius: 20,
-          padding: 14,
+          padding: 25,
           shadowColor: C.sec,
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.1,
           shadowRadius: 20,
           elevation: isSettingVariant ? 0 : 4,
-          ...(isSettingVariant && { marginHorizontal: -12 }),
+          ...(isSettingVariant && { marginHorizontal: -13 }),
         },
         style,
       ]}

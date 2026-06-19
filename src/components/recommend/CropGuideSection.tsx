@@ -76,7 +76,13 @@ function LabeledDropdown({
   );
 }
 
-export function CropGuideSection() {
+export function CropGuideSection({
+  isAuthenticated = true,
+  onRequireLogin,
+}: {
+  isAuthenticated?: boolean;
+  onRequireLogin?: () => void;
+}) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -110,6 +116,10 @@ export function CropGuideSection() {
 
   const handleSubmit = () => {
     if (!selectedCategory || !selectedCrop) return;
+    if (!isAuthenticated) {
+      onRequireLogin?.();
+      return;
+    }
     triggerHaptic('medium');
     setIsSubmitted(true);
   };
