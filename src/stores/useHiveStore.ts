@@ -104,7 +104,7 @@ interface HiveStoreState {
   updateHive: (id: string, input: Omit<HiveFormInput, "id" | "macAddress">) => void;
   deleteHive: (id: string) => void;
   reorderHives: (nextHives: HiveData[]) => void;
-  updateReplacedAt: (id: string) => void;
+  updateReplacedAt: (id: string, replacedAt?: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
 }
 
@@ -170,10 +170,10 @@ export const useHiveStore = create<HiveStoreState>()(
       reorderHives: (nextHives) => {
         set({ hives: nextHives });
       },
-      updateReplacedAt: (id) => {
+      updateReplacedAt: (id, replacedAt) => {
         set((state) => ({
           hives: state.hives.map((hive) =>
-            hive.id === id ? { ...hive, replacedAt: todayLabel() } : hive,
+            hive.id === id ? { ...hive, replacedAt: replacedAt ?? todayLabel() } : hive,
           ),
         }));
       },

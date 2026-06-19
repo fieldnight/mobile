@@ -25,9 +25,9 @@ export function QcToggleButton({
         className="items-center rounded-2xl"
         style={[
           {
-            paddingVertical: 12,
+            paddingVertical: 8,
             paddingHorizontal: 4,
-            gap: 6,
+            gap: 4,
             backgroundColor: C.bg,
           },
           isOn && !disabled && {
@@ -43,9 +43,9 @@ export function QcToggleButton({
         <View
           className="items-center justify-center"
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
+            width: 28,
+            height: 28,
+            borderRadius: 14,
             backgroundColor: isOn ? C.text : C.bgAlt,
           }}
         >
@@ -53,7 +53,7 @@ export function QcToggleButton({
         </View>
         <PretendardFont
           weight={isOn ? "bold" : "semibold"}
-          style={{ fontSize: 13, color: C.text }}
+          style={{ fontSize: 12, color: C.text }}
         >
           {label}
         </PretendardFont>

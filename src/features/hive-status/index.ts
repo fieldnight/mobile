@@ -7,4 +7,5 @@ export {
   DataTable,
   HiveEnvironmentGuide,
   HiveReplacementTable,
+  HiveReplacementCard,
 } from "./components";

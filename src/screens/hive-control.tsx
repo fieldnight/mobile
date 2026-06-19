@@ -1,46 +1,62 @@
-/**
- * 벌통 제어 화면
- * - HiveSliderSection: 벌통 목록 확인 (슬라이더)
- * - HiveControlSection: 수동·자동 제어 설정
- * - 상태와 핸들러를 여기서 관리하고 두 섹션에 내려줌
- */
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ScrollView,
-  Platform,
   Dimensions,
   ImageBackground,
+  Platform,
+  ScrollView,
 } from "react-native";
-
-const BG_IMAGE = require("../../assets/df.jpg");
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
-import { Spacing } from "../constants";
 import { useLocalSearchParams } from "expo-router";
-import { useHiveStore } from "@/stores/useHiveStore";
+import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
-import { HiveControlSection } from "@/features/hive-control";
+import {
+  AUTO_CONTROL_TYPE_BY_ID,
+  MANUAL_CONTROL_TYPE_BY_KEY,
+  HiveControlSection,
+  applyControlResult,
+  buildOptimisticAutoState,
+  buildOptimisticManualState,
+  mergeControlSettings,
+  useHiveControlSettings,
+  useHiveControlSse,
+  useRequestAutoControl,
+  useRequestManualControl,
+  type QuickControlKey,
+} from "@/features/hive-control";
 import { useSyncHiveList } from "@/features/hive";
+import { HiveReplacementCard } from "@/features/hive-status";
+import { Spacing } from "../constants";
+import { useHiveStore } from "@/stores/useHiveStore";
 import type { HiveControlState } from "@/types/hive-control";
 
+const BG_IMAGE = require("../../assets/df.jpg");
+
+/** 특정 벌통의 제어 상태만 안전하게 교체합니다. */
+function setHiveControlState(hiveId: string, nextState: HiveControlState) {
+  useHiveStore.setState((prev) => ({
+    hiveControls: {
+      ...prev.hiveControls,
+      [hiveId]: nextState,
+    },
+  }));
+}
 
 /**
- * HiveControlScreen
- * - 내 농장 페이지의 메인 화면입니다.
- * - 상단에는 벌통 선택 슬라이더를 보여주고,
- *   아래에는 수동/자동 제어 섹션을 표시합니다.
+ * 스마트벌통 제어 화면
+ * - 상단 슬라이더에서 벌통을 고르고, 하단에서 자동/수동 제어를 변경합니다.
+ * - 제어 요청은 낙관적 UI로 먼저 반영하고, 실패하거나 SSE 결과가 오면 다시 동기화합니다.
  */
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  useSyncHiveList();
+  const hiveListQuery = useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 
-  // IoT 홈에서 특정 벌통을 탭하면 selectedHiveId 파라미터로 진입 → 해당 벌통 선택
+  // IoT 화면에서 특정 벌통을 눌러 진입하면 해당 벌통을 먼저 보여줍니다.
   const { selectedHiveId } = useLocalSearchParams<{
     selectedHiveId?: string;
   }>();
@@ -57,8 +73,17 @@ export default function HiveControlScreen() {
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const hiveSliderRef = useRef<ScrollView>(null);
 
+  const autoControlMutation = useRequestAutoControl();
+  const manualControlMutation = useRequestManualControl();
+  const controlSettingsQuery = useHiveControlSettings(controlHive);
+  const refetchControlSettings = controlSettingsQuery.refetch;
+
   const windowWidth = Dimensions.get("window").width;
   const itemWidth = windowWidth - 32;
+
+  const current =
+    hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? "1"];
+  const currentHive = hives.find((hive) => hive.id === controlHive);
 
   useEffect(() => {
     if (!hives.length) return;
@@ -71,79 +96,166 @@ export default function HiveControlScreen() {
     }
   }, [hives, controlHive, selectedIndex]);
 
-  const current =
-    hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? "1"];
-
-  const handleRefresh = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  };
-
   /**
-   * handleToggleControl
-   * - 자동 제어 항목을 토글합니다.
-   * - 자동 ON→OFF 전환 시 연관 수동 상태를 off로 리셋합니다.
+   * 서버 설정 조회 결과를 기존 Zustand 상태와 병합합니다.
+   * 화면 곳곳이 아직 Zustand를 직접 바라보므로 React Query와 store 사이에 bridge를 둡니다.
    */
-  const handleToggleControl = (id: string) => {
-    if (Platform.OS !== "web")
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const manualResets: Partial<HiveControlState> = {};
-    if (id === "heating") {
-      manualResets.heaterOn = false;
-      manualResets.coolerOn = false;
-    } else if (id === "humidity" || id === "ventilation") {
-      manualResets.ventOn = false;
-      manualResets.circOn = false;
-    }
-
-    useHiveStore.setState((prev) => ({
-      hiveControls: {
-        ...prev.hiveControls,
-        [controlHive]: {
-          ...prev.hiveControls[controlHive],
-          ...manualResets,
-          controls: prev.hiveControls[controlHive].controls.map(
-            (control: HiveControlState["controls"][number]) =>
-              control.id === id
-                ? { ...control, enabled: !control.enabled }
-                : control,
-          ),
-        },
-      },
-    }));
-  };
-
-  /**
-   * toggleQuickControl
-   * - 히터/쿨러/환기/순환 빠른 제어 버튼을 토글합니다.
-   */
-  const toggleQuickControl = (
-    key: "heaterOn" | "coolerOn" | "ventOn" | "circOn",
-  ) => {
-    if (Platform.OS !== "web")
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  useEffect(() => {
+    if (!controlSettingsQuery.data || !controlHive) return;
 
     useHiveStore.setState((prev) => {
-      const currentState = prev.hiveControls[controlHive];
-      const newValue = !currentState[key];
-      const updates: Partial<HiveControlState> = { [key]: newValue };
-      if (key === "heaterOn" && newValue) updates.coolerOn = false;
-      if (key === "coolerOn" && newValue) updates.heaterOn = false;
-      if (key === "ventOn" && newValue) updates.circOn = false;
-      if (key === "circOn" && newValue) updates.ventOn = false;
+      const prevControl = prev.hiveControls[controlHive];
+      if (!prevControl) return prev;
+
       return {
         hiveControls: {
           ...prev.hiveControls,
-          [controlHive]: { ...currentState, ...updates },
+          [controlHive]: mergeControlSettings(
+            prevControl,
+            controlSettingsQuery.data,
+          ),
         },
       };
     });
+  }, [controlHive, controlSettingsQuery.data]);
+
+  /**
+   * SSE에서 실제 MCU 처리 결과를 받으면 화면 상태를 확정합니다.
+   * 실패 이벤트는 서버 상태를 다시 조회해 낙관적 UI와 실제 상태를 맞춥니다.
+   */
+  const handleSseResult = useCallback(
+    (event: Parameters<typeof applyControlResult>[1]) => {
+      const hiveId = String(event.hiveId);
+
+      if (!event.success) {
+        console.error("[Hive Control SSE] 제어 처리 실패", event);
+        if (hiveId === controlHive) refetchControlSettings();
+        return;
+      }
+
+      useHiveStore.setState((prev) => {
+        const prevControl = prev.hiveControls[hiveId];
+        if (!prevControl) return prev;
+
+        return {
+          hiveControls: {
+            ...prev.hiveControls,
+            [hiveId]: applyControlResult(prevControl, event),
+          },
+        };
+      });
+
+      console.log("[Hive Control SSE] 제어 처리 성공", event);
+      if (hiveId === controlHive) refetchControlSettings();
+    },
+    [controlHive, refetchControlSettings],
+  );
+
+  useHiveControlSse({
+    enabled: true,
+    onResult: handleSseResult,
+  });
+
+  const handleRefresh = async () => {
+    await Promise.all([hiveListQuery.refetch(), controlSettingsQuery.refetch()]);
   };
 
   /**
-   * handleSelectHive
-   * - 개별 벌통 선택 시 선택 상태를 갱신하고 슬라이더를 스크롤합니다.
+   * 자동 제어 토글
+   * - UI는 즉시 바꾸고, POST 실패 시 이전 상태로 되돌립니다.
+   * - 실제 MCU 처리 성공 여부는 SSE로 다시 들어옵니다.
    */
+  const handleToggleControl = (id: string) => {
+    const prevState = useHiveStore.getState().hiveControls[controlHive];
+    const serverType = AUTO_CONTROL_TYPE_BY_ID[id];
+    if (!prevState || !serverType) return;
+
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    const nextState = buildOptimisticAutoState(prevState, id);
+    const nextEnabled =
+      nextState.controls.find((control) => control.id === id)?.enabled ?? false;
+
+    setHiveControlState(controlHive, nextState);
+    console.log("[Hive Control UI] 자동 제어 낙관적 반영", {
+      hiveId: controlHive,
+      type: serverType,
+      enabled: nextEnabled,
+    });
+
+    autoControlMutation.mutate(
+      {
+        hiveId: controlHive,
+        body: { type: serverType, enabled: nextEnabled },
+      },
+      {
+        onError: (error) => {
+          setHiveControlState(controlHive, prevState);
+          console.error("[Hive Control UI] 자동 제어 롤백", {
+            hiveId: controlHive,
+            type: serverType,
+            error,
+          });
+        },
+      },
+    );
+  };
+
+  /**
+   * 수동 빠른 제어 토글
+   * - 현재 백엔드 명세에 없는 쿨러/순환은 기존 로컬 UI만 유지하고 경고 로그를 남깁니다.
+   * - 서버 타입이 있는 히터/환기는 자동 제어와 동일하게 낙관적 UI로 처리합니다.
+   */
+  const toggleQuickControl = (key: QuickControlKey) => {
+    const prevState = useHiveStore.getState().hiveControls[controlHive];
+    if (!prevState) return;
+
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    const nextState = buildOptimisticManualState(prevState, key);
+    setHiveControlState(controlHive, nextState);
+
+    const serverType = MANUAL_CONTROL_TYPE_BY_KEY[key];
+    if (!serverType) {
+      console.warn("[Hive Control UI] 서버 수동 제어 타입 미정, 로컬만 반영", {
+        hiveId: controlHive,
+        key,
+      });
+      return;
+    }
+
+    console.log("[Hive Control UI] 수동 제어 낙관적 반영", {
+      hiveId: controlHive,
+      type: serverType,
+      isOn: nextState[key],
+    });
+
+    manualControlMutation.mutate(
+      {
+        hiveId: controlHive,
+        body: {
+          type: serverType,
+          isOn: nextState[key],
+        },
+      },
+      {
+        onError: (error) => {
+          setHiveControlState(controlHive, prevState);
+          console.error("[Hive Control UI] 수동 제어 롤백", {
+            hiveId: controlHive,
+            type: serverType,
+            error,
+          });
+        },
+      },
+    );
+  };
+
+  /** 벌통 선택 시 드롭다운과 상단 슬라이더 위치를 같이 맞춥니다. */
   const handleSelectHive = (id: string) => {
     setControlHive(id);
     const index = hives.findIndex((hive) => hive.id === id);
@@ -180,8 +292,9 @@ export default function HiveControlScreen() {
           itemWidth={itemWidth}
           sliderRef={hiveSliderRef}
           onHivePress={(id) => {
-            if (Platform.OS !== "web")
+            if (Platform.OS !== "web") {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
             (navigation as any).navigate("hive-stats", { selectedHiveId: id });
           }}
           onSlideEnd={(idx) => {
@@ -201,6 +314,8 @@ export default function HiveControlScreen() {
           onToggleQuickControl={toggleQuickControl}
           onSelectHive={handleSelectHive}
         />
+
+        <HiveReplacementCard hive={currentHive} />
       </PullToRefresh>
     </ImageBackground>
   );

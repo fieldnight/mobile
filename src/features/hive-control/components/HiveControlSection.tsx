@@ -41,7 +41,6 @@ export function HiveControlSection({
 
   return (
     <Card
-      className="mb-10"
       style={{
         borderRadius: 20,
         backgroundColor: "rgba(255, 255, 255, 0.643) ",
@@ -49,7 +48,7 @@ export function HiveControlSection({
         marginHorizontal: -14,
       }}
     >
-      <View className="flex-row justify-between items-center mb-3.5">
+      <View className="flex-row justify-between items-center mb-2">
         <PretendardFont
           weight="bold"
           className="text-[18px]"
@@ -60,7 +59,7 @@ export function HiveControlSection({
         <View className="relative">
           <Pressable
             onPress={() => setDropdownOpen((prev) => !prev)}
-            className="flex-row items-center gap-1.5 px-3 py-2.5 bg-white rounded-[14px] border"
+            className="flex-row items-center gap-1.5 px-3 py-2 bg-white rounded-[14px] border"
             style={{ borderColor: C.border }}
           >
             <PretendardFont className="text-[14px]" style={{ color: C.text }}>
@@ -83,15 +82,22 @@ export function HiveControlSection({
         </View>
       </View>
 
-      <PretendardFont
-        weight="bold"
-        className="text-[14px] mb-3"
-        style={{ color: C.text }}
-      >
-        수동 제어
-      </PretendardFont>
+      <View className="flex-row items-center justify-between mb-1.5">
+        <PretendardFont weight="bold" className="text-[14px]" style={{ color: C.text }}>
+          수동 제어
+        </PretendardFont>
+        <View
+          className="flex-row items-center gap-1 px-2.5 py-0.5 rounded-full border"
+          style={{ borderColor: C.sec }}
+        >
+          <Feather name="info" size={11} color={C.sec} />
+          <PretendardFont weight="semibold" className="text-[12px]" style={{ color: C.sec }}>
+            자동 제어 중엔 비활성화
+          </PretendardFont>
+        </View>
+      </View>
 
-      <View className="flex-row justify-between gap-2.5 rounded-[18px] p-3">
+      <View className="flex-row justify-between gap-2 rounded-[18px] p-1">
         <QcToggleButton
           label="히터"
           icon="sun"
@@ -126,38 +132,17 @@ export function HiveControlSection({
         />
       </View>
 
-      {/* 자동·수동 제어 안내 배너 */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-          backgroundColor: C.bgAlt,
-          borderRadius: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          marginTop: 4,
-        }}
-      >
-        <Feather name="info" size={13} color={C.sec} />
-        <PretendardFont
-          style={{ fontSize: 12, color: C.sec, flex: 1, lineHeight: 18 }}
-        >
-          자동 제어가 켜진 동안엔 해당 수동 버튼을 누를 수 없어요.
-        </PretendardFont>
-      </View>
-
       <View
         style={{
           height: 1,
           backgroundColor: C.border,
-          marginVertical: 18,
+          marginVertical: 10,
         }}
       />
 
       <PretendardFont
         weight="bold"
-        className="text-[14px] mb-3"
+        className="text-[14px] mb-0.5"
         style={{ color: C.text }}
       >
         자동 제어

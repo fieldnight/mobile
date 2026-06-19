@@ -32,14 +32,14 @@ export function ControlItem({
       android_ripple={{ color: "rgba(0,0,0,0.04)", borderless: false }}
     >
       <Animated.View
-        className="flex-row items-center py-3"
+        className="flex-row items-center py-1"
         style={{ transform: [{ scale }] }}
       >
         <View className="flex-1 pr-3">
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <PretendardFont
               weight="bold"
-              style={{ fontSize: 16, color: C.text }}
+              style={{ fontSize: 15, color: C.text }}
             >
               {control.name}
             </PretendardFont>
@@ -53,7 +53,7 @@ export function ControlItem({
         </View>
         <Switch
           value={control.enabled}
-          onValueChange={() => onToggle(control.id)}
+          pointerEvents="none"
           trackColor={{ false: C.border, true: C.primary }}
           thumbColor={C.white}
           ios_backgroundColor={C.border}
