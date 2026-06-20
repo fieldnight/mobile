@@ -207,6 +207,100 @@ function AddMarketModal({
   );
 }
 
+// 삭제는 되돌리기 어려운 액션이라 확인 모달에서 한 번 더 안전하게 받는다.
+function DeleteMarketModal({
+  item,
+  visible,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  item: InterestMarket | null;
+  visible: boolean;
+  isPending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/40" onPress={onClose} />
+      <View className="rounded-t-3xl bg-white px-6 pb-11 pt-5">
+        <View
+          className="mb-5 h-1 w-10 self-center rounded-full"
+          style={{ backgroundColor: C.border }}
+        />
+
+        <View className="mb-5 flex-row items-start" style={{ gap: 12 }}>
+          <View
+            className="h-10 w-10 items-center justify-center rounded-full"
+            style={{ backgroundColor: C.infoBg }}
+          >
+            <Feather name="trash-2" size={18} color={C.primary} />
+          </View>
+          <View className="flex-1">
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 19, color: C.text }}
+            >
+              맞춤 시세를 삭제할까요?
+            </PretendardFont>
+            <PretendardFont
+              style={{
+                fontSize: 14,
+                color: C.sec,
+                lineHeight: 21,
+                marginTop: 6,
+              }}
+            >
+              {item
+                ? `${marketName(item.marketCode)} · ${item.cropMidName} ${item.cropMinorName} 바로가기가 목록에서 사라져요.`
+                : "선택한 바로가기가 목록에서 사라져요."}
+            </PretendardFont>
+          </View>
+        </View>
+
+        <View className="flex-row" style={{ gap: 10 }}>
+          <Pressable
+            onPress={onClose}
+            disabled={isPending}
+            className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
+            style={{ backgroundColor: C.bgAlt }}
+          >
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 14, color: C.textAlt }}
+            >
+              취소
+            </PretendardFont>
+          </Pressable>
+          <Pressable
+            onPress={onConfirm}
+            disabled={isPending}
+            className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
+            style={{ backgroundColor: C.primary }}
+          >
+            {isPending ? (
+              <ActivityIndicator size="small" color={C.white} />
+            ) : (
+              <PretendardFont
+                weight="bold"
+                style={{ fontSize: 14, color: C.white }}
+              >
+                삭제하기
+              </PretendardFont>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── 메인 섹션 ─────────────────────────────────────────────────────────────────
 interface InterestMarketSectionProps {
   currentMarketCode: string;
@@ -292,13 +386,19 @@ function MemberInterestMarketSection({
   onShowToast,
 }: MemberInterestMarketSectionProps) {
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<InterestMarket | null>(null);
   const { data: markets = [], isLoading } = useInterestMarkets();
-  const { mutate: deleteMarket } = useDeleteInterestMarket();
+  const deleteMarketMutation = useDeleteInterestMarket();
   const { mutate: addMarket, isPending } = useAddInterestMarket();
 
-  const handleDelete = (id: number) => {
-    deleteMarket(id, {
-      onSuccess: () => onShowToast("바로가기가 삭제됐어요.", "success"),
+  const handleConfirmDelete = () => {
+    if (!pendingDelete) return;
+
+    deleteMarketMutation.mutate(pendingDelete.interestMarketId, {
+      onSuccess: () => {
+        setPendingDelete(null);
+        onShowToast("바로가기가 삭제됐어요.", "success");
+      },
       onError: () => onShowToast("삭제에 실패했어요. 다시 시도해주세요.", "error"),
     });
   };
@@ -366,7 +466,7 @@ function MemberInterestMarketSection({
               key={item.interestMarketId}
               item={item}
               onPress={() => onSelectMarket(item)}
-              onDelete={() => handleDelete(item.interestMarketId)}
+              onDelete={() => setPendingDelete(item)}
             />
           ))}
         </ScrollView>
@@ -381,6 +481,15 @@ function MemberInterestMarketSection({
         currentLargeCode={currentLargeCode}
         currentMidName={currentMidName}
         currentMinorName={currentMinorName}
+      />
+      <DeleteMarketModal
+        item={pendingDelete}
+        visible={pendingDelete != null}
+        isPending={deleteMarketMutation.isPending}
+        onClose={() => {
+          if (!deleteMarketMutation.isPending) setPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
       />
     </View>
   );

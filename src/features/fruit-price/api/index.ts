@@ -110,6 +110,14 @@ export async function addInterestMarket(
 }
 
 // DELETE /api/v1/interest-markets/{interestMarketId}
-export async function deleteInterestMarket(id: number): Promise<void> {
-  await api.delete(`/api/v1/interest-markets/${id}`);
+export async function deleteInterestMarket(id: number): Promise<string> {
+  const res = await api.delete<ApiResponse<string>>(
+    `/api/v1/interest-markets/${id}`,
+  );
+
+  if (res.data.code !== "200") {
+    throw new Error(res.data.message || "관심 시장 삭제에 실패했습니다.");
+  }
+
+  return res.data.data;
 }
