@@ -115,9 +115,11 @@ export async function deleteInterestMarket(id: number): Promise<string> {
     `/api/v1/interest-markets/${id}`,
   );
 
-  if (res.data.code !== "200") {
+  // 서버 삭제 응답의 code가 숫자/문자열로 달라져도 HTTP 성공이면 성공 처리한다.
+  const responseCode = String(res.data?.code ?? res.status);
+  if (responseCode !== "200") {
     throw new Error(res.data.message || "관심 시장 삭제에 실패했습니다.");
   }
 
-  return res.data.data;
+  return res.data?.data ?? "OK";
 }
