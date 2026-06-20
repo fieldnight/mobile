@@ -35,6 +35,7 @@ import {
   useWeatherRegion,
   useMakeWeather,
   getHivePeriodData,
+  useHiveTelemetryData,
 } from "@/features/hive-status";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { Period } from "../types";
@@ -87,17 +88,49 @@ export default function HiveStatsScreen() {
     }
   }, [selectedIndex]);
 
-  const statData = getHivePeriodData(selectedHive, period);
+  const fallbackStatData = getHivePeriodData(selectedHive, period);
+  const telemetryQuery = useHiveTelemetryData({
+    hiveId: selectedHive,
+    period,
+    fallbackData: fallbackStatData,
+  });
+  const refetchTelemetry = telemetryQuery.refetch;
+  const statData = telemetryQuery.data ?? fallbackStatData;
+
+  useEffect(() => {
+    console.log("[Hive Stats] 센서 데이터 상태", {
+      selectedHive,
+      period,
+      isFetching: telemetryQuery.isFetching,
+      isError: telemetryQuery.isError,
+      source: telemetryQuery.data ? "telemetry-api" : "mock-fallback",
+      count: statData.length,
+    });
+  }, [
+    period,
+    selectedHive,
+    statData.length,
+    telemetryQuery.data,
+    telemetryQuery.isError,
+    telemetryQuery.isFetching,
+  ]);
 
   const isWeb = Platform.OS === "web";
   const haptic = () => {
     if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  // PullToRefresh 컴포넌트 새로고침 처리. 데이터 API 연결 전 테스트용 0.8초 딜레이를 사용합니다.
+  // 당겨서 새로고침하면 현재 벌통/기간의 센서 데이터를 다시 조회한다.
   const handleRefresh = useCallback(async () => {
-    await new Promise<void>((resolve) => setTimeout(resolve, 800));
-  }, []);
+    console.log("[Hive Stats] 센서 데이터 수동 새로고침", {
+      selectedHive,
+      period,
+    });
+    await Promise.all([
+      refetchTelemetry(),
+      new Promise<void>((resolve) => setTimeout(resolve, 300)),
+    ]);
+  }, [period, refetchTelemetry, selectedHive]);
 
   //슬라이더에서 벌통을 선택했을 때 상태를 변경합니다.
   const handleHivePress = (id: string) => {

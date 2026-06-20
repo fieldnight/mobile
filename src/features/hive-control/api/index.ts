@@ -65,6 +65,8 @@ export interface AutoControlRequest {
 
 export interface ManualControlRequest {
   type: HiveControlType;
+  /** 수동 제어 활성화 여부 — isOn이 유효하려면 반드시 true */
+  enabled: boolean;
   isOn: boolean;
 }
 

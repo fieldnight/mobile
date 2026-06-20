@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
+import { submitSuggestion } from "@/features/feedback/api";
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/g6FQjhAi";
 const QR_IMAGE = require("../../assets/images/qr.png");
@@ -33,8 +34,14 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
   const [email, setEmail] = useState("");
   const [extra, setExtra] = useState("");
   const [consent, setConsent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canSubmit = name.trim() !== "" && email.trim() !== "" && extra.trim() !== "" && consent;
+  const canSubmit =
+    name.trim() !== "" &&
+    email.trim() !== "" &&
+    extra.trim() !== "" &&
+    consent &&
+    !isSubmitting;
   const inputStyle = {
     borderColor: C.border,
     color: C.text,
@@ -46,6 +53,7 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
     setEmail("");
     setExtra("");
     setConsent(false);
+    setIsSubmitting(false);
     onClose();
   };
 
@@ -61,17 +69,69 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
     Linking.openURL(KAKAO_OPEN_CHAT_URL);
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    if (!canSubmit) return;
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleSubmit = useCallback(async () => {
+    console.log("[Inquiry Modal] 문의 제출 클릭", {
+      hasName: name.trim() !== "",
+      hasEmail: email.trim() !== "",
+      contentLength: extra.trim().length,
+      consent,
+      isSubmitting,
+      canSubmit,
+    });
+
+    if (!canSubmit) {
+      console.warn("[Inquiry Modal] 문의 제출 차단", {
+        reason: "required-field-or-consent-missing",
+        hasName: name.trim() !== "",
+        hasEmail: email.trim() !== "",
+        hasContent: extra.trim() !== "",
+        consent,
+        isSubmitting,
+      });
+      return;
     }
-    Alert.alert(
-      "접수 완료",
-      "문의가 접수되었습니다.\n확인 후 빠르게 답변드리겠습니다.",
-    );
-    handleClose();
-  }, [canSubmit]);
+
+    setIsSubmitting(true);
+    try {
+      // 피드백 API는 content만 받으므로 폼 필드를 관리자 메일용 텍스트로 합쳐 보낸다.
+      const content = [
+        `이름: ${name.trim()}`,
+        `이메일: ${email.trim()}`,
+        `내용: ${extra.trim()}`,
+      ].join("\n");
+
+      console.log("[Inquiry Modal] 문의 content 조립 완료", {
+        contentLength: content.length,
+        lineCount: content.split("\n").length,
+      });
+
+      await submitSuggestion({ content });
+
+      console.log("[Inquiry Modal] 문의 전송 성공");
+
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert(
+        "접수 완료",
+        "문의가 접수되었습니다.\n확인 후 빠르게 답변드리겠습니다.",
+      );
+      handleClose();
+    } catch (error) {
+      console.error("[Inquiry Modal] 문의 전송 실패", { error });
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert(
+        "전송 실패",
+        error instanceof Error
+          ? error.message
+          : "잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [canSubmit, email, extra, name]);
 
   return (
     <Modal
@@ -252,7 +312,7 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
                 weight="semibold"
                 style={{ fontSize: 16, color: canSubmit ? C.white : C.ter }}
               >
-                문의 보내기
+                {isSubmitting ? "전송 중..." : "문의 보내기"}
               </PretendardFont>
             </Pressable>
           </ScrollView>

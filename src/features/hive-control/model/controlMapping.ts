@@ -26,6 +26,7 @@ export const AUTO_CONTROL_ID_BY_TYPE: Partial<Record<HiveControlType, string>> =
 export const MANUAL_CONTROL_TYPE_BY_KEY: Partial<
   Record<QuickControlKey, HiveControlType>
 > = {
+  heaterOn: "HEATER",
   ventOn: "FAN",
 };
 
@@ -84,9 +85,13 @@ export function buildOptimisticManualState(
 export function mergeControlSettings(
   prev: HiveControlState,
   settings: HiveControlSettingsResponse,
+  pendingAutoTypes: ReadonlySet<HiveControlType> = new Set(),
 ): HiveControlState {
   const nextControls = prev.controls.map((control) => {
     const serverType = AUTO_CONTROL_TYPE_BY_ID[control.id];
+    // 자동 제어 명령은 SSE 결과가 최종값이라, 대기 중인 타입은 늦게 온 조회 응답으로 덮지 않는다.
+    if (serverType && pendingAutoTypes.has(serverType)) return control;
+
     const serverSetting = settings.auto.find((item) => item.type === serverType);
     return serverSetting ? { ...control, enabled: serverSetting.enabled } : control;
   });
@@ -122,8 +127,7 @@ export function applyControlResult(
   return {
     ...prev,
     controls: nextControls,
-    heaterOn:
-      event.type === "HEATER" && event.isOn !== null ? event.isOn : prev.heaterOn,
+    heaterOn: event.type === "HEATER" && event.isOn !== null ? event.isOn : prev.heaterOn,
     ventOn: event.type === "FAN" && event.isOn !== null ? event.isOn : prev.ventOn,
   };
 }
