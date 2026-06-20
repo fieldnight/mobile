@@ -24,6 +24,7 @@ import {
   useHiveControlSse,
   useRequestAutoControl,
   useRequestManualControl,
+  type HiveControlType,
   type QuickControlKey,
 } from "@/features/hive-control";
 import { useSyncHiveList } from "@/features/hive";
@@ -72,6 +73,7 @@ export default function HiveControlScreen() {
   const [controlHive, setControlHive] = useState(initialId);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const hiveSliderRef = useRef<ScrollView>(null);
+  const pendingAutoTypesRef = useRef(new Set<HiveControlType>());
 
   const autoControlMutation = useRequestAutoControl();
   const manualControlMutation = useRequestManualControl();
@@ -113,6 +115,7 @@ export default function HiveControlScreen() {
           [controlHive]: mergeControlSettings(
             prevControl,
             controlSettingsQuery.data,
+            pendingAutoTypesRef.current,
           ),
         },
       };
@@ -126,6 +129,7 @@ export default function HiveControlScreen() {
   const handleSseResult = useCallback(
     (event: Parameters<typeof applyControlResult>[1]) => {
       const hiveId = String(event.hiveId);
+      pendingAutoTypesRef.current.delete(event.type);
 
       if (!event.success) {
         console.error("[Hive Control SSE] 제어 처리 실패", event);
@@ -166,7 +170,10 @@ export default function HiveControlScreen() {
    * - 실제 MCU 처리 성공 여부는 SSE로 다시 들어옵니다.
    */
   const handleToggleControl = (id: string) => {
-    const prevState = useHiveStore.getState().hiveControls[controlHive];
+    const store = useHiveStore.getState();
+    const prevState =
+      store.hiveControls[controlHive] ??
+      store.hiveControls[store.hives[0]?.id ?? ""];
     const serverType = AUTO_CONTROL_TYPE_BY_ID[id];
     if (!prevState || !serverType) return;
 
@@ -178,6 +185,7 @@ export default function HiveControlScreen() {
     const nextEnabled =
       nextState.controls.find((control) => control.id === id)?.enabled ?? false;
 
+    pendingAutoTypesRef.current.add(serverType);
     setHiveControlState(controlHive, nextState);
     console.log("[Hive Control UI] 자동 제어 낙관적 반영", {
       hiveId: controlHive,
@@ -192,6 +200,7 @@ export default function HiveControlScreen() {
       },
       {
         onError: (error) => {
+          pendingAutoTypesRef.current.delete(serverType);
           setHiveControlState(controlHive, prevState);
           console.error("[Hive Control UI] 자동 제어 롤백", {
             hiveId: controlHive,
@@ -209,7 +218,10 @@ export default function HiveControlScreen() {
    * - 서버 타입이 있는 히터/환기는 자동 제어와 동일하게 낙관적 UI로 처리합니다.
    */
   const toggleQuickControl = (key: QuickControlKey) => {
-    const prevState = useHiveStore.getState().hiveControls[controlHive];
+    const store = useHiveStore.getState();
+    const prevState =
+      store.hiveControls[controlHive] ??
+      store.hiveControls[store.hives[0]?.id ?? ""];
     if (!prevState) return;
 
     if (Platform.OS !== "web") {
@@ -239,6 +251,7 @@ export default function HiveControlScreen() {
         hiveId: controlHive,
         body: {
           type: serverType,
+          enabled: nextState[key], // 수동 제어 활성화 여부 (isOn과 동일값)
           isOn: nextState[key],
         },
       },
