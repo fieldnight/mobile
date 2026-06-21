@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { NfcDoorCardConfig } from "./nfcDoorCards";
+import { setActiveHceCard, toHceCardPayload } from "../model/webeeHce";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ACTIVE_CARD_W = SCREEN_W - 42;
@@ -34,11 +35,13 @@ export function NfcDoorCardModal({
   // ---- NFC 활성 상태 효과 ----
   // 모달이 열려 있는 동안 느린 햅틱과 상단 반원 펄스를 반복합니다.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !card) return;
 
     translateY.setValue(0);
     pulse.setValue(0);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setActiveHceCard(card);
+    console.log("[NFC Door Card Modal] HCE 카드 활성화", toHceCardPayload(card));
 
     const pulseOnce = () => {
       pulse.setValue(0);
@@ -63,7 +66,7 @@ export function NfcDoorCardModal({
     }, 1400);
 
     return () => clearInterval(timer);
-  }, [pulse, translateY, visible]);
+  }, [card, pulse, translateY, visible]);
 
   // ---- 닫기 애니메이션 ----
   const closeWithSlide = () => {
