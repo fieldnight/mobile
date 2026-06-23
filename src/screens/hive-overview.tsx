@@ -8,6 +8,7 @@ import { Dimensions, ImageBackground, Platform, Pressable, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQueryClient } from "@tanstack/react-query";
 
 const BG_IMAGE = require("../../assets/df.jpg");
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
@@ -17,6 +18,7 @@ import { C } from "@/constants/hive-colors";
 import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useSyncHiveList } from "@/features/hive";
+import { HIVE_REPLACEMENT_QUERY_KEYS, useHiveLatestReplacementMap } from "@/features/hive-status";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 
@@ -29,13 +31,28 @@ const ITEM_WIDTH = Dimensions.get("window").width - 32;
  */
 export default function HiveOverviewScreen() {
   const insets = useSafeAreaInsets();
-  useSyncHiveList();
+  const queryClient = useQueryClient();
+  const hiveListQuery = useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
+  const latestReplacementMap = useHiveLatestReplacementMap(hives.map((hive) => hive.id));
   const [addHiveVisible, setAddHiveVisible] = useState(false);
+  const displayHives = hives.map((hive) => {
+    const latestReplacement = latestReplacementMap.get(hive.id);
+    return latestReplacement
+      ? { ...hive, replacedAt: latestReplacement.replacedAt }
+      : hive;
+  });
 
   const handleRefresh = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await Promise.all([
+      hiveListQuery.refetch(),
+      ...hives.map((hive) =>
+        queryClient.invalidateQueries({
+          queryKey: HIVE_REPLACEMENT_QUERY_KEYS.latest(hive.id),
+        }),
+      ),
+    ]);
   };
 
   const openAddHiveSheet = () => {
@@ -64,7 +81,7 @@ export default function HiveOverviewScreen() {
         <AddHiveStrip onPress={openAddHiveSheet} />
 
         <HiveSliderSection
-          hives={hives}
+          hives={displayHives}
           hiveControls={hiveControls}
           allView={true}
           selectedIndex={0}

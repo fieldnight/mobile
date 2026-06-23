@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -13,7 +13,12 @@ import * as Haptics from "expo-haptics";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { NfcDoorCardConfig } from "./nfcDoorCards";
-import { setActiveHceCard, toHceCardPayload } from "../model/webeeHce";
+import {
+  setActiveHceCard,
+  subscribeHceResult,
+  toHceCardPayload,
+  type HceResultEvent,
+} from "../model/webeeHce";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ACTIVE_CARD_W = SCREEN_W - 42;
@@ -31,17 +36,22 @@ export function NfcDoorCardModal({
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
+  const [hceResult, setHceResult] = useState<HceResultEvent | null>(null);
 
-  // ---- NFC 활성 상태 효과 ----
-  // 모달이 열려 있는 동안 느린 햅틱과 상단 반원 펄스를 반복합니다.
+  // 선택된 카드를 네이티브 HCE 서비스에 저장하고 ESP32 적용 결과 이벤트를 기다립니다.
   useEffect(() => {
     if (!visible || !card) return;
 
+    setHceResult(null);
     translateY.setValue(0);
     pulse.setValue(0);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setActiveHceCard(card);
     console.log("[NFC Door Card Modal] HCE 카드 활성화", toHceCardPayload(card));
+
+    const hceSubscription = subscribeHceResult((event) => {
+      setHceResult(event);
+    });
 
     const pulseOnce = () => {
       pulse.setValue(0);
@@ -65,10 +75,15 @@ export function NfcDoorCardModal({
       pulseOnce();
     }, 1400);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      hceSubscription.remove();
+      console.log("[NFC Door Card Modal] HCE 결과 구독 해제");
+    };
   }, [card, pulse, translateY, visible]);
 
-  // ---- 닫기 애니메이션 ----
+  const hceStatus = useMemo(() => getHceStatus(hceResult), [hceResult]);
+
   const closeWithSlide = () => {
     Animated.timing(translateY, {
       toValue: 420,
@@ -77,8 +92,6 @@ export function NfcDoorCardModal({
     }).start(onClose);
   };
 
-  // ---- 전체 영역 드래그 닫기 ----
-  // 카드 안쪽이나 아래쪽을 잡아도 아래로 밀어 닫을 수 있게 루트와 카드에 함께 연결합니다.
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 8,
@@ -179,7 +192,6 @@ export function NfcDoorCardModal({
                 <Feather name="radio" size={22} color="#1D4ED8" />
               </View>
 
-              {/* NFC 추가 모달의 선택 라벨과 같은 밝은 패널 톤으로 통일합니다. */}
               <View
                 className="rounded-full px-3 py-2"
                 style={{ backgroundColor: LABEL_BG }}
@@ -215,12 +227,24 @@ export function NfcDoorCardModal({
             </View>
           </View>
 
-          <View className="mt-7 items-center">
+          <View className="mt-7 items-center px-6">
             <PretendardFont
               weight="bold"
               style={{ fontSize: 18, color: C.white, textAlign: "center" }}
             >
               개폐기 NFC 리더기에 휴대폰을 가까이 대주세요
+            </PretendardFont>
+            <PretendardFont
+              weight="semibold"
+              style={{
+                fontSize: 13,
+                color: hceStatus.color,
+                lineHeight: 19,
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
+              {hceStatus.message}
             </PretendardFont>
           </View>
         </Animated.View>
@@ -229,8 +253,35 @@ export function NfcDoorCardModal({
   );
 }
 
-// ---- 카드 배경 그라데이션 ----
-// Android에서 원형 도형처럼 보이지 않도록 카드 전체에 방사형 색을 겹쳐 깔아줍니다.
+function getHceStatus(result: HceResultEvent | null) {
+  if (!result) {
+    return {
+      message: "카드를 전송한 뒤 개폐기 적용 결과를 기다리고 있어요",
+      color: "rgba(255,255,255,0.78)",
+    };
+  }
+
+  if (result.status === "ok") {
+    return {
+      message: "개폐기에 적용됐어요",
+      color: "#DDFBEA",
+    };
+  }
+
+  if (result.status === "error") {
+    const errorMessage = result.detail || result.command || "처리 오류";
+    return {
+      message: `개폐기 적용 실패: ${errorMessage}`,
+      color: "#FFE1E1",
+    };
+  }
+
+  return {
+    message: `개폐기 응답: ${result.result}`,
+    color: "rgba(255,255,255,0.78)",
+  };
+}
+
 function RadialGradientFill() {
   return (
     <Svg

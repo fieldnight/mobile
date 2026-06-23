@@ -1,38 +1,51 @@
 import { View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
-import type { DataPoint, Period } from "@/types";
+import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
 import { C } from "@/constants/hive-colors";
 
-const TABLE_COLS = [
+const TABLE_COLS: Array<{
+  key: HiveSensorDataKey;
+  label: string;
+  unit: string;
+  color: string;
+  format: (value: number) => string;
+}> = [
   {
-    key: "temp" as const,
-    label: "온도",
+    key: "internalTemperature",
+    label: "내부 온도",
     unit: "°C",
     color: C.text,
-    format: (v: number) => v.toFixed(1),
+    format: (value) => value.toFixed(1),
   },
   {
-    key: "humidity" as const,
-    label: "습도",
+    key: "externalTemperature",
+    label: "외부 온도",
+    unit: "°C",
+    color: C.text,
+    format: (value) => value.toFixed(1),
+  },
+  {
+    key: "internalHumidity",
+    label: "내부 습도",
     unit: "%",
     color: C.text,
-    format: (v: number) => String(v),
+    format: (value) => String(value),
   },
   {
-    key: "methane" as const,
-    label: "메탄",
-    unit: "ppm",
-    color: C.ter,
-    format: (v: number) => v.toFixed(1),
+    key: "externalHumidity",
+    label: "외부 습도",
+    unit: "%",
+    color: C.text,
+    format: (value) => String(value),
   },
   {
-    key: "co2" as const,
-    label: "CO₂",
+    key: "co2",
+    label: "CO2",
     unit: "ppm",
     color: C.ter,
-    format: (v: number) => String(v),
+    format: (value) => String(value),
   },
-] as const;
+];
 
 interface DataTableProps {
   data: DataPoint[];
@@ -46,7 +59,7 @@ export function DataTable({ data, period }: DataTableProps) {
   return (
     <View>
       <View
-        className="flex-row pb-3 mb-1"
+        className="mb-1 flex-row pb-3"
         style={{ borderBottomWidth: 2, borderBottomColor: C.border }}
       >
         <View className="w-[68px] pl-1">
@@ -61,12 +74,13 @@ export function DataTable({ data, period }: DataTableProps) {
           <View key={col.key} className="flex-1 items-center">
             <PretendardFont
               weight="bold"
-              style={{ fontSize: 14, color: col.color }}
+              style={{ fontSize: 12, color: col.color, textAlign: "center" }}
+              numberOfLines={2}
             >
               {col.label}
             </PretendardFont>
             <PretendardFont
-              style={{ fontSize: 12, color: C.sec, marginTop: 2 }}
+              style={{ fontSize: 11, color: C.sec, marginTop: 2 }}
             >
               {col.unit}
             </PretendardFont>
@@ -76,7 +90,7 @@ export function DataTable({ data, period }: DataTableProps) {
 
       {data.map((point, index) => (
         <View
-          key={index}
+          key={`${point.label}-${index}`}
           className="flex-row"
           style={{
             borderBottomWidth: 1,
@@ -85,7 +99,7 @@ export function DataTable({ data, period }: DataTableProps) {
             paddingVertical: 10,
           }}
         >
-          <View className="w-[68px] pl-1 justify-center">
+          <View className="w-[68px] justify-center pl-1">
             <PretendardFont
               weight="semibold"
               style={{ fontSize: 14, color: C.text }}
@@ -97,9 +111,9 @@ export function DataTable({ data, period }: DataTableProps) {
             <View key={col.key} className="flex-1 items-center justify-center">
               <PretendardFont
                 weight="medium"
-                style={{ fontSize: 14, color: C.text }}
+                style={{ fontSize: 13, color: C.text }}
               >
-                {col.format(point[col.key] as number)}
+                {col.format(point[col.key])}
               </PretendardFont>
             </View>
           ))}

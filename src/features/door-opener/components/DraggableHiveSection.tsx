@@ -3,8 +3,6 @@ import {
   Animated,
   LayoutAnimation,
   PanResponder,
-  Platform,
-  UIManager,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -19,15 +17,23 @@ import { HIVE_QUERY_KEYS, getHiveDetail, useDeleteHive } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { HiveData } from "@/types/hive-control";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
 
 function getApiErrorMessage(error: any, fallback: string) {
-  return error?.response?.data?.message ?? error?.message ?? fallback;
+  const status = error?.response?.status;
+  const message = error?.response?.data?.message ?? error?.message ?? "";
+  const isRelationBlocked =
+    status === 406 ||
+    message.includes("DataIntegrityViolationException") ||
+    message.includes("foreign key") ||
+    message.includes("hive_replacement_history");
+
+  if (isRelationBlocked) {
+    return "교체 기록이 있는 벌통은 삭제할 수 없어요. 먼저 교체 기록을 삭제해 주세요.";
+  }
+
+  return message || fallback;
 }
 
 function isLocalFallbackHive(hive: HiveData) {
@@ -165,7 +171,7 @@ export function DraggableHiveSection({
     if (isLocalFallbackHive(pendingDelete)) {
       // 서버에 아직 등록되지 않은 fallback 벌통은 API 요청 없이 로컬에서만 제거합니다.
       deleteHiveLocally(pendingDelete.id);
-      showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "error");
+      showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "success");
       setPendingDelete(null);
       return;
     }
@@ -174,11 +180,12 @@ export function DraggableHiveSection({
       onSuccess: () => {
         // 서버 삭제 성공 후에만 로컬 store를 갱신해 화면과 서버 상태가 엇갈리지 않게 합니다.
         deleteHiveLocally(pendingDelete.id);
-        showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "error");
+        showToast(`${pendingDelete.name} 벌통을 삭제했어요`, "success");
         setPendingDelete(null);
       },
       onError: (error) => {
         showToast(getApiErrorMessage(error, "벌통 삭제에 실패했어요"), "error");
+        setPendingDelete(null);
       },
     });
   };

@@ -1,10 +1,9 @@
 /**
- * 벌통 통계 차트 묶음
- * - chart 모드: 온도/습도 차트를 각각 보여줍니다.
- * - combined 모드: 온도와 습도를 한 통합 차트에 겹쳐 보여줍니다.
- * - 데이터 레이블은 SVG 밖 절대위치로 렌더링해 PretendardFont를 적용합니다.
+ * 벌통 센서 차트 묶음
+ * - chart 모드: 5개 센서를 개별 차트로 표시합니다.
+ * - combined 모드: 같은 x축 label을 기준으로 5개 센서의 최신값 요약과 통합 라인을 표시합니다.
  */
-import { useCallback, useEffect, useRef } from "react";
+import { Fragment, useCallback, useEffect, useRef } from "react";
 import {
   Dimensions,
   ScrollView,
@@ -17,7 +16,7 @@ import { MiniChart } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { Spacing } from "@/constants/hive-stats";
 import { C } from "@/constants/hive-colors";
-import type { DataPoint } from "@/types";
+import type { DataPoint, HiveSensorDataKey } from "@/types";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const LEFT_AXIS_WIDTH = 40;
@@ -29,24 +28,54 @@ const CHART_PADDING_H = 24;
 const CHART_PADDING_V = 32;
 const HOUR_SLOT_WIDTH = 50;
 const USABLE_HEIGHT = CHART_HEIGHT - CHART_PADDING_V;
-const LABEL_HEIGHT = 18;
 
-const CHART_CONFIGS = [
+const CHART_CONFIGS: Array<{
+  key: HiveSensorDataKey;
+  label: string;
+  color: string;
+  unit: string;
+  minVal: number;
+  maxVal: number;
+}> = [
   {
-    key: "temp" as const,
-    label: "온도",
+    key: "internalTemperature",
+    label: "내부 온도",
     color: C.chartTemp,
-    unit: "°",
-    minVal: 30,
-    maxVal: 38,
+    unit: "°C",
+    minVal: 25,
+    maxVal: 40,
   },
   {
-    key: "humidity" as const,
-    label: "습도",
-    color: C.primary,      // 습도 색 primary로 변경
+    key: "externalTemperature",
+    label: "외부 온도",
+    color: "#F97316",
+    unit: "°C",
+    minVal: -10,
+    maxVal: 40,
+  },
+  {
+    key: "internalHumidity",
+    label: "내부 습도",
+    color: C.primary,
     unit: "%",
-    minVal: 40,
-    maxVal: 80,
+    minVal: 20,
+    maxVal: 90,
+  },
+  {
+    key: "externalHumidity",
+    label: "외부 습도",
+    color: "#0EA5E9",
+    unit: "%",
+    minVal: 20,
+    maxVal: 100,
+  },
+  {
+    key: "co2",
+    label: "CO2",
+    color: C.ter,
+    unit: "ppm",
+    minVal: 300,
+    maxVal: 1000,
   },
 ];
 
@@ -55,21 +84,23 @@ function chartWidthFor(data: DataPoint[]) {
   return Math.max(VIEWPORT_CHART_WIDTH, totalSlots * HOUR_SLOT_WIDTH);
 }
 
-function statLine(data: DataPoint[], key: "temp" | "humidity") {
+function statLine(data: DataPoint[], key: HiveSensorDataKey) {
   const values = data.filter((d) => d.hasData !== false).map((d) => d[key]);
   if (!values.length) return { avg: "-", min: "-", max: "-" };
 
-  const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+  const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const isTemperature = key.includes("Temperature");
+
   return {
-    avg: key === "temp" ? avg.toFixed(1) : Math.round(avg),
-    min: key === "temp" ? Math.min(...values).toFixed(1) : Math.min(...values),
-    max: key === "temp" ? Math.max(...values).toFixed(1) : Math.max(...values),
+    avg: isTemperature ? avg.toFixed(1) : Math.round(avg),
+    min: isTemperature ? Math.min(...values).toFixed(1) : Math.min(...values),
+    max: isTemperature ? Math.max(...values).toFixed(1) : Math.max(...values),
   };
 }
 
 function buildChartPoints(
   data: DataPoint[],
-  key: "temp" | "humidity",
+  key: HiveSensorDataKey,
   minVal: number,
   maxVal: number,
   chartWidth: number,
@@ -88,194 +119,119 @@ function buildChartPoints(
 }
 
 function buildPath(points: { x: number; y: number; hasData?: boolean }[]) {
-  const active = points.filter((p) => p.hasData !== false);
+  const active = points.filter((point) => point.hasData !== false);
   if (!active.length) return "";
-  return active.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-}
-
-function buildAreaPath(points: { x: number; y: number; hasData?: boolean }[]) {
-  const active = points.filter((p) => p.hasData !== false);
-  if (!active.length) return "";
-  const bottom = CHART_PADDING_V / 2 + USABLE_HEIGHT;
-  return [
-    `M ${active[0].x} ${bottom}`,
-    `L ${active[0].x} ${active[0].y}`,
-    ...active.slice(1).map((p) => `L ${p.x} ${p.y}`),
-    `L ${active[active.length - 1].x} ${bottom}`,
-    "Z",
-  ].join(" ");
-}
-
-function chartGuideTop(percent: number) {
-  return CHART_PADDING_V / 2 + (percent / 100) * USABLE_HEIGHT;
+  return active.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
 function hourLabel(label: string) {
-  return label.replace("시", "").replace("??", "");
+  return label.replace(":00", "");
 }
 
-/** 통합차트: 온도+습도를 한 차트에 겹쳐 표시, SVG 밖 절대위치 레이블로 PretendardFont 적용 */
 function CombinedChart({ data }: { data: DataPoint[] }) {
   const chartWidth = chartWidthFor(data);
-  const tempConfig = CHART_CONFIGS[0];
-  const humConfig = CHART_CONFIGS[1];
-  const tempPoints = buildChartPoints(data, "temp", tempConfig.minVal, tempConfig.maxVal, chartWidth);
-  const humPoints = buildChartPoints(data, "humidity", humConfig.minVal, humConfig.maxVal, chartWidth);
-  const latest = [...data].reverse().find((p) => p.hasData !== false) ?? data[0];
-
-  const activeTempPoints = tempPoints.filter((p) => p.hasData);
-  const activeHumPoints = humPoints.filter((p) => p.hasData);
+  const latest = [...data].reverse().find((point) => point.hasData !== false) ?? data[0];
 
   return (
     <View>
-      {/* 범례 + 최신값 */}
-      <View className="mb-3 flex-row items-center justify-between">
-        <View className="flex-row items-center gap-4">
-          {CHART_CONFIGS.map((config) => (
-            <View key={config.key} className="flex-row items-center gap-2">
-              <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: config.color }} />
-              <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
-                {config.label}
+      <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-2">
+        {CHART_CONFIGS.map((config) => (
+          <View key={config.key} className="flex-row items-center gap-2">
+            <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: config.color }} />
+            <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text }}>
+              {config.label} {latest ? `${latest[config.key]}${config.unit}` : "-"}
+            </PretendardFont>
+          </View>
+        ))}
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        style={{ width: VIEWPORT_CHART_WIDTH + LEFT_AXIS_WIDTH }}
+        contentContainerStyle={{ width: chartWidth }}
+      >
+        <View style={{ width: chartWidth }}>
+          <View className="relative" style={{ width: chartWidth, height: CHART_HEIGHT }}>
+            {[0, 25, 50, 75, 100].map((percent) => (
+              <View
+                key={percent}
+                className="absolute left-0 h-px"
+                style={{
+                  top: CHART_PADDING_V / 2 + (percent / 100) * USABLE_HEIGHT,
+                  width: chartWidth,
+                  backgroundColor: C.border,
+                  opacity: 0.5,
+                }}
+              />
+            ))}
+
+            <Svg width={chartWidth} height={CHART_HEIGHT}>
+              {CHART_CONFIGS.map((config) => {
+                const points = buildChartPoints(
+                  data,
+                  config.key,
+                  config.minVal,
+                  config.maxVal,
+                  chartWidth,
+                );
+                const activePoints = points.filter((point) => point.hasData);
+
+                return (
+                  <Fragment key={config.key}>
+                    <Path
+                      d={buildPath(points)}
+                      fill="none"
+                      stroke={config.color}
+                      strokeWidth={2.2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {activePoints.map((point, index) => (
+                      <Circle
+                        key={`${config.key}-${index}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r={3.4}
+                        fill={C.white}
+                        stroke={config.color}
+                        strokeWidth={2}
+                      />
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </Svg>
+          </View>
+
+          <View className="mt-2 flex-row" style={{ width: chartWidth }}>
+            {data.map((point, index) => (
+              <PretendardFont
+                key={`${point.label}-${index}`}
+                weight="semibold"
+                style={{ width: HOUR_SLOT_WIDTH, fontSize: 12, color: C.sec, textAlign: "center" }}
+              >
+                {hourLabel(point.label)}
               </PretendardFont>
-            </View>
-          ))}
-        </View>
-
-        <View className="flex-row items-center gap-4">
-          <View className="items-end">
-            <PretendardFont style={{ fontSize: 12, color: C.sec }}>온도</PretendardFont>
-            <PretendardFont weight="bold" style={{ fontSize: 16, color: C.chartTemp }}>
-              {latest.temp.toFixed(1)}°C
-            </PretendardFont>
-          </View>
-          <View className="items-end">
-            <PretendardFont style={{ fontSize: 12, color: C.sec }}>습도</PretendardFont>
-            <PretendardFont weight="bold" style={{ fontSize: 16, color: C.primary }}>
-              {latest.humidity}%
-            </PretendardFont>
+            ))}
           </View>
         </View>
-      </View>
-
-      <View className="mb-3 flex-row" style={{ height: CHART_HEIGHT + 38 }}>
-        {/* y축 레이블 */}
-        <View className="items-end justify-between pb-9 pr-2" style={{ width: LEFT_AXIS_WIDTH }}>
-          {["100%", "75%", "50%", "25%", "0%"].map((label) => (
-            <PretendardFont key={label} weight="semibold" style={{ fontSize: 13, color: C.sec }}>
-              {label}
-            </PretendardFont>
-          ))}
-        </View>
-
-        {/* 가로 자유 슬라이딩 */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          decelerationRate="fast"
-          style={{ width: VIEWPORT_CHART_WIDTH }}
-          contentContainerStyle={{ width: chartWidth }}
-        >
-          <View style={{ width: chartWidth }}>
-            <View className="relative" style={{ width: chartWidth, height: CHART_HEIGHT }}>
-              {/* 배경 가이드 라인 */}
-              {[0, 25, 50, 75, 100].map((percent) => (
-                <View
-                  key={percent}
-                  className="absolute left-0 h-px"
-                  style={{
-                    top: chartGuideTop(percent),
-                    width: chartWidth,
-                    backgroundColor: C.border,
-                    opacity: 0.5,
-                  }}
-                />
-              ))}
-
-              <Svg width={chartWidth} height={CHART_HEIGHT}>
-                <Path d={buildAreaPath(tempPoints)} fill={`${C.chartTemp}18`} />
-                <Path d={buildAreaPath(humPoints)} fill={`${C.primary}12`} />
-                <Path d={buildPath(tempPoints)} fill="none" stroke={C.chartTemp} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                <Path d={buildPath(humPoints)} fill="none" stroke={C.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                {activeTempPoints.map((p, i) => (
-                  <Circle key={`tc-${i}`} cx={p.x} cy={p.y} r={4} fill={C.white} stroke={C.chartTemp} strokeWidth={2.5} />
-                ))}
-                {activeHumPoints.map((p, i) => (
-                  <Circle key={`hc-${i}`} cx={p.x} cy={p.y} r={4} fill={C.white} stroke={C.primary} strokeWidth={2.5} />
-                ))}
-              </Svg>
-
-              {/* 온도 데이터 레이블 — 절대위치 PretendardFont */}
-              {activeTempPoints.map((p, i) => (
-                <PretendardFont
-                  key={`tl-${i}`}
-                  weight="bold"
-                  style={{
-                    position: "absolute",
-                    fontSize: 12,
-                    color: C.chartTemp,
-                    left: p.x - HOUR_SLOT_WIDTH / 2,
-                    top: p.y - LABEL_HEIGHT - 4,
-                    width: HOUR_SLOT_WIDTH,
-                    textAlign: "center",
-                  }}
-                >
-                  {`${p.value.toFixed(1)}°`}
-                </PretendardFont>
-              ))}
-
-              {/* 습도 데이터 레이블 — 절대위치 PretendardFont */}
-              {activeHumPoints.map((p, i) => (
-                <PretendardFont
-                  key={`hl-${i}`}
-                  weight="bold"
-                  style={{
-                    position: "absolute",
-                    fontSize: 12,
-                    color: C.primary,
-                    left: p.x - HOUR_SLOT_WIDTH / 2,
-                    top: p.y + 8,
-                    width: HOUR_SLOT_WIDTH,
-                    textAlign: "center",
-                  }}
-                >
-                  {`${p.value}%`}
-                </PretendardFont>
-              ))}
-            </View>
-
-            {/* x축 시간 레이블 */}
-            <View className="mt-2 flex-row" style={{ width: chartWidth }}>
-              {data.map((point, index) => (
-                <PretendardFont
-                  key={`${point.label}-${index}`}
-                  weight="semibold"
-                  style={{ width: HOUR_SLOT_WIDTH, fontSize: 12, color: C.sec, textAlign: "center" }}
-                >
-                  {hourLabel(point.label)}
-                </PretendardFont>
-              ))}
-            </View>
-          </View>
-        </ScrollView>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
-/** 현재 시각에 해당하는 데이터 인덱스를 찾아, 차트 중앙에 오도록 x 오프셋을 계산 */
 function calcInitialScrollX(data: DataPoint[]): number {
   if (!data.length) return 0;
   const currentHour = new Date().getHours();
-  // data[i].label 형태: "0시", "1시", ... 혹은 숫자 문자열
-  const idx = data.findIndex((d) => {
-    const h = parseInt(d.label.replace(/\D/g, ""), 10);
-    return h === currentHour;
-  });
-  const targetIdx = idx >= 0 ? idx : data.length - 1;
-  // 현재 시각 슬롯을 뷰포트 중앙에 배치
-  const centerOffset = targetIdx * HOUR_SLOT_WIDTH - VIEWPORT_CHART_WIDTH / 2 + HOUR_SLOT_WIDTH / 2;
-  return Math.max(0, centerOffset);
+  const index = data.findIndex((point) => Number(point.label.slice(0, 2)) === currentHour);
+  const targetIndex = index >= 0 ? index : data.length - 1;
+  return Math.max(
+    0,
+    targetIndex * HOUR_SLOT_WIDTH - VIEWPORT_CHART_WIDTH / 2 + HOUR_SLOT_WIDTH / 2,
+  );
 }
 
 export function ChartCards({
@@ -285,45 +241,51 @@ export function ChartCards({
   data: DataPoint[];
   viewMode?: "chart" | "combined";
 }) {
-  const tempScrollRef = useRef<ScrollView | null>(null);
-  const humidityScrollRef = useRef<ScrollView | null>(null);
+  const scrollRefs = useRef<Record<HiveSensorDataKey, ScrollView | null>>({
+    internalTemperature: null,
+    externalTemperature: null,
+    internalHumidity: null,
+    externalHumidity: null,
+    co2: null,
+  });
   const syncingRef = useRef(false);
+
+  useEffect(() => {
+    if (!data.length) return;
+    const x = calcInitialScrollX(data);
+    const timer = setTimeout(() => {
+      Object.values(scrollRefs.current).forEach((ref) => ref?.scrollTo({ x, animated: true }));
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [data]);
+
+  const syncScroll = useCallback(
+    (sourceKey: HiveSensorDataKey, event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (syncingRef.current) return;
+
+      syncingRef.current = true;
+      const x = event.nativeEvent.contentOffset.x;
+      Object.entries(scrollRefs.current).forEach(([key, ref]) => {
+        if (key !== sourceKey) {
+          ref?.scrollTo({ x, animated: false });
+        }
+      });
+      requestAnimationFrame(() => {
+        syncingRef.current = false;
+      });
+    },
+    [],
+  );
 
   if (!data.length) {
     return (
       <View className="items-center py-6">
         <PretendardFont style={{ fontSize: 13, color: C.sec }}>
-          표시할 데이터가 없습니다.
+          표시할 센서 데이터가 없습니다.
         </PretendardFont>
       </View>
     );
   }
-
-  // 진입 시 현재 시각 위치로 자동 스크롤 (양쪽 차트 동시)
-  useEffect(() => {
-    if (!data.length) return;
-    const x = calcInitialScrollX(data);
-    // ScrollView가 마운트 완료된 직후 실행되도록 한 프레임 지연
-    const timer = setTimeout(() => {
-      tempScrollRef.current?.scrollTo({ x, animated: true });
-      humidityScrollRef.current?.scrollTo({ x, animated: true });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [data]);
-
-  // 온도·습도 차트 가로 스크롤 위치 동기화
-  const syncScroll = useCallback(
-    (
-      targetRef: React.RefObject<ScrollView | null>,
-      event: NativeSyntheticEvent<NativeScrollEvent>,
-    ) => {
-      if (syncingRef.current) return;
-      syncingRef.current = true;
-      targetRef.current?.scrollTo({ x: event.nativeEvent.contentOffset.x, animated: false });
-      requestAnimationFrame(() => { syncingRef.current = false; });
-    },
-    [],
-  );
 
   if (viewMode === "combined") {
     return <CombinedChart data={data} />;
@@ -333,11 +295,11 @@ export function ChartCards({
     <>
       {CHART_CONFIGS.map((config, index) => {
         const { avg, min, max } = statLine(data, config.key);
+
         return (
           <View key={config.key}>
             {index > 0 && <View className="my-3 h-px" style={{ backgroundColor: C.border }} />}
 
-            {/* 차트 제목 + 평균/최저/최고 */}
             <View className="mb-2.5 flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
                 <View className="h-3 w-3 rounded-full" style={{ backgroundColor: config.color }} />
@@ -363,7 +325,6 @@ export function ChartCards({
               </View>
             </View>
 
-            {/* 개별 차트 — scrollRef로 온도↔습도 스크롤 동기화 */}
             <MiniChart
               data={data}
               dataKey={config.key}
@@ -371,13 +332,10 @@ export function ChartCards({
               color={config.color}
               minVal={config.minVal}
               maxVal={config.maxVal}
-              scrollRef={config.key === "temp" ? tempScrollRef : humidityScrollRef}
-              onScroll={(event) =>
-                syncScroll(
-                  config.key === "temp" ? humidityScrollRef : tempScrollRef,
-                  event,
-                )
-              }
+              scrollRef={(ref) => {
+                scrollRefs.current[config.key] = ref;
+              }}
+              onScroll={(event) => syncScroll(config.key, event)}
             />
           </View>
         );

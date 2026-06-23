@@ -86,6 +86,7 @@ export function mergeControlSettings(
   prev: HiveControlState,
   settings: HiveControlSettingsResponse,
   pendingAutoTypes: ReadonlySet<HiveControlType> = new Set(),
+  pendingManualTypes: ReadonlySet<HiveControlType> = new Set(),
 ): HiveControlState {
   const nextControls = prev.controls.map((control) => {
     const serverType = AUTO_CONTROL_TYPE_BY_ID[control.id];
@@ -98,12 +99,18 @@ export function mergeControlSettings(
 
   const heater = settings.manual.find((item) => item.type === "HEATER");
   const fan = settings.manual.find((item) => item.type === "FAN");
+  const heaterOn = pendingManualTypes.has("HEATER")
+    ? prev.heaterOn
+    : (heater?.isOn ?? prev.heaterOn);
+  const ventOn = pendingManualTypes.has("FAN")
+    ? prev.ventOn
+    : (fan?.isOn ?? prev.ventOn);
 
   return {
     ...prev,
     controls: nextControls,
-    heaterOn: heater?.isOn ?? prev.heaterOn,
-    ventOn: fan?.isOn ?? prev.ventOn,
+    heaterOn,
+    ventOn,
   };
 }
 

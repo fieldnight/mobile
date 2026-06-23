@@ -93,19 +93,14 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
 
     setIsSubmitting(true);
     try {
-      // 피드백 API는 content만 받으므로 폼 필드를 관리자 메일용 텍스트로 합쳐 보낸다.
-      const content = [
-        `이름: ${name.trim()}`,
-        `이메일: ${email.trim()}`,
-        `내용: ${extra.trim()}`,
-      ].join("\n");
+      const content = [`이름: ${name.trim()}`, `내용: ${extra.trim()}`].join("\n");
 
       console.log("[Inquiry Modal] 문의 content 조립 완료", {
         contentLength: content.length,
         lineCount: content.split("\n").length,
       });
 
-      await submitSuggestion({ content });
+      await submitSuggestion({ email: email.trim(), content });
 
       console.log("[Inquiry Modal] 문의 전송 성공");
 

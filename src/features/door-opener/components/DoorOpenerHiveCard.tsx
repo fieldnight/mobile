@@ -86,44 +86,17 @@ export function DoorOpenerHiveCard({
               resizeMode="contain"
             />
 
-            <View className="flex-row" style={{ gap: 6 }}>
-              <RoundIconButton icon="edit-2" onPress={onEdit} />
-
-              {editable && onDelete ? (
-                <Pressable
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    onDelete();
-                  }}
-                  hitSlop={8}
-                  className="items-center justify-center rounded-full active:opacity-70"
-                  style={{
-                    width: 30,
-                    height: 30,
-                    backgroundColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  <PretendardFont weight="bold" style={{ fontSize: 18, color: C.white }}>
-                    -
-                  </PretendardFont>
-                </Pressable>
-              ) : (
-                <View
-                  className="items-center justify-center rounded-full"
-                  style={{
-                    width: 30,
-                    height: 30,
-                    backgroundColor: "rgba(255,255,255,0.22)",
-                  }}
-                >
-                  <Feather
-                    name="power"
-                    size={15}
-                    color={offline ? "rgba(255,255,255,0.5)" : C.white}
-                  />
-                </View>
-              )}
-            </View>
+            <RoundIconButton
+              icon={editable ? "trash-2" : "edit-2"}
+              danger={editable}
+              onPress={() => {
+                if (editable && onDelete) {
+                  onDelete();
+                  return;
+                }
+                onEdit();
+              }}
+            />
           </View>
 
           <View>
@@ -156,9 +129,11 @@ export function DoorOpenerHiveCard({
 /** 카드 우측 상단의 작은 원형 액션 버튼입니다. */
 function RoundIconButton({
   icon,
+  danger = false,
   onPress,
 }: {
   icon: keyof typeof Feather.glyphMap;
+  danger?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -167,15 +142,15 @@ function RoundIconButton({
         event.stopPropagation();
         onPress();
       }}
-      hitSlop={8}
+      hitSlop={10}
       className="items-center justify-center rounded-full active:opacity-70"
       style={{
-        width: 30,
-        height: 30,
-        backgroundColor: "rgba(255,255,255,0.22)",
+        width: 44,
+        height: 44,
+        backgroundColor: danger ? "rgba(239,68,68,0.34)" : "rgba(255,255,255,0.22)",
       }}
     >
-      <Feather name={icon} size={14} color={C.white} />
+      <Feather name={icon} size={20} color={C.white} />
     </Pressable>
   );
 }

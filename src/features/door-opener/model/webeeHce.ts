@@ -1,5 +1,8 @@
-import { NativeModules, Platform } from "react-native";
+import { DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from "react-native";
+import type { EmitterSubscription } from "react-native";
 import type { NfcDoorCardConfig, NfcDoorMode } from "../components/nfcDoorCards";
+
+const HCE_RESULT_EVENT = "WeBeeHceResult";
 
 interface WeBeeHceNativeModule {
   setActiveCard(payload: HceCardPayload): Promise<boolean>;
@@ -10,6 +13,14 @@ export interface HceCardPayload {
   mode: NfcDoorMode;
   start?: string;
   end?: string;
+  repeat: boolean;
+}
+
+export interface HceResultEvent {
+  result: string;
+  status: "ok" | "error" | "unknown";
+  command?: string;
+  detail?: string;
 }
 
 const WeBeeHceModule = NativeModules.WeBeeHceModule as
@@ -26,7 +37,38 @@ export function toHceCardPayload(card: NfcDoorCardConfig): HceCardPayload {
     mode: card.mode,
     start: card.start ?? "",
     end: card.end ?? "",
+    repeat: card.repeat ?? card.mode === "alternate_days",
   };
+}
+
+export function parseHceResult(result: string): HceResultEvent {
+  const [prefix, command, detail] = result.split("|");
+
+  return {
+    result,
+    status: prefix === "OK" ? "ok" : prefix === "ERR" ? "error" : "unknown",
+    command,
+    detail,
+  };
+}
+
+export function subscribeHceResult(
+  listener: (event: HceResultEvent) => void,
+): EmitterSubscription {
+  console.log("[WeBee HCE] 결과 이벤트 구독 시작");
+
+  const emitter =
+    Platform.OS === "android" && WeBeeHceModule
+      ? new NativeEventEmitter(WeBeeHceModule as never)
+      : DeviceEventEmitter;
+
+  return emitter.addListener(HCE_RESULT_EVENT, (payload: { result?: string }) => {
+    const result = payload?.result ?? "";
+    const parsed = parseHceResult(result);
+
+    console.log("[WeBee HCE] ESP32 결과 수신", parsed);
+    listener(parsed);
+  });
 }
 
 export async function setActiveHceCard(card: NfcDoorCardConfig) {

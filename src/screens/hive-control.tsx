@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
@@ -15,6 +16,7 @@ import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import {
   AUTO_CONTROL_TYPE_BY_ID,
   MANUAL_CONTROL_TYPE_BY_KEY,
+  HIVE_CONTROL_QUERY_KEYS,
   HiveControlSection,
   applyControlResult,
   buildOptimisticAutoState,
@@ -27,8 +29,8 @@ import {
   type HiveControlType,
   type QuickControlKey,
 } from "@/features/hive-control";
-import { useSyncHiveList } from "@/features/hive";
-import { HiveReplacementCard } from "@/features/hive-status";
+import { useSyncHiveList, useHiveConnectionStatuses } from "@/features/hive";
+import { HIVE_REPLACEMENT_QUERY_KEYS, HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { HiveControlState } from "@/types/hive-control";
@@ -53,8 +55,11 @@ function setHiveControlState(hiveId: string, nextState: HiveControlState) {
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const hiveListQuery = useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
+  const hiveIds = hives.map((h) => h.id);
+  useHiveConnectionStatuses(hiveIds);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 
   // IoT 화면에서 특정 벌통을 눌러 진입하면 해당 벌통을 먼저 보여줍니다.
@@ -74,11 +79,13 @@ export default function HiveControlScreen() {
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const hiveSliderRef = useRef<ScrollView>(null);
   const pendingAutoTypesRef = useRef(new Set<HiveControlType>());
+  const pendingManualTypesRef = useRef(new Set<HiveControlType>());
+  const pendingControlSeqRef = useRef(0);
+  const pendingControlTokensRef = useRef(new Map<HiveControlType, number>());
 
   const autoControlMutation = useRequestAutoControl();
   const manualControlMutation = useRequestManualControl();
   const controlSettingsQuery = useHiveControlSettings(controlHive);
-  const refetchControlSettings = controlSettingsQuery.refetch;
 
   const windowWidth = Dimensions.get("window").width;
   const itemWidth = windowWidth - 32;
@@ -86,6 +93,22 @@ export default function HiveControlScreen() {
   const current =
     hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? "1"];
   const currentHive = hives.find((hive) => hive.id === controlHive);
+
+  const queueControlPendingRelease = useCallback(
+    (hiveId: string, type: HiveControlType, delayMs: number) => {
+      const token = pendingControlTokensRef.current.get(type);
+      setTimeout(() => {
+        if (pendingControlTokensRef.current.get(type) !== token) return;
+        pendingControlTokensRef.current.delete(type);
+        pendingAutoTypesRef.current.delete(type);
+        pendingManualTypesRef.current.delete(type);
+        queryClient.invalidateQueries({
+          queryKey: HIVE_CONTROL_QUERY_KEYS.settings(hiveId),
+        });
+      }, delayMs);
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     if (!hives.length) return;
@@ -116,24 +139,26 @@ export default function HiveControlScreen() {
             prevControl,
             controlSettingsQuery.data,
             pendingAutoTypesRef.current,
+            pendingManualTypesRef.current,
           ),
         },
       };
     });
   }, [controlHive, controlSettingsQuery.data]);
 
-  /**
-   * SSE에서 실제 MCU 처리 결과를 받으면 화면 상태를 확정합니다.
-   * 실패 이벤트는 서버 상태를 다시 조회해 낙관적 UI와 실제 상태를 맞춥니다.
-   */
+  /** SSE는 화면 단위 전역 구독이라 선택 벌통이 바뀌어도 재구독하지 않습니다. */
   const handleSseResult = useCallback(
     (event: Parameters<typeof applyControlResult>[1]) => {
       const hiveId = String(event.hiveId);
-      pendingAutoTypesRef.current.delete(event.type);
 
       if (!event.success) {
+        pendingControlTokensRef.current.delete(event.type);
+        pendingAutoTypesRef.current.delete(event.type);
+        pendingManualTypesRef.current.delete(event.type);
         console.error("[Hive Control SSE] 제어 처리 실패", event);
-        if (hiveId === controlHive) refetchControlSettings();
+        queryClient.invalidateQueries({
+          queryKey: HIVE_CONTROL_QUERY_KEYS.settings(hiveId),
+        });
         return;
       }
 
@@ -150,9 +175,9 @@ export default function HiveControlScreen() {
       });
 
       console.log("[Hive Control SSE] 제어 처리 성공", event);
-      if (hiveId === controlHive) refetchControlSettings();
+      queueControlPendingRelease(hiveId, event.type, 2000);
     },
-    [controlHive, refetchControlSettings],
+    [queryClient, queueControlPendingRelease],
   );
 
   useHiveControlSse({
@@ -161,7 +186,16 @@ export default function HiveControlScreen() {
   });
 
   const handleRefresh = async () => {
-    await Promise.all([hiveListQuery.refetch(), controlSettingsQuery.refetch()]);
+    await Promise.all([
+      hiveListQuery.refetch(),
+      controlSettingsQuery.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: HIVE_REPLACEMENT_QUERY_KEYS.listPrefix(controlHive),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: HIVE_REPLACEMENT_QUERY_KEYS.latest(controlHive),
+      }),
+    ]);
   };
 
   /**
@@ -186,6 +220,11 @@ export default function HiveControlScreen() {
       nextState.controls.find((control) => control.id === id)?.enabled ?? false;
 
     pendingAutoTypesRef.current.add(serverType);
+    pendingControlSeqRef.current += 1;
+    pendingControlTokensRef.current.set(
+      serverType,
+      pendingControlSeqRef.current,
+    );
     setHiveControlState(controlHive, nextState);
     console.log("[Hive Control UI] 자동 제어 낙관적 반영", {
       hiveId: controlHive,
@@ -199,7 +238,14 @@ export default function HiveControlScreen() {
         body: { type: serverType, enabled: nextEnabled },
       },
       {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: HIVE_CONTROL_QUERY_KEYS.settings(controlHive),
+          });
+          queueControlPendingRelease(controlHive, serverType, 8000);
+        },
         onError: (error) => {
+          pendingControlTokensRef.current.delete(serverType);
           pendingAutoTypesRef.current.delete(serverType);
           setHiveControlState(controlHive, prevState);
           console.error("[Hive Control UI] 자동 제어 롤백", {
@@ -240,6 +286,12 @@ export default function HiveControlScreen() {
       return;
     }
 
+    pendingManualTypesRef.current.add(serverType);
+    pendingControlSeqRef.current += 1;
+    pendingControlTokensRef.current.set(
+      serverType,
+      pendingControlSeqRef.current,
+    );
     console.log("[Hive Control UI] 수동 제어 낙관적 반영", {
       hiveId: controlHive,
       type: serverType,
@@ -256,7 +308,15 @@ export default function HiveControlScreen() {
         },
       },
       {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: HIVE_CONTROL_QUERY_KEYS.settings(controlHive),
+          });
+          queueControlPendingRelease(controlHive, serverType, 8000);
+        },
         onError: (error) => {
+          pendingControlTokensRef.current.delete(serverType);
+          pendingManualTypesRef.current.delete(serverType);
           setHiveControlState(controlHive, prevState);
           console.error("[Hive Control UI] 수동 제어 롤백", {
             hiveId: controlHive,

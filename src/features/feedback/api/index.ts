@@ -7,19 +7,23 @@ interface ApiResponse<T> {
 }
 
 export interface SubmitSuggestionRequest {
+  email: string;
   content: string;
 }
 
 export async function submitSuggestion({
+  email,
   content,
 }: SubmitSuggestionRequest): Promise<string> {
   console.log("[Feedback API] 문의 전송 요청", {
+    email,
     contentLength: content.length,
     lineCount: content.split("\n").length,
   });
 
   try {
     const res = await api.post<ApiResponse<string>>("/api/v1/suggestions", {
+      email,
       content,
     });
 

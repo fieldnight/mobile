@@ -1,11 +1,6 @@
 import { api } from "@/lib/api";
 import { AxiosError } from "axios";
 
-/**
- * 스마트벌통 제어 API 레이어
- * - POST 응답은 MCU에 명령을 보냈다는 의미이고, 실제 처리 결과는 SSE로 따로 들어옵니다.
- * - 이 파일은 HTTP 요청만 담당하고 화면 상태 변경은 hooks/screen에서 처리합니다.
- */
 interface ApiResponse<T> {
   code: string;
   message: string;
@@ -65,9 +60,24 @@ export interface AutoControlRequest {
 
 export interface ManualControlRequest {
   type: HiveControlType;
-  /** 수동 제어 활성화 여부 — isOn이 유효하려면 반드시 true */
+  /** 수동 제어 API는 enabled와 isOn을 같이 전달해야 서버 상태가 맞게 갱신됩니다. */
   enabled: boolean;
   isOn: boolean;
+}
+
+export interface HiveAutoControlSchedule {
+  scheduleId: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface HiveAutoControlScheduleCreateRequest {
+  startTime: string;
+  endTime: string;
+}
+
+export interface HiveAutoControlScheduleCreateResponse {
+  scheduleId: number;
 }
 
 export async function getHiveControlSettings(
@@ -83,7 +93,10 @@ export async function getHiveControlSettings(
     });
     return res.data.data;
   } catch (error) {
-    console.error("[Hive Control API] 제어 설정 조회 실패", { hiveId, error });
+    console.error("[Hive Control API] 제어 설정 조회 실패", {
+      hiveId,
+      error: getApiErrorDetail(error),
+    });
     throw error;
   }
 }
@@ -132,6 +145,79 @@ export async function requestManualControl(
     console.error("[Hive Control API] 수동 제어 요청 실패", {
       hiveId,
       body,
+      error: getApiErrorDetail(error),
+    });
+    throw error;
+  }
+}
+
+export async function getHiveAutoControlSchedules(
+  hiveId: string | number,
+): Promise<HiveAutoControlSchedule[]> {
+  try {
+    const res = await api.get<ApiResponse<HiveAutoControlSchedule[]>>(
+      `/api/v1/hives/${hiveId}/control/auto/schedules`,
+    );
+    console.log("[Hive Control Schedule API] 목록 조회 성공", {
+      hiveId,
+      data: res.data.data,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive Control Schedule API] 목록 조회 실패", {
+      hiveId,
+      error: getApiErrorDetail(error),
+    });
+    throw error;
+  }
+}
+
+export async function createHiveAutoControlSchedule(
+  hiveId: string | number,
+  body: HiveAutoControlScheduleCreateRequest,
+): Promise<HiveAutoControlScheduleCreateResponse> {
+  try {
+    const res = await api.post<ApiResponse<HiveAutoControlScheduleCreateResponse>>(
+      `/api/v1/hives/${hiveId}/control/auto/schedules`,
+      body,
+    );
+    console.log("[Hive Control Schedule API] 등록 성공", {
+      hiveId,
+      body,
+      data: res.data.data,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive Control Schedule API] 등록 실패", {
+      hiveId,
+      body,
+      error: getApiErrorDetail(error),
+    });
+    throw error;
+  }
+}
+
+export async function deleteHiveAutoControlSchedule({
+  hiveId,
+  scheduleId,
+}: {
+  hiveId: string | number;
+  scheduleId: string | number;
+}): Promise<string> {
+  try {
+    const res = await api.delete<ApiResponse<string>>(
+      `/api/v1/hives/${hiveId}/control/auto/schedules/${scheduleId}`,
+    );
+    console.log("[Hive Control Schedule API] 삭제 성공", {
+      hiveId,
+      scheduleId,
+      data: res.data.data,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive Control Schedule API] 삭제 실패", {
+      hiveId,
+      scheduleId,
       error: getApiErrorDetail(error),
     });
     throw error;
