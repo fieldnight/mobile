@@ -21,7 +21,7 @@ export default function Header({ onMenuPress, onSettingsPress }: HeaderProps) {
       {/* 설정 버튼 (마이페이지에서만 표시) */}
       {onSettingsPress ? (
         <Pressable
-          className="p-1"
+          className="p-1 mt-1.5"
           onPress={onSettingsPress}
           hitSlop={{ top: 15, bottom: 25, left: 15, right: 15 }}
         >
