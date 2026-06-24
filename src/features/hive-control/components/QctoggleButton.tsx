@@ -9,6 +9,7 @@ export function QcToggleButton({
   isOn,
   disabled,
   onPress,
+  onBlockedPress,
   testId,
 }: {
   label: string;
@@ -16,12 +17,19 @@ export function QcToggleButton({
   isOn: boolean;
   disabled: boolean;
   onPress: () => void;
+  onBlockedPress?: () => void;
   testId: string;
 }) {
   return (
     <View className="flex-1 relative">
       <Pressable
-        onPress={disabled ? undefined : onPress}
+        onPress={() => {
+          if (disabled) {
+            onBlockedPress?.();
+            return;
+          }
+          onPress();
+        }}
         className="items-center rounded-2xl"
         style={[
           {

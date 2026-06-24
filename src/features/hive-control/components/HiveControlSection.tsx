@@ -6,9 +6,13 @@ import { QcToggleButton } from "./QctoggleButton";
 import { ControlItem } from "./controlItem";
 import { BoxColor as C } from "@/types";
 import { Card } from "@/components/hive/hive-shared";
+import { useAppToast } from "@/components/ToastContext";
 import type { HiveData, HiveControlState } from "@/types/hive-control";
-import { getDisabledState } from "@/types/hive-control";
 import { PretendardFont } from "@/components/PretendardFont";
+import {
+  getAutoControlBlockedMessage,
+  getQuickControlBlockedMessage,
+} from "../model/controlMapping";
 
 interface HiveControlSectionProps {
   hives: HiveData[];
@@ -36,8 +40,19 @@ export function HiveControlSection({
   onSelectHive,
 }: HiveControlSectionProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { show: showToast } = useAppToast();
   const selectedHive = hives.find((hive) => hive.id === controlHive);
-  const disabled = getDisabledState(current.controls);
+  const heaterBlockedMessage = getQuickControlBlockedMessage(current, "heaterOn");
+  const coolerBlockedMessage = getQuickControlBlockedMessage(current, "coolerOn");
+  const ventBlockedMessage = getQuickControlBlockedMessage(current, "ventOn");
+  const circBlockedMessage = getQuickControlBlockedMessage(current, "circOn");
+  const autoBlockMessages = current.controls.reduce<Record<string, string | null>>(
+    (acc, control) => {
+      acc[control.id] = getAutoControlBlockedMessage(current, control.id);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <Card
@@ -102,32 +117,44 @@ export function HiveControlSection({
           label="히터"
           icon="sun"
           isOn={current.heaterOn}
-          disabled={disabled.heaterDisabled}
+          disabled={Boolean(heaterBlockedMessage)}
           onPress={() => onToggleQuickControl("heaterOn")}
+          onBlockedPress={() =>
+            heaterBlockedMessage && showToast(heaterBlockedMessage, "error")
+          }
           testId="button-qc-heater"
         />
         <QcToggleButton
           label="쿨러"
           icon="wind"
           isOn={current.coolerOn}
-          disabled={disabled.coolerDisabled}
+          disabled={Boolean(coolerBlockedMessage)}
           onPress={() => onToggleQuickControl("coolerOn")}
+          onBlockedPress={() =>
+            coolerBlockedMessage && showToast(coolerBlockedMessage, "error")
+          }
           testId="button-qc-cooler"
         />
         <QcToggleButton
           label="환기"
           icon="refresh-cw"
           isOn={current.ventOn}
-          disabled={disabled.ventDisabled}
+          disabled={Boolean(ventBlockedMessage)}
           onPress={() => onToggleQuickControl("ventOn")}
+          onBlockedPress={() =>
+            ventBlockedMessage && showToast(ventBlockedMessage, "error")
+          }
           testId="button-qc-vent"
         />
         <QcToggleButton
           label="순환"
           icon="rotate-cw"
           isOn={current.circOn}
-          disabled={disabled.circDisabled}
+          disabled={Boolean(circBlockedMessage)}
           onPress={() => onToggleQuickControl("circOn")}
+          onBlockedPress={() =>
+            circBlockedMessage && showToast(circBlockedMessage, "error")
+          }
           testId="button-qc-circ"
         />
       </View>
@@ -151,7 +178,12 @@ export function HiveControlSection({
         <ControlItem
           key={control.id}
           control={control}
+          blocked={Boolean(autoBlockMessages[control.id])}
           onToggle={onToggleControl}
+          onBlockedPress={() => {
+            const message = autoBlockMessages[control.id];
+            if (message) showToast(message, "error");
+          }}
         />
       ))}
     </Card>

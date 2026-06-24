@@ -12,15 +12,18 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const BG_IMAGE = require("../../assets/df.jpg");
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { ConfirmSheet } from "@/components/BottomSheet";
 import { HiveAddSheet } from "@/components/HiveAddSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
-import { useSyncHiveList } from "@/features/hive";
+import { useDeleteHive, useSyncHiveList } from "@/features/hive";
 import { HIVE_REPLACEMENT_QUERY_KEYS, useHiveLatestReplacementMap } from "@/features/hive-status";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
+import { useAppToast } from "@/components/ToastContext";
+import type { HiveData } from "@/types/hive-control";
 
 const ITEM_WIDTH = Dimensions.get("window").width - 32;
 
@@ -33,10 +36,14 @@ export default function HiveOverviewScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const hiveListQuery = useSyncHiveList();
+  const deleteHiveMutation = useDeleteHive();
+  const { show: showToast } = useAppToast();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
   const latestReplacementMap = useHiveLatestReplacementMap(hives.map((hive) => hive.id));
   const [addHiveVisible, setAddHiveVisible] = useState(false);
+  const [editingHive, setEditingHive] = useState<HiveData | null>(null);
+  const [pendingDeleteHive, setPendingDeleteHive] = useState<HiveData | null>(null);
   const displayHives = hives.map((hive) => {
     const latestReplacement = latestReplacementMap.get(hive.id);
     return latestReplacement
@@ -55,11 +62,52 @@ export default function HiveOverviewScreen() {
     ]);
   };
 
-  const openAddHiveSheet = () => {
+  const triggerLightHaptic = () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+  };
+
+  const resetTransientSheets = () => {
+    setAddHiveVisible(false);
+    setEditingHive(null);
+    setPendingDeleteHive(null);
+  };
+
+  const openAddHiveSheet = () => {
+    triggerLightHaptic();
+    resetTransientSheets();
     setAddHiveVisible(true);
+  };
+
+  const openEditHiveSheet = (hive: HiveData) => {
+    triggerLightHaptic();
+    setAddHiveVisible(false);
+    setPendingDeleteHive(null);
+    setEditingHive(hive);
+  };
+
+  const openDeleteHiveSheet = (hive: HiveData) => {
+    triggerLightHaptic();
+    setAddHiveVisible(false);
+    setEditingHive(null);
+    setPendingDeleteHive(hive);
+  };
+
+  const confirmDeleteHive = () => {
+    const hiveToDelete = pendingDeleteHive;
+    if (!hiveToDelete) return;
+
+    deleteHiveMutation.mutate(hiveToDelete.id, {
+      onSuccess: () => {
+        showToast(`${hiveToDelete.name} 벌통을 삭제했어요.`, "success");
+        setPendingDeleteHive(null);
+      },
+      onError: () => {
+        showToast("벌통 삭제에 실패했어요.", "error");
+        setPendingDeleteHive(null);
+      },
+    });
   };
 
   return (
@@ -89,10 +137,28 @@ export default function HiveOverviewScreen() {
           sliderRef={{ current: null }}
           onHivePress={() => {}}
           onSlideEnd={() => {}}
+          onEditHive={openEditHiveSheet}
+          onDeleteHive={openDeleteHiveSheet}
         />
       </PullToRefresh>
 
       <HiveAddSheet visible={addHiveVisible} onClose={() => setAddHiveVisible(false)} />
+      <HiveAddSheet
+        visible={editingHive != null}
+        hive={editingHive}
+        onClose={() => setEditingHive(null)}
+      />
+      <ConfirmSheet
+        visible={pendingDeleteHive != null}
+        onClose={() => setPendingDeleteHive(null)}
+        title="벌통 삭제"
+        message={`${
+          pendingDeleteHive?.name ?? "선택한 벌통"
+        }을 삭제할까요? 이 작업은 되돌릴 수 없어요.`}
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmDeleteHive}
+      />
     </ImageBackground>
   );
 }

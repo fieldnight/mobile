@@ -1,4 +1,4 @@
-import { View, ScrollView, Pressable, Platform, Image } from "react-native";
+import { Image, ImageSourcePropType, Platform, Pressable, ScrollView, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -9,148 +9,312 @@ import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
 import { HEADER_HEIGHT } from "@/hooks";
 
-const FEATURES = [
+type FeatureHighlight = {
+  title: string;
+  description: string;
+};
+
+type FeatureGuideItem = {
+  label: string;
+  summary: string;
+  route: string;
+  stepColor: string;
+  iconBg: string;
+  icon: ImageSourcePropType;
+  highlights: FeatureHighlight[];
+};
+
+type ComingSoonItem = {
+  label: string;
+  description: string;
+  icon: ImageSourcePropType;
+};
+
+const FEATURES: FeatureGuideItem[] = [
   {
     label: "관심 뉴스",
-    description: "수정벌·양봉 관련 최신 기사를 내가 설정한 키워드로 모아볼 수 있어요.",
-    steps: ["상단 키워드 선택", "기사 확인", "관심 키워드 추가"],
-    stepColor: "#16A34A",
+    summary: "내가 필요한 소식만 빠르게 모아서 볼 수 있어요.",
     route: "/bee-news",
+    stepColor: "#16A34A",
     iconBg: "#DCFCE7",
     icon: require("../../assets/homeIcons/news2.png"),
+    highlights: [
+      {
+        title: "맞춤 뉴스 모음",
+        description: "기상, 정책, 현장 소식을 한 화면에서 가볍게 확인해요.",
+      },
+      {
+        title: "관심 기사 저장",
+        description: "나중에 다시 볼 소식은 따로 챙겨둘 수 있어요.",
+      },
+      {
+        title: "바로 이동",
+        description: "원하는 소식이 보이면 곧바로 상세 화면으로 들어가요.",
+      },
+    ],
   },
   {
     label: "농산물 시세",
-    description: "과일·채소 도매 가격을 실시간으로 확인하고 관심 시장을 등록할 수 있어요.",
-    steps: ["시세 확인", "작물별 빠른검색", "맞춤시세 추가"],
-    stepColor: "#2563EB",
+    summary: "시세 흐름을 카드처럼 나눠서 한눈에 볼 수 있어요.",
     route: "/fruit-price",
+    stepColor: "#2563EB",
     iconBg: "#DBEAFE",
     icon: require("../../assets/homeIcons/trading.png"),
+    highlights: [
+      {
+        title: "실시간 확인",
+        description: "과일과 채소 시세를 바로 확인해서 비교해요.",
+      },
+      {
+        title: "흐름 비교",
+        description: "오늘, 어제, 최근 변동을 나눠서 보기 좋게 정리해요.",
+      },
+      {
+        title: "관심 품목 관리",
+        description: "자주 보는 품목은 따로 두고 빠르게 열어볼 수 있어요.",
+      },
+    ],
   },
   {
     label: "농약 정보",
-    description: "작물별 사용 가능한 농약과 희석 배수, 잔류 허용 기준을 쉽게 검색해요.",
-    steps: ["작물명>용도>벌 종류 선택", "사용 가능 농약 확인", "검색"],
-    stepColor: "#7C3AED",
+    summary: "작물에 맞는 농약 정보를 이해하기 쉽게 보여줘요.",
     route: "/pesticide",
+    stepColor: "#7C3AED",
     iconBg: "#EDE9FE",
     icon: require("../../assets/homeIcons/pesticide.png"),
+    highlights: [
+      {
+        title: "작물별 탐색",
+        description: "작물 이름만 고르면 관련 정보를 바로 찾을 수 있어요.",
+      },
+      {
+        title: "사용 가능 여부",
+        description: "해당 작물에 쓸 수 있는지 먼저 확인해요.",
+      },
+      {
+        title: "주의사항 확인",
+        description: "혼용, 희석, 사용 시점 같은 핵심 정보도 함께 보여줘요.",
+      },
+    ],
   },
   {
     label: "수정벌 추천",
-    description: "재배 작물과 환경을 입력하면 AI가 최적의 수벌 종류를 추천해줘요.",
-    steps: ["농지 기반 추천", "작물별 수정벌 팁 확인", "결과 확인 및 저장"],
-    stepColor: "#D97706",
+    summary: "상황에 맞는 수정벌 추천을 단계별 카드로 확인해요.",
     route: "/recommend",
+    stepColor: "#D97706",
     iconBg: "#FEF3C7",
     icon: require("../../assets/homeIcons/recommend.png"),
+    highlights: [
+      {
+        title: "작물 기반 추천",
+        description: "선택한 작물과 환경을 바탕으로 추천을 받아요.",
+      },
+      {
+        title: "추천 근거 확인",
+        description: "왜 이 수정벌이 맞는지 설명도 함께 볼 수 있어요.",
+      },
+      {
+        title: "결과 비교",
+        description: "이전 추천과 비교하면서 더 잘 맞는 선택을 할 수 있어요.",
+      },
+    ],
   },
   {
     label: "AI 벌 채팅",
-    description: "꿀벌·양봉·병해에 관한 궁금한 점을 전문 AI에게 언제든 물어보세요.",
-    steps: ["수정벌 전문 챗봇", "전문가만큼 세밀한 답변", "유사케이스 축적"],
-    stepColor: "#0891B2",
+    summary: "궁금한 내용을 대화처럼 물어보고 바로 답을 받아요.",
     route: "/bee-chat",
+    stepColor: "#0891B2",
     iconBg: "#CFFAFE",
     icon: require("../../assets/homeIcons/inquiry.png"),
+    highlights: [
+      {
+        title: "질문 입력",
+        description: "작업 중 궁금한 내용을 자연스럽게 적어보세요.",
+      },
+      {
+        title: "연속 대화",
+        description: "이전 대화를 이어서 물어보며 흐름을 놓치지 않아요.",
+      },
+      {
+        title: "빠른 정리",
+        description: "대화 결과를 바로 확인하고 필요한 부분만 챙겨요.",
+      },
+    ],
   },
   {
     label: "벌통 관리",
-    description: "벌통 내부 온도·습도를 실시간으로 보고, 히터·환기 장치를 원격 제어해요.",
-    steps: ["벌통 연결", "실시간 확인 및 조작", "통계/리포트 확인"],
-    stepColor: "#EA580C",
+    summary: "벌통 상태와 제어 기능을 한 번에 확인할 수 있어요.",
     route: "/hive-control",
+    stepColor: "#EA580C",
     iconBg: "#FFEDD5",
     icon: require("../../assets/homeIcons/beeHive1.png"),
+    highlights: [
+      {
+        title: "벌통 연결",
+        description: "등록된 벌통을 선택해 관리 화면으로 들어가요.",
+      },
+      {
+        title: "상태 확인",
+        description: "온도, 습도, 제어 상태를 카드 형태로 보기 쉽게 정리해요.",
+      },
+      {
+        title: "제어 관리",
+        description: "수동, 자동, 알림 설정을 한 화면에서 바로 다뤄요.",
+      },
+    ],
   },
-] as const;
+];
 
-const COMING_SOON = [
+const COMING_SOON: ComingSoonItem[] = [
   {
-    label: "농부들의 수다",
-    description: "다른 농부들과 경험을 나누고 질문도 주고받는 커뮤니티",
+    label: "커뮤니티",
+    description: "다른 사용자와 경험과 정보를 나누는 공간이에요.",
     icon: require("../../assets/homeIcons/community.png"),
   },
   {
     label: "벌통 통계",
-    description: "온도·습도·가스 데이터를 차트와 표로 한눈에 분석",
+    description: "벌통의 움직임과 변화 추이를 차트로 더 깊게 볼 수 있어요.",
     icon: require("../../assets/homeIcons/beeHive2.png"),
   },
   {
-    label: "벌 건강검진",
-    description: "사진 한 장으로 꿀벌 병해를 AI가 자동으로 진단",
+    label: "벌 건강 진단",
+    description: "사진과 데이터를 바탕으로 벌 건강을 점검해요.",
     icon: require("../../assets/homeIcons/diagnosis.png"),
   },
   {
-    label: "내 농장 기록",
-    description: "농장 작업 일지와 수확량을 기록하고 리포트로 확인",
+    label: "작업 기록",
+    description: "작업 이력을 쌓아두고 나중에 다시 확인할 수 있어요.",
     icon: require("../../assets/homeIcons/house.png"),
   },
   {
     label: "마켓",
-    description: "양봉 용품과 농산물을 사고파는 거래 공간",
+    description: "농산물과 농자재를 함께 살펴보는 거래 공간이에요.",
     icon: require("../../assets/homeIcons/trading.png"),
   },
-] as const;
+];
 
-function StepFlow({ steps, color }: { steps: readonly string[]; color: string }) {
-  const bg = color + "18";
+function FeatureStepCard({
+  index,
+  title,
+  description,
+  color,
+}: FeatureHighlight & { index: number; color: string }) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 4,
-        marginTop: 10,
-      }}
-    >
-      {steps.map((step, i) => (
+    <View className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <View className="flex-row items-center gap-2">
         <View
-          key={i}
-          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+          style={{ backgroundColor: `${color}18` }}
+          className="h-7 w-7 items-center justify-center rounded-full"
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 5,
-              backgroundColor: bg,
-              borderRadius: 8,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-            }}
-          >
-            <View
-              style={{
-                width: 17,
-                height: 17,
-                borderRadius: 9,
-                backgroundColor: color,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+          <PretendardFont weight="bold" style={{ fontSize: 11, color }}>
+            {index}
+          </PretendardFont>
+        </View>
+        <PretendardFont weight="semibold" style={{ fontSize: 14, color }}>
+          {title}
+        </PretendardFont>
+      </View>
+
+      <PretendardFont
+        weight="regular"
+        style={{ marginTop: 8, fontSize: 13, lineHeight: 19, color: "#4B5563" }}
+      >
+        {description}
+      </PretendardFont>
+    </View>
+  );
+}
+
+function FeatureGuideCard({
+  feature,
+  onPress,
+}: {
+  feature: FeatureGuideItem;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="rounded-[22px] border border-slate-200 bg-white p-4"
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.86 : 1,
+      })}
+    >
+      <View className="flex-row items-start gap-3">
+        <View
+          style={{ backgroundColor: feature.iconBg }}
+          className="h-14 w-14 items-center justify-center rounded-2xl"
+        >
+          <Image
+            source={feature.icon}
+            style={{ height: 36, width: 36 }}
+            resizeMode="contain"
+          />
+        </View>
+
+        <View className="flex-1">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="flex-1">
               <PretendardFont
                 weight="bold"
-                style={{ fontSize: 10, color: "#fff" }}
+                style={{ fontSize: 17, color: "#111827" }}
               >
-                {i + 1}
+                {feature.label}
+              </PretendardFont>
+              <PretendardFont
+                weight="regular"
+                style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: "#6B7280" }}
+              >
+                {feature.summary}
               </PretendardFont>
             </View>
-            <PretendardFont
-              weight="semibold"
-              style={{ fontSize: 12, color: color }}
-            >
-              {step}
-            </PretendardFont>
+
+            <Feather name="chevron-right" size={18} color="#CBD5E1" />
           </View>
-          {i < steps.length - 1 && (
-            <Feather name="chevron-right" size={12} color="#D1D5DB" />
-          )}
         </View>
-      ))}
+      </View>
+
+      <View className="mt-4 gap-2">
+        {feature.highlights.map((highlight, index) => (
+          <FeatureStepCard
+            key={`${feature.label}-${highlight.title}`}
+            index={index + 1}
+            title={highlight.title}
+            description={highlight.description}
+            color={feature.stepColor}
+          />
+        ))}
+      </View>
+    </Pressable>
+  );
+}
+
+function ComingSoonCard({ item, isLast }: { item: ComingSoonItem; isLast: boolean }) {
+  return (
+    <View
+      className={`flex-row items-center gap-3 py-4 ${isLast ? "" : "border-b border-slate-100"}`}
+    >
+      <View className="h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-slate-100">
+        <Image source={item.icon} style={{ height: 28, width: 28, opacity: 0.7 }} resizeMode="contain" />
+      </View>
+
+      <View className="flex-1">
+        <PretendardFont weight="semibold" style={{ fontSize: 16, color: "#94A3B8" }}>
+          {item.label}
+        </PretendardFont>
+        <PretendardFont
+          weight="regular"
+          style={{ marginTop: 3, fontSize: 13, lineHeight: 19, color: "#B8C0CC" }}
+        >
+          {item.description}
+        </PretendardFont>
+      </View>
+
+      <View className="rounded-full bg-slate-100 px-3 py-1">
+        <PretendardFont weight="medium" style={{ fontSize: 12, color: "#94A3B8" }}>
+          준비 중
+        </PretendardFont>
+      </View>
     </View>
   );
 }
@@ -161,22 +325,19 @@ export default function FeatureGuideScreen() {
   const insets = useSafeAreaInsets();
 
   const haptic = () => {
-    if (Platform.OS !== "web")
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
   };
 
   const handleFeaturePress = (route: string) => {
     haptic();
-    router.push(route as any);
+    router.push(route as never);
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F4F5F7" }}>
-      <AppHeader
-        title="기능 가이드"
-        onBack={() => navigation.goBack()}
-        isScrolled={false}
-      />
+    <View className="flex-1 bg-[#F4F5F7]">
+      <AppHeader title="기능 가이드" onBack={() => navigation.goBack()} isScrolled={false} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -187,204 +348,50 @@ export default function FeatureGuideScreen() {
           gap: 24,
         }}
       >
-        {/* 히어로 배너 */}
         <Animated.View entering={FadeInDown.duration(300)}>
-          <View
-            style={{
-              backgroundColor: "#F0FDF4",
-              borderRadius: 20,
-              padding: 20,
-              borderWidth: 1,
-              borderColor: "#BBF7D0",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                marginBottom: 10,
-              }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  backgroundColor: "#DCFCE7",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+          <View className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-5">
+            <View className="mb-3 flex-row items-center gap-3">
+              <View className="h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100">
                 <Feather name="zap" size={20} color="#16A34A" />
               </View>
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 20, color: "#111827" }}
-              >
+              <PretendardFont weight="bold" style={{ fontSize: 20, color: "#111827" }}>
                 농번기 필수 기능
               </PretendardFont>
             </View>
+
             <PretendardFont
               weight="regular"
-              style={{ fontSize: 15, color: "#4B5563", lineHeight: 24 }}
+              style={{ fontSize: 15, lineHeight: 23, color: "#4B5563" }}
             >
-              WEBEE의 핵심 기능 6가지를 소개해드릴게요.{"\n"}
-              탭하면 바로 해당 화면으로 이동할 수 있어요!
+              WEBEE의 핵심 기능을 카드 단위로 나눠서 빠르게 확인하고,{"\n"}
+              필요한 화면으로 바로 이동할 수 있어요.
             </PretendardFont>
           </View>
         </Animated.View>
 
-        {/* 사용 가능한 기능 */}
-        <View style={{ gap: 12 }}>
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 18, color: "#111827" }}
-          >
-            지금 바로 사용해보세요
+        <View className="gap-3">
+          <PretendardFont weight="bold" style={{ fontSize: 18, color: "#111827" }}>
+            지금 바로 써볼 수 있어요
           </PretendardFont>
 
-          {FEATURES.map((feature, i) => (
+          {FEATURES.map((feature, index) => (
             <Animated.View
               key={feature.route}
-              entering={FadeInDown.delay(i * 60)
-                .duration(300)
-                .springify()}
+              entering={FadeInDown.delay(index * 60).duration(280).springify()}
             >
-              <Pressable
-                onPress={() => handleFeaturePress(feature.route)}
-                style={({ pressed }) => ({
-                  backgroundColor: "#FFFFFF",
-                  borderRadius: 18,
-                  padding: 18,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  opacity: pressed ? 0.85 : 1,
-                  borderWidth: 1,
-                  borderColor: "#E5E8EB",
-                })}
-              >
-                <View
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 15,
-                    backgroundColor: feature.iconBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Image
-                    source={feature.icon}
-                    style={{ width: 36, height: 36 }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <PretendardFont
-                    weight="bold"
-                    style={{ fontSize: 17, color: "#111827", marginBottom: 5 }}
-                  >
-                    {feature.label}
-                  </PretendardFont>
-                  <PretendardFont
-                    weight="regular"
-                    style={{ fontSize: 14, color: "#6B7280", lineHeight: 21 }}
-                  >
-                    {feature.description}
-                  </PretendardFont>
-                  <StepFlow steps={feature.steps} color={feature.stepColor} />
-                </View>
-
-              </Pressable>
+              <FeatureGuideCard feature={feature} onPress={() => handleFeaturePress(feature.route)} />
             </Animated.View>
           ))}
         </View>
 
-        {/* 개발 중 기능 */}
-        <View style={{ gap: 12 }}>
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 18, color: "#111827" }}
-          >
-            곧 만나요 😊
+        <View className="gap-3">
+          <PretendardFont weight="bold" style={{ fontSize: 18, color: "#111827" }}>
+            곧 만나요
           </PretendardFont>
 
-          <View
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: 18,
-              paddingHorizontal: 18,
-              borderWidth: 1,
-              borderColor: "#E5E8EB",
-            }}
-          >
-            {COMING_SOON.map((item, i) => (
-              <View
-                key={item.label}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  paddingVertical: 16,
-                  borderBottomWidth: i < COMING_SOON.length - 1 ? 1 : 0,
-                  borderBottomColor: "#F3F4F6",
-                }}
-              >
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 13,
-                    backgroundColor: "#F3F4F6",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: 0.6,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Image
-                    source={item.icon}
-                    style={{ width: 30, height: 30 }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={{ flex: 1, gap: 3 }}>
-                  <PretendardFont
-                    weight="semibold"
-                    style={{ fontSize: 16, color: "#9CA3AF" }}
-                  >
-                    {item.label}
-                  </PretendardFont>
-                  <PretendardFont
-                    weight="regular"
-                    style={{ fontSize: 13, color: "#B0B8C1", lineHeight: 19 }}
-                  >
-                    {item.description}
-                  </PretendardFont>
-                </View>
-
-                <View
-                  style={{
-                    backgroundColor: "#F3F4F6",
-                    borderRadius: 20,
-                    paddingHorizontal: 11,
-                    paddingVertical: 5,
-                    flexShrink: 0,
-                  }}
-                >
-                  <PretendardFont
-                    weight="medium"
-                    style={{ fontSize: 13, color: "#9CA3AF" }}
-                  >
-                    준비 중
-                  </PretendardFont>
-                </View>
-              </View>
+          <View className="rounded-[22px] border border-slate-200 bg-white px-4">
+            {COMING_SOON.map((item, index) => (
+              <ComingSoonCard key={item.label} item={item} isLast={index === COMING_SOON.length - 1} />
             ))}
           </View>
         </View>

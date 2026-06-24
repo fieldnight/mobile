@@ -22,7 +22,7 @@ import {
 
 const SCREEN_W = Dimensions.get("window").width;
 const ACTIVE_CARD_W = SCREEN_W - 42;
-const ACTIVE_CARD_H = 232;
+const ACTIVE_CARD_H = 276;
 const LABEL_BG = "#EEF2F6";
 
 export function NfcDoorCardModal({
@@ -240,7 +240,7 @@ export function NfcDoorCardModal({
             <View style={{ marginTop: 66 }}>
               <PretendardFont
                 weight="bold"
-                style={{ fontSize: 25, color: C.text }}
+                style={{ fontSize: 31, lineHeight: 36, color: C.text }}
               >
                 {card.title}
               </PretendardFont>
@@ -248,14 +248,32 @@ export function NfcDoorCardModal({
                 weight="semibold"
                 numberOfLines={2}
                 style={{
-                  fontSize: 14,
-                  lineHeight: 21,
+                  fontSize: 15,
+                  lineHeight: 22,
                   color: C.textAlt,
                   marginTop: 3,
                 }}
               >
                 {card.description}
               </PretendardFont>
+
+              {card.detail ? (
+                <View
+                  className="mt-4 rounded-2xl px-4 py-3"
+                  style={{ backgroundColor: "rgba(255,255,255,0.3)" }}
+                >
+                  <PretendardFont
+                    weight="semibold"
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 20,
+                      color: C.textAlt,
+                    }}
+                  >
+                    {card.detail}
+                  </PretendardFont>
+                </View>
+              ) : null}
             </View>
           </View>
 

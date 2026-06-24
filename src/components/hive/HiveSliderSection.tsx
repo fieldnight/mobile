@@ -27,6 +27,8 @@ interface HiveSliderSectionProps {
   sliderRef: React.RefObject<ScrollView | null>;
   onHivePress: (id: string) => void;
   onSlideEnd: (index: number) => void;
+  onEditHive?: (hive: HiveData) => void;
+  onDeleteHive?: (hive: HiveData) => void;
 }
 
 function getActiveTags(
@@ -292,6 +294,8 @@ export function HiveSliderSection({
   sliderRef,
   onHivePress,
   onSlideEnd,
+  onEditHive,
+  onDeleteHive,
 }: HiveSliderSectionProps) {
   const pageWidth = itemWidth;
 
@@ -313,6 +317,8 @@ export function HiveSliderSection({
               hive={hive}
               onPress={() => onHivePress(hive.id)}
               activeTags={getActiveTags(hiveControls, hive.id)}
+              onEdit={onEditHive ? () => onEditHive(hive) : undefined}
+              onDelete={onDeleteHive ? () => onDeleteHive(hive) : undefined}
             />
           </View>
         ))}
@@ -417,10 +423,14 @@ function HiveBeeBoxCard({
   hive,
   onPress,
   activeTags,
+  onEdit,
+  onDelete,
 }: {
   hive: HiveData;
   onPress: () => void;
   activeTags: ActiveTag[];
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
@@ -456,7 +466,23 @@ function HiveBeeBoxCard({
               </PretendardFont>
             ) : null}
           </View>
-          <StatusBadge status={hive.status} />
+          <View className="items-end gap-2">
+            <StatusBadge status={hive.status} />
+            {(onEdit || onDelete) && (
+              <View className="flex-row gap-2">
+                {onEdit && (
+                  <ActionIconButton icon="edit-2" onPress={onEdit} />
+                )}
+                {onDelete && (
+                  <ActionIconButton
+                    icon="trash-2"
+                    destructive
+                    onPress={onDelete}
+                  />
+                )}
+              </View>
+            )}
+          </View>
         </View>
 
         {/* 설치일 / 벌 교체일 */}
@@ -492,5 +518,33 @@ function HiveBeeBoxCard({
         )}
       </View>
     </AnimatedPressable>
+  );
+}
+
+function ActionIconButton({
+  icon,
+  destructive = false,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  destructive?: boolean;
+  onPress: () => void;
+  }) {
+  const backgroundColor = destructive
+    ? "rgba(239, 68, 68, 0.92)"
+    : "rgba(17, 24, 39, 0.92)";
+
+  return (
+    <Pressable
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+      hitSlop={10}
+      className="items-center justify-center rounded-full active:opacity-70"
+      style={{ width: 36, height: 36, backgroundColor }}
+    >
+      <Feather name={icon} size={17} color={C.white} />
+    </Pressable>
   );
 }
