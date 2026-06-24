@@ -40,7 +40,7 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
           className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
           style={{ backgroundColor: C.bgAlt }}
         >
-          {historyQuery.isFetching ? (
+          {historyQuery.isLoading ? (
             <ActivityIndicator size="small" color={C.sec} />
           ) : (
             <>
@@ -66,7 +66,7 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
       </View>
 
       <View>
-        {historyQuery.isFetching ? (
+        {historyQuery.isLoading ? (
           <View className="items-center py-5">
             <ActivityIndicator size="small" color={C.primary} />
           </View>

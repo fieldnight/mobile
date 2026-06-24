@@ -183,8 +183,12 @@ export function ConfirmSheet({
   const handleConfirm = () => {
     if (confirmingRef.current) return;
     confirmingRef.current = true;
-    onConfirm();
-    onClose();
+    try {
+      onConfirm();
+      onClose();
+    } finally {
+      confirmingRef.current = false;
+    }
   };
 
   return (

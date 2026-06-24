@@ -37,21 +37,24 @@ export function NfcDoorCardModal({
   const translateY = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const [hceResult, setHceResult] = useState<HceResultEvent | null>(null);
+  const [hceActivateError, setHceActivateError] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPulse = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   // 선택된 카드를 네이티브 HCE 서비스에 저장하고 ESP32 적용 결과 이벤트를 기다립니다.
   useEffect(() => {
     if (!visible || !card) return;
 
     setHceResult(null);
+    setHceActivateError(null);
     translateY.setValue(0);
     pulse.setValue(0);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setActiveHceCard(card);
-    console.log("[NFC Door Card Modal] HCE 카드 활성화", toHceCardPayload(card));
-
-    const hceSubscription = subscribeHceResult((event) => {
-      setHceResult(event);
-    });
 
     const pulseOnce = () => {
       pulse.setValue(0);
@@ -69,20 +72,49 @@ export function NfcDoorCardModal({
       ]).start();
     };
 
-    pulseOnce();
-    const timer = setInterval(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    let hceSubscription: ReturnType<typeof subscribeHceResult> | null = null;
+
+    const activate = async () => {
+      const ok = await setActiveHceCard(card);
+
+      if (!ok) {
+        setHceActivateError("이 기기에서는 HCE NFC를 사용할 수 없어요.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        console.warn("[NFC Door Card Modal] HCE 카드 활성화 실패");
+        return;
+      }
+
+      console.log("[NFC Door Card Modal] HCE 카드 활성화 완료", toHceCardPayload(card));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      hceSubscription = subscribeHceResult((event) => {
+        setHceResult(event);
+        // 결과가 확정되면 pulse/haptic 중단
+        if (event.status === "ok" || event.status === "error") {
+          stopPulse();
+        }
+      });
+
       pulseOnce();
-    }, 1400);
+      timerRef.current = setInterval(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        pulseOnce();
+      }, 1400);
+    };
+
+    activate();
 
     return () => {
-      clearInterval(timer);
-      hceSubscription.remove();
+      stopPulse();
+      hceSubscription?.remove();
       console.log("[NFC Door Card Modal] HCE 결과 구독 해제");
     };
   }, [card, pulse, translateY, visible]);
 
-  const hceStatus = useMemo(() => getHceStatus(hceResult), [hceResult]);
+  const hceStatus = useMemo(
+    () => getHceStatus(hceResult, hceActivateError),
+    [hceResult, hceActivateError],
+  );
 
   const closeWithSlide = () => {
     Animated.timing(translateY, {
@@ -253,7 +285,11 @@ export function NfcDoorCardModal({
   );
 }
 
-function getHceStatus(result: HceResultEvent | null) {
+function getHceStatus(result: HceResultEvent | null, activateError: string | null) {
+  if (activateError) {
+    return { message: activateError, color: "#FFE1E1" };
+  }
+
   if (!result) {
     return {
       message: "카드를 전송한 뒤 개폐기 적용 결과를 기다리고 있어요",

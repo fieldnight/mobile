@@ -12,6 +12,7 @@ import {
   type HiveCreateRequest,
   type HiveUpdateRequest,
 } from "../api";
+import { getApiErrorLogData } from "../utils";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -27,14 +28,6 @@ export const HIVE_QUERY_KEYS = {
     ["hives", "connection", hiveId] as const,
 };
 
-function getMutationErrorLogData(error: unknown) {
-  const apiError = error as any;
-  return {
-    status: apiError?.response?.status,
-    code: apiError?.response?.data?.code,
-    message: apiError?.response?.data?.message ?? apiError?.message,
-  };
-}
 
 /** 벌통 전체 목록 조회 hook */
 export function useHiveList() {
@@ -212,7 +205,7 @@ export function useDeleteHive() {
 
       console.warn("[Hive UI] 벌통 삭제 낙관적 반영 롤백", {
         hiveId,
-        error: getMutationErrorLogData(error),
+        error: getApiErrorLogData(error),
       });
     },
   });

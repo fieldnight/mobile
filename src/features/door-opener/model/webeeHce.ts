@@ -42,7 +42,8 @@ export function toHceCardPayload(card: NfcDoorCardConfig): HceCardPayload {
 }
 
 export function parseHceResult(result: string): HceResultEvent {
-  const [prefix, command, detail] = result.split("|");
+  const [prefix, command, ...rest] = result.split("|");
+  const detail = rest.join("|");
 
   return {
     result,

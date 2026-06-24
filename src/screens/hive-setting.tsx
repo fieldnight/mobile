@@ -3,7 +3,7 @@
  * - 자동제어 스케줄은 서버 API로 조회/등록/삭제합니다.
  * - 날씨 지역은 기존처럼 로컬 설정으로 저장합니다.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ImageBackground,
   Platform,
@@ -50,7 +50,7 @@ export default function HiveSettingsScreen() {
   const [selectedStn, setSelectedStn] = useState<number>(108);
   const [searchText, setSearchText] = useState("");
   const [savedMessage, setSavedMessage] = useState(false);
- 
+  const savedMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedHive =
     hives.find((hive) => hive.id === selectedHiveId) ?? hives[0];
@@ -79,18 +79,24 @@ export default function HiveSettingsScreen() {
   };
 
   const showSavedMessage = () => {
+    if (savedMessageTimerRef.current) clearTimeout(savedMessageTimerRef.current);
     setSavedMessage(true);
-    setTimeout(() => setSavedMessage(false), 2000);
+    savedMessageTimerRef.current = setTimeout(() => setSavedMessage(false), 2000);
   };
 
   const handleSelectRegion = async (region: WeatherRegion) => {
     haptic();
+    const prev = selectedStn;
     setSelectedStn(region.stn);
-    await AsyncStorage.setItem(
-      WEATHER_REGION_KEY,
-      JSON.stringify({ stn: region.stn, name: region.name }),
-    );
-    showSavedMessage();
+    try {
+      await AsyncStorage.setItem(
+        WEATHER_REGION_KEY,
+        JSON.stringify({ stn: region.stn, name: region.name }),
+      );
+      showSavedMessage();
+    } catch {
+      setSelectedStn(prev);
+    }
   };
 
   return (

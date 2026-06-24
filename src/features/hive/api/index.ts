@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getApiErrorLogData } from "../utils";
 import type { HiveData } from "@/types/hive-control";
 
 /**
@@ -70,14 +71,6 @@ function isUpdateApplied(detail: HiveDetail, body: HiveUpdateRequest) {
   );
 }
 
-function getErrorLogData(error: unknown) {
-  const apiError = error as any;
-  return {
-    status: apiError?.response?.status,
-    code: apiError?.response?.data?.code,
-    message: apiError?.response?.data?.message ?? apiError?.message,
-  };
-}
 
 /** 벌통 기본 정보를 등록합니다. */
 export async function createHive(
@@ -188,7 +181,7 @@ export async function deleteHive(hiveId: string | number): Promise<string> {
     // 현재 서버가 DB 삭제 후 500을 주는 케이스가 있어, 목록 조회로 성공 여부를 한 번 더 검증합니다.
     console.warn("[Hive API] 벌통 삭제 응답 에러, 전체 조회로 반영 여부 확인", {
       hiveId,
-      error: getErrorLogData(error),
+      error: getApiErrorLogData(error),
     });
     const list = await getHives();
     const deleted = !list.hives.some(
@@ -202,7 +195,7 @@ export async function deleteHive(hiveId: string | number): Promise<string> {
 
     console.warn("[Hive API] 벌통 삭제 실패", {
       hiveId,
-      error: getErrorLogData(error),
+      error: getApiErrorLogData(error),
     });
     throw error;
   }

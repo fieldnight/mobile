@@ -57,7 +57,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
   const elapsed = getReplacementElapsed(latest?.replacedAt, latest?.usageDays);
   const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
   const submitting =
-    createHistory.isPending || updateHistory.isPending || deleteHistory.isPending;
+    createHistory.isLoading || updateHistory.isLoading || deleteHistory.isLoading;
 
   useEffect(() => {
     if (!detailQuery.data || sheetMode !== "edit") return;
@@ -266,7 +266,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           <View style={{ width: 108 }} />
         </View>
 
-        {historyQuery.isFetching ? (
+        {historyQuery.isLoading ? (
           <View className="items-center py-5">
             <ActivityIndicator size="small" color={C.primary} />
           </View>
