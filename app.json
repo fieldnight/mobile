@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.webee.mo",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",
@@ -34,6 +35,13 @@
       "expo-router",
       "@react-native-community/datetimepicker",
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "color": "#F59E0B"
+        }
+      ],
       "./plugins/withWeBeeHce"
     ],
     "extra": {
