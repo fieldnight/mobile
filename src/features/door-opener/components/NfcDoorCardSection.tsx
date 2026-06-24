@@ -9,8 +9,6 @@ import {
   Animated,
   LayoutAnimation,
   PanResponder,
-  Platform,
-  UIManager,
   View,
 } from "react-native";
 import { AddNfcDoorCardModal } from "./AddNfcDoorCardModal";
@@ -24,10 +22,6 @@ import {
   createCustomDoorCard,
   type NfcDoorCardConfig,
 } from "./nfcDoorCards";
-
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;

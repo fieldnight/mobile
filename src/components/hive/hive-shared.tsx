@@ -17,7 +17,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { PretendardFont } from "@/components/PretendardFont";
 import { Spacing } from "@/constants/hive-stats";
 import { C } from "@/constants/hive-colors";
-import type { DataPoint } from "../../types";
+import type { DataPoint, HiveSensorDataKey } from "../../types";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const LEFT_AXIS_WIDTH = 40;
@@ -74,7 +74,7 @@ function chartWidthFor(data: DataPoint[]) {
 
 function buildPoints(
   data: DataPoint[],
-  dataKey: "temp" | "humidity",
+  dataKey: HiveSensorDataKey,
   minVal: number,
   maxVal: number,
   chartWidth: number,
@@ -142,12 +142,12 @@ export function MiniChart({
   onScroll,
 }: {
   data: DataPoint[];
-  dataKey: "temp" | "humidity";
+  dataKey: HiveSensorDataKey;
   unit: string;
   minVal: number;
   maxVal: number;
   color?: string;
-  scrollRef?: React.RefObject<ScrollView | null>;
+  scrollRef?: React.Ref<ScrollView>;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }) {
   const chartWidth = chartWidthFor(data);
@@ -238,7 +238,7 @@ export function MiniChart({
                   textAlign: "center",
                 }}
               >
-                {dataKey === "temp"
+                {dataKey.includes("Temperature")
                   ? `${point.value.toFixed(1)}${unit}`
                   : `${point.value}${unit}`}
               </PretendardFont>

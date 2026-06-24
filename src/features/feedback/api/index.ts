@@ -7,36 +7,39 @@ interface ApiResponse<T> {
 }
 
 export interface SubmitSuggestionRequest {
+  email: string;
   content: string;
 }
 
+const SUGGESTION_ENDPOINT = "/api/v1/suggestions";
+
 export async function submitSuggestion({
+  email,
   content,
 }: SubmitSuggestionRequest): Promise<string> {
-  console.log("[Feedback API] 문의 전송 요청", {
-    contentLength: content.length,
-    lineCount: content.split("\n").length,
+  const body = {
+    email: email.trim(),
+    content: content.trim(),
+  };
+
+  console.log("[Feedback API] 피드백 제출 요청", {
+    contentLength: body.content.length,
   });
 
   try {
-    const res = await api.post<ApiResponse<string>>("/api/v1/suggestions", {
-      content,
+    const response = await api.post<ApiResponse<string>>(
+      SUGGESTION_ENDPOINT,
+      body,
+    );
+
+    console.log("[Feedback API] 피드백 제출 성공", {
+      status: response.status,
+      message: response.data?.message,
     });
 
-    if (String(res.data?.code ?? res.status) !== "200") {
-      throw new Error(res.data?.message || "문의 전송에 실패했습니다.");
-    }
-
-    console.log("[Feedback API] 문의 전송 응답", {
-      status: res.status,
-      code: res.data?.code,
-      message: res.data?.message,
-      data: res.data?.data,
-    });
-
-    return res.data?.data ?? "OK";
+    return response.data?.data ?? "OK";
   } catch (error) {
-    console.error("[Feedback API] 문의 전송 실패", { error });
-    throw error;
+    console.log("[Feedback API] 피드백 제출 에러", { error });
+    throw new Error("피드백 제출에 실패했어요. 잠시 후 다시 시도해 주세요.");
   }
 }

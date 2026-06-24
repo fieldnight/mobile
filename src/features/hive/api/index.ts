@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getApiErrorLogData } from "../utils";
 import type { HiveData } from "@/types/hive-control";
 
 /**
@@ -42,6 +43,11 @@ export interface HiveDetail extends HiveListItem {
   lastConnectedAt?: string | null;
 }
 
+export interface HiveConnectionResponse {
+  isConnected: boolean;
+  lastConnectedAt: string | null;
+}
+
 export interface HiveListResponse {
   totalCount: number;
   hives: HiveListItem[];
@@ -64,6 +70,7 @@ function isUpdateApplied(detail: HiveDetail, body: HiveUpdateRequest) {
     normalizeText(detail.memo) === normalizeText(body.memo)
   );
 }
+
 
 /** 벌통 기본 정보를 등록합니다. */
 export async function createHive(
@@ -174,7 +181,7 @@ export async function deleteHive(hiveId: string | number): Promise<string> {
     // 현재 서버가 DB 삭제 후 500을 주는 케이스가 있어, 목록 조회로 성공 여부를 한 번 더 검증합니다.
     console.warn("[Hive API] 벌통 삭제 응답 에러, 전체 조회로 반영 여부 확인", {
       hiveId,
-      error,
+      error: getApiErrorLogData(error),
     });
     const list = await getHives();
     const deleted = !list.hives.some(
@@ -186,7 +193,26 @@ export async function deleteHive(hiveId: string | number): Promise<string> {
       return "OK";
     }
 
-    console.error("[Hive API] 벌통 삭제 실패", { hiveId, error });
+    console.warn("[Hive API] 벌통 삭제 실패", {
+      hiveId,
+      error: getApiErrorLogData(error),
+    });
+    throw error;
+  }
+}
+
+/** 벌통 연동 상태(연결됨 / 오프라인)를 조회합니다. */
+export async function getHiveConnection(
+  hiveId: string | number,
+): Promise<HiveConnectionResponse> {
+  try {
+    const res = await api.get<ApiResponse<HiveConnectionResponse>>(
+      `/api/v1/hives/${hiveId}/connection`,
+    );
+    console.log("[Hive API] 연동 상태 조회 성공", { hiveId, data: res.data.data });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive API] 연동 상태 조회 실패", { hiveId, error });
     throw error;
   }
 }

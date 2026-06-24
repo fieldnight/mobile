@@ -41,6 +41,8 @@ export function AddNfcDoorCardModal({
     functionType: NfcDoorFunction;
     detail: string;
     repeat: boolean;
+    start: string;
+    end: string;
   }) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -73,11 +75,24 @@ export function AddNfcDoorCardModal({
   };
 
   const submit = () => {
+    const selectedTime = toTimeString(hour, minute, meridiem);
     onSubmit({
       title: title.trim() || "새 NFC 카드",
       functionType,
       detail,
       repeat,
+      start:
+        functionType === "off"
+          ? ""
+          : functionType === "cycle"
+            ? toHourString(startHour)
+            : selectedTime,
+      end:
+        functionType === "on"
+          ? ""
+          : functionType === "cycle"
+            ? toHourString(endHour)
+            : selectedTime,
     });
     resetAndClose();
   };
@@ -504,4 +519,18 @@ function isHourInRange(hour: number, start: number, end: number) {
 function getRangeSpan(start: number, end: number) {
   if (start === end) return 24;
   return end > start ? end - start : 24 - start + end;
+}
+
+function toHourString(hour: number) {
+  return `${String(((hour % 24) + 24) % 24).padStart(2, "0")}:00`;
+}
+
+function toTimeString(hour: number, minute: number, meridiem: "오전" | "오후") {
+  const normalizedHour =
+    meridiem === "오전"
+      ? hour % 12
+      : hour === 12
+        ? 12
+        : hour + 12;
+  return `${String(normalizedHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }

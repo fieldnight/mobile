@@ -2,18 +2,20 @@ import Constants from "expo-constants";
 import type { ControlResultEvent } from "../api";
 
 const API_URL =
-  Constants.expoConfig?.extra?.apiUrl ?? Constants.manifest2?.extra?.expoClient?.extra?.apiUrl ?? "https://webeelab.site";
+  Constants.expoConfig?.extra?.apiUrl ??
+  Constants.manifest2?.extra?.expoClient?.extra?.apiUrl ??
+  "https://webeelab.site";
 
 interface SubscribeHiveControlResultOptions {
-  accessToken: string | null;
+  accessToken: string;
   onResult: (event: ControlResultEvent) => void;
   onOpen?: () => void;
   onError?: (error: unknown) => void;
 }
 
 /**
- * React Native에는 브라우저 EventSource가 기본 제공되지 않아 XHR 스트리밍으로 SSE를 읽습니다.
- * 서버가 보내는 event/data 줄을 직접 파싱하고, 제어 결과 이벤트만 화면 쪽으로 전달합니다.
+ * React Native에는 기본 EventSource가 없어 XHR 스트림으로 SSE를 읽습니다.
+ * HIVE_CONTROL_RESULT 이벤트만 파싱해서 제어 화면에 전달합니다.
  */
 export function subscribeHiveControlResult({
   accessToken,
@@ -27,6 +29,7 @@ export function subscribeHiveControlResult({
   let dataLines: string[] = [];
   let pendingLine = "";
   let opened = false;
+  let reportedDoneError = false;
 
   const flushEvent = () => {
     if (!currentEvent && dataLines.length === 0) return;
@@ -74,27 +77,37 @@ export function subscribeHiveControlResult({
   xhr.open("GET", `${API_URL}/api/v1/sse/subscribe`);
   xhr.setRequestHeader("Accept", "text/event-stream");
   xhr.setRequestHeader("Cache-Control", "no-cache");
-  if (accessToken) {
-    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-  }
+  xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
 
   xhr.onreadystatechange = () => {
-    if (!opened && xhr.readyState >= XMLHttpRequest.HEADERS_RECEIVED) {
+    const isSuccessStatus = xhr.status >= 200 && xhr.status < 300;
+
+    if (
+      !opened &&
+      isSuccessStatus &&
+      xhr.readyState >= XMLHttpRequest.HEADERS_RECEIVED
+    ) {
       opened = true;
       console.log("[Hive Control SSE] 구독 연결 성공");
       onOpen?.();
     }
 
     if (
-      xhr.readyState === XMLHttpRequest.LOADING ||
-      xhr.readyState === XMLHttpRequest.DONE
+      isSuccessStatus &&
+      (xhr.readyState === XMLHttpRequest.LOADING ||
+        xhr.readyState === XMLHttpRequest.DONE)
     ) {
       const nextChunk = xhr.responseText.slice(consumedLength);
       consumedLength = xhr.responseText.length;
       if (nextChunk) consumeChunk(nextChunk);
     }
 
-    if (xhr.readyState === XMLHttpRequest.DONE && xhr.status >= 400) {
+    if (
+      !reportedDoneError &&
+      xhr.readyState === XMLHttpRequest.DONE &&
+      xhr.status >= 400
+    ) {
+      reportedDoneError = true;
       const error = new Error(`SSE 연결 실패: ${xhr.status}`);
       console.error("[Hive Control SSE] 구독 연결 실패", error);
       onError?.(error);

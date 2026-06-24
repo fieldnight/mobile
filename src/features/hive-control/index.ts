@@ -1,4 +1,5 @@
 export {
+  AutoControlScheduleSection,
   HiveControlSection,
   QcToggleButton,
   HiveDropdown,
@@ -6,4 +7,5 @@ export {
 } from "./components";
 export * from "./api";
 export * from "./hooks";
+export * from "./model/autoSchedule";
 export * from "./model/controlMapping";

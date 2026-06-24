@@ -1,40 +1,4 @@
-import type { HiveData } from "@/types/hive-control";
-
 export const HIVE_REPLACEMENT_CYCLE_DAYS = 45;
-
-export interface HiveReplacementRecord {
-  id: string;
-  hiveId: string;
-  replacedAt: string;
-  note: string;
-}
-
-const DUMMY_REPLACEMENT_HISTORY: HiveReplacementRecord[] = [
-  {
-    id: "history-1-2026-06-01",
-    hiveId: "1",
-    replacedAt: "2026-06-01",
-    note: "테스트",
-  },
-  {
-    id: "history-1-2026-04-18",
-    hiveId: "1",
-    replacedAt: "2026-04-18",
-    note: "테스트",
-  },
-  {
-    id: "history-2-2026-05-26",
-    hiveId: "2",
-    replacedAt: "2026-05-26",
-    note: "테스트",
-  },
-  {
-    id: "history-2-2026-04-10",
-    hiveId: "2",
-    replacedAt: "2026-04-10",
-    note: "테스트",
-  },
-];
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -52,11 +16,21 @@ export function normalizeReplacementDate(value?: string) {
 export function parseReplacementDate(value?: string) {
   const normalized = normalizeReplacementDate(value);
   if (!normalized) return null;
-  const parsed = new Date(normalized);
+
+  const parsed = new Date(`${normalized}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function getReplacementElapsed(replacedAt?: string) {
+export function getReplacementElapsed(replacedAt?: string, usageDays?: number) {
+  if (typeof usageDays === "number") {
+    return {
+      label: `${usageDays}일`,
+      days: usageDays,
+      remainingDays: HIVE_REPLACEMENT_CYCLE_DAYS - usageDays,
+      isOverdue: usageDays > HIVE_REPLACEMENT_CYCLE_DAYS,
+    };
+  }
+
   const replaced = parseReplacementDate(replacedAt);
 
   if (!replaced) {
@@ -82,24 +56,4 @@ export function getReplacementElapsed(replacedAt?: string) {
     remainingDays,
     isOverdue: remainingDays < 0,
   };
-}
-
-export function getHiveReplacementHistory(hive: HiveData): HiveReplacementRecord[] {
-  const records = [...DUMMY_REPLACEMENT_HISTORY.filter((item) => item.hiveId === hive.id)];
-  const currentReplacedAt = normalizeReplacementDate(hive.replacedAt);
-
-  if (currentReplacedAt && !records.some((item) => item.replacedAt === currentReplacedAt)) {
-    records.unshift({
-      id: `current-${hive.id}-${currentReplacedAt}`,
-      hiveId: hive.id,
-      replacedAt: currentReplacedAt,
-      note: "테스트",
-    });
-  }
-
-  return records.sort(
-    (a, b) =>
-      (parseReplacementDate(b.replacedAt)?.getTime() ?? 0) -
-      (parseReplacementDate(a.replacedAt)?.getTime() ?? 0),
-  );
 }

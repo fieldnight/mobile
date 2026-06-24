@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { DataPoint, Period } from "@/types";
+import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
 
 interface ApiResponse<T> {
   code: string;
@@ -26,6 +26,17 @@ export interface HiveTelemetryResponse {
   data: HiveTelemetryPoint[];
 }
 
+export const HIVE_TELEMETRY_SENSORS: Array<{
+  sensorType: HiveTelemetrySensorType;
+  dataKey: HiveSensorDataKey;
+}> = [
+  { sensorType: "INTERNAL_TEMPERATURE", dataKey: "internalTemperature" },
+  { sensorType: "EXTERNAL_TEMPERATURE", dataKey: "externalTemperature" },
+  { sensorType: "INTERNAL_HUMIDITY", dataKey: "internalHumidity" },
+  { sensorType: "EXTERNAL_HUMIDITY", dataKey: "externalHumidity" },
+  { sensorType: "CO2", dataKey: "co2" },
+];
+
 const PERIOD_TO_API: Record<Period, HiveTelemetryPeriod> = {
   일간: "DAY",
   주간: "WEEK",
@@ -45,8 +56,9 @@ export async function getHiveTelemetry({
 }: GetHiveTelemetryParams): Promise<HiveTelemetryResponse> {
   const apiPeriod = PERIOD_TO_API[period];
 
-  console.log("[Hive Telemetry API] 센서 데이터 요청", {
+  console.log("[Hive Telemetry API] 센서 데이터 조회 요청", {
     hiveId,
+    endpoint: `/api/v1/hives/${hiveId}/telemetry`,
     period: apiPeriod,
     sensorType,
   });
@@ -66,16 +78,17 @@ export async function getHiveTelemetry({
       throw new Error(res.data.message || "센서 데이터를 조회하지 못했습니다.");
     }
 
-    console.log("[Hive Telemetry API] 센서 데이터 응답", {
+    console.log("[Hive Telemetry API] 센서 데이터 조회 성공", {
       hiveId,
-      period: apiPeriod,
-      sensorType,
+      period: res.data.data.period,
+      sensorType: res.data.data.sensorType,
       count: res.data.data.data.length,
+      sample: res.data.data.data[0],
     });
 
     return res.data.data;
   } catch (error) {
-    console.error("[Hive Telemetry API] 센서 데이터 요청 실패", {
+    console.error("[Hive Telemetry API] 센서 데이터 조회 실패", {
       hiveId,
       period: apiPeriod,
       sensorType,
@@ -89,21 +102,38 @@ function toPointMap(response?: HiveTelemetryResponse) {
   return new Map(response?.data.map((point) => [point.label, point.value]) ?? []);
 }
 
+function emptyPoint(label: string): DataPoint {
+  return {
+    label,
+    internalTemperature: 0,
+    externalTemperature: 0,
+    internalHumidity: 0,
+    externalHumidity: 0,
+    co2: 0,
+    hasData: false,
+  };
+}
+
 /**
- * 센서별로 분리된 응답을 기존 차트/표가 사용하는 DataPoint 구조로 합친다.
- * 아직 API에 없는 메탄 값은 기존 mock fallback을 유지해 표 레이아웃을 깨지 않는다.
+ * 센서별로 따로 내려오는 telemetry 응답을 화면용 DataPoint 배열로 합칩니다.
+ * 서버의 label은 x축, value는 해당 센서의 y축 값으로 그대로 사용합니다.
  */
 export function mergeTelemetryData(
   fallback: DataPoint[],
-  temperature?: HiveTelemetryResponse,
-  humidity?: HiveTelemetryResponse,
-  co2?: HiveTelemetryResponse,
+  responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
 ): DataPoint[] {
-  const tempMap = toPointMap(temperature);
-  const humidityMap = toPointMap(humidity);
-  const co2Map = toPointMap(co2);
+  const responseMaps = Object.fromEntries(
+    HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
+      sensorType,
+      toPointMap(responses[sensorType]),
+    ]),
+  ) as Record<HiveTelemetrySensorType, Map<string, number>>;
 
-  if (!tempMap.size && !humidityMap.size && !co2Map.size) {
+  const hasAnyApiData = HIVE_TELEMETRY_SENSORS.some(
+    ({ sensorType }) => responseMaps[sensorType].size > 0,
+  );
+
+  if (!hasAnyApiData) {
     console.log("[Hive Telemetry API] 센서 데이터 없음, mock fallback 사용", {
       fallbackCount: fallback.length,
     });
@@ -114,32 +144,45 @@ export function mergeTelemetryData(
   const labels = Array.from(
     new Set([
       ...fallback.map((point) => point.label),
-      ...tempMap.keys(),
-      ...humidityMap.keys(),
-      ...co2Map.keys(),
+      ...HIVE_TELEMETRY_SENSORS.flatMap(({ sensorType }) => [
+        ...responseMaps[sensorType].keys(),
+      ]),
     ]),
   );
 
   const merged = labels.map((label) => {
-    const fallbackPoint = fallbackMap.get(label);
-    return {
+    const fallbackPoint = fallbackMap.get(label) ?? emptyPoint(label);
+    const point: DataPoint = {
       label,
-      temp: tempMap.get(label) ?? fallbackPoint?.temp ?? 0,
-      humidity: humidityMap.get(label) ?? fallbackPoint?.humidity ?? 0,
-      methane: fallbackPoint?.methane ?? 0,
-      co2: co2Map.get(label) ?? fallbackPoint?.co2 ?? 0,
-      hasData:
-        tempMap.has(label) || humidityMap.has(label) || co2Map.has(label)
-          ? true
-          : fallbackPoint?.hasData,
+      internalTemperature:
+        responseMaps.INTERNAL_TEMPERATURE.get(label) ??
+        fallbackPoint.internalTemperature,
+      externalTemperature:
+        responseMaps.EXTERNAL_TEMPERATURE.get(label) ??
+        fallbackPoint.externalTemperature,
+      internalHumidity:
+        responseMaps.INTERNAL_HUMIDITY.get(label) ?? fallbackPoint.internalHumidity,
+      externalHumidity:
+        responseMaps.EXTERNAL_HUMIDITY.get(label) ?? fallbackPoint.externalHumidity,
+      co2: responseMaps.CO2.get(label) ?? fallbackPoint.co2,
+      hasData: HIVE_TELEMETRY_SENSORS.some(({ sensorType }) =>
+        responseMaps[sensorType].has(label),
+      )
+        ? true
+        : fallbackPoint.hasData,
     };
+
+    return point;
   });
 
   console.log("[Hive Telemetry API] 센서 데이터 병합 완료", {
     mergedCount: merged.length,
-    temperatureCount: tempMap.size,
-    humidityCount: humidityMap.size,
-    co2Count: co2Map.size,
+    counts: Object.fromEntries(
+      HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
+        sensorType,
+        responseMaps[sensorType].size,
+      ]),
+    ),
   });
 
   return merged;

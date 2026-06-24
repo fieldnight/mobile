@@ -1,26 +1,22 @@
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
-import {
-  getHiveReplacementHistory,
-  getReplacementElapsed,
-} from "../model/replacement";
+import { useHiveReplacementHistoryList } from "../hooks/useHiveReplacementHistory";
+import { getReplacementElapsed } from "../model/replacement";
 
 interface HiveReplacementTableProps {
   hiveId?: string;
 }
 
-/**
- * 선택된 벌통의 교체 히스토리를 간단한 표로 보여줍니다.
- * API 연결 전까지 더미 히스토리를 사용합니다.
- */
+/** 리포트 페이지의 교체 히스토리 조회 전용 테이블 */
 export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
   const hives = useHiveStore((state) => state.hives);
   const hive = hiveId ? hives.find((item) => item.id === hiveId) : hives[0];
-  const history = hive ? getHiveReplacementHistory(hive) : [];
+  const historyQuery = useHiveReplacementHistoryList(hive?.id);
+  const history = historyQuery.data?.content ?? [];
 
   return (
     <Card
@@ -31,7 +27,7 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
         elevation: 0,
       }}
     >
-      <View className="flex-row items-center justify-between mb-4">
+      <View className="mb-4 flex-row items-center justify-between">
         <View>
           <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
             교체 히스토리
@@ -44,17 +40,20 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
           className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
           style={{ backgroundColor: C.bgAlt }}
         >
-          <Feather name="archive" size={12} color={C.sec} />
-          <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.sec }}>
-            {history.length}건
-          </PretendardFont>
+          {historyQuery.isLoading ? (
+            <ActivityIndicator size="small" color={C.sec} />
+          ) : (
+            <>
+              <Feather name="archive" size={12} color={C.sec} />
+              <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.sec }}>
+                {history.length}건
+              </PretendardFont>
+            </>
+          )}
         </View>
       </View>
 
       <View className="flex-row rounded-xl px-3 py-2" style={{ backgroundColor: C.bgAlt }}>
-        <PretendardFont weight="bold" style={{ flex: 1.1, fontSize: 12, color: C.sec }}>
-          구분
-        </PretendardFont>
         <PretendardFont weight="bold" style={{ flex: 1.4, fontSize: 12, color: C.sec }}>
           교체날짜
         </PretendardFont>
@@ -62,32 +61,39 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
           weight="bold"
           style={{ flex: 1, fontSize: 12, color: C.sec, textAlign: "right" }}
         >
-          사용날짜
+          사용일수
         </PretendardFont>
       </View>
 
       <View>
-        {history.length ? (
+        {historyQuery.isLoading ? (
+          <View className="items-center py-5">
+            <ActivityIndicator size="small" color={C.primary} />
+          </View>
+        ) : history.length ? (
           history.map((record, index) => {
-            const elapsed = getReplacementElapsed(record.replacedAt);
+            const elapsed = getReplacementElapsed(record.replacedAt, record.usageDays);
+
             return (
               <View
-                key={record.id}
+                key={record.replacementHistoryId}
                 className="flex-row px-3 py-3"
                 style={{
                   borderBottomWidth: index < history.length - 1 ? 1 : 0,
                   borderBottomColor: C.border,
                 }}
               >
-                <PretendardFont style={{ flex: 1.1, fontSize: 13, color: C.text }}>
-                  {record.note}
-                </PretendardFont>
                 <PretendardFont style={{ flex: 1.4, fontSize: 13, color: C.text }}>
                   {record.replacedAt}
                 </PretendardFont>
                 <PretendardFont
                   weight="semibold"
-                  style={{ flex: 1, fontSize: 13, color: C.text, textAlign: "right" }}
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    color: elapsed.isOverdue ? C.error : C.text,
+                    textAlign: "right",
+                  }}
                 >
                   {elapsed.label}
                 </PretendardFont>
