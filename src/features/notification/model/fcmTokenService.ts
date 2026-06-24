@@ -1,6 +1,6 @@
 import * as Application from "expo-application";
 import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 
 import {
@@ -12,15 +12,39 @@ const NOTIFICATION_CHANNEL_ID = "default";
 
 let foregroundHandlerConfigured = false;
 let registeredToken: string | null = null;
-let registrationPromise: Promise<void> | null = null;
+let syncPromise: Promise<void> | null = null;
+let tokenRegistrationPromise: Promise<void> | null = null;
+let tokenRegistrationKey: string | null = null;
+
+function getRuntimeLabel() {
+  return Constants.executionEnvironment ?? ExecutionEnvironment.Bare;
+}
+
+export function canUseNativePushNotifications() {
+  return Platform.OS === "android" && getRuntimeLabel() !== ExecutionEnvironment.StoreClient;
+}
 
 function maskToken(token: string) {
   if (token.length <= 12) return token;
   return `${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
-export function configureForegroundNotifications() {
+async function getNotificationsModule() {
+  return import("expo-notifications");
+}
+
+export async function configureForegroundNotifications() {
+  if (!canUseNativePushNotifications()) {
+    console.log("[FCM] Expo Go 또는 비지원 런타임이라 포그라운드 알림 설정을 건너뜀", {
+      runtime: getRuntimeLabel(),
+      platform: Platform.OS,
+    });
+    return;
+  }
+
   if (foregroundHandlerConfigured) return;
+
+  const Notifications = await getNotificationsModule();
 
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -57,6 +81,7 @@ export async function getFcmDeviceInfo(): Promise<string> {
 }
 
 async function ensureNotificationPermission(): Promise<boolean> {
+  const Notifications = await getNotificationsModule();
   const currentPermission = await Notifications.getPermissionsAsync();
   if (currentPermission.granted) return true;
 
@@ -73,6 +98,8 @@ async function ensureNotificationPermission(): Promise<boolean> {
 
 async function prepareAndroidNotificationChannel() {
   if (Platform.OS !== "android") return;
+
+  const Notifications = await getNotificationsModule();
 
   await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
     name: "기본 알림",
@@ -91,18 +118,33 @@ async function registerToken(token: string) {
     return;
   }
 
-  const deviceInfo = await getFcmDeviceInfo();
-  await registerFcmToken({ token, deviceInfo });
-  registeredToken = token;
+  if (tokenRegistrationPromise && tokenRegistrationKey === token) {
+    console.log("[FCM] 동일 토큰 등록이 이미 진행 중이라 기존 요청을 재사용함", {
+      token: maskToken(token),
+    });
+    return tokenRegistrationPromise;
+  }
+
+  tokenRegistrationKey = token;
+  tokenRegistrationPromise = (async () => {
+    const deviceInfo = await getFcmDeviceInfo();
+    await registerFcmToken({ token, deviceInfo });
+    registeredToken = token;
+  })().finally(() => {
+    tokenRegistrationPromise = null;
+    tokenRegistrationKey = null;
+  });
+
+  return tokenRegistrationPromise;
 }
 
 export async function registerCurrentDeviceFcmToken(): Promise<void> {
-  if (registrationPromise) return registrationPromise;
+  if (syncPromise) return syncPromise;
 
-  registrationPromise = (async () => {
-    if (Platform.OS !== "android") {
-      // getDevicePushTokenAsync는 iOS에서 APNs 토큰을 반환하므로 FCM API에는 등록하지 않습니다.
-      console.log("[FCM] Android가 아니어서 FCM 토큰 등록을 건너뜀", {
+  syncPromise = (async () => {
+    if (!canUseNativePushNotifications()) {
+      console.log("[FCM] Expo Go 또는 비지원 런타임이라 FCM 토큰 등록을 건너뜀", {
+        runtime: getRuntimeLabel(),
         platform: Platform.OS,
       });
       return;
@@ -118,6 +160,7 @@ export async function registerCurrentDeviceFcmToken(): Promise<void> {
     const hasPermission = await ensureNotificationPermission();
     if (!hasPermission) return;
 
+    const Notifications = await getNotificationsModule();
     const pushToken = await Notifications.getDevicePushTokenAsync();
     if (pushToken.type !== "android" || typeof pushToken.data !== "string") {
       console.warn("[FCM] Android FCM 토큰을 가져오지 못함", {
@@ -131,14 +174,14 @@ export async function registerCurrentDeviceFcmToken(): Promise<void> {
     });
     await registerToken(pushToken.data);
   })().finally(() => {
-    registrationPromise = null;
+    syncPromise = null;
   });
 
-  return registrationPromise;
+  return syncPromise;
 }
 
 export async function registerRefreshedFcmToken(token: string): Promise<void> {
-  if (Platform.OS !== "android") return;
+  if (!canUseNativePushNotifications()) return;
 
   console.log("[FCM] 기기 토큰 갱신 감지", {
     token: maskToken(token),
@@ -147,11 +190,15 @@ export async function registerRefreshedFcmToken(token: string): Promise<void> {
 }
 
 export async function unregisterCurrentDeviceFcmToken(): Promise<void> {
-  if (Platform.OS !== "android") return;
+  if (!canUseNativePushNotifications()) return;
 
   // 로그인 직후 등록 중 로그아웃해도 마지막 등록 요청 뒤에 삭제되도록 순서를 보장합니다.
-  if (registrationPromise) {
-    await registrationPromise.catch(() => undefined);
+  if (syncPromise) {
+    await syncPromise.catch(() => undefined);
+  }
+
+  if (tokenRegistrationPromise) {
+    await tokenRegistrationPromise.catch(() => undefined);
   }
 
   const deviceInfo = await getFcmDeviceInfo();
@@ -164,4 +211,23 @@ export async function unregisterCurrentDeviceFcmToken(): Promise<void> {
 
 export function clearFcmRegistrationMemory() {
   registeredToken = null;
+}
+
+export async function subscribeToNativePushTokenChanges(
+  onToken: (token: string) => void,
+): Promise<() => void> {
+  if (!canUseNativePushNotifications()) {
+    return () => undefined;
+  }
+
+  const Notifications = await getNotificationsModule();
+  const subscription = Notifications.addPushTokenListener((pushToken) => {
+    if (pushToken.type !== "android" || typeof pushToken.data !== "string") {
+      return;
+    }
+
+    onToken(pushToken.data);
+  });
+
+  return () => subscription.remove();
 }

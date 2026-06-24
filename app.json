@@ -19,7 +19,6 @@
     },
     "android": {
       "package": "com.webee.mo",
-      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",

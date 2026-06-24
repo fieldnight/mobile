@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import * as Notifications from "expo-notifications";
 
 import {
   clearFcmRegistrationMemory,
   configureForegroundNotifications,
+  canUseNativePushNotifications,
   registerCurrentDeviceFcmToken,
   registerRefreshedFcmToken,
+  subscribeToNativePushTokenChanges,
 } from "@/features/notification/model/fcmTokenService";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -17,7 +18,7 @@ export function FcmTokenSync() {
   );
 
   useEffect(() => {
-    configureForegroundNotifications();
+    void configureForegroundNotifications();
 
     const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
       setAuthHydrated(true);
@@ -34,30 +35,35 @@ export function FcmTokenSync() {
     }
 
     let active = true;
+    let unsubscribePushTokens: (() => void) | null = null;
 
     registerCurrentDeviceFcmToken().catch((error) => {
       if (!active) return;
       console.error("[FCM] 로그인 사용자 토큰 동기화 실패", { error });
     });
 
-    // FCM이 실행 중 토큰을 교체하면 로그인 상태에서 즉시 백엔드에 다시 등록합니다.
-    const tokenSubscription = Notifications.addPushTokenListener((pushToken) => {
-      if (
-        !active ||
-        pushToken.type !== "android" ||
-        typeof pushToken.data !== "string"
-      ) {
-        return;
-      }
+    if (canUseNativePushNotifications()) {
+      // FCM이 실행 중 토큰을 교체하면 로그인 상태에서 즉시 백엔드에 다시 등록합니다.
+      void subscribeToNativePushTokenChanges((token) => {
+        if (!active) return;
 
-      registerRefreshedFcmToken(pushToken.data).catch((error) => {
-        console.error("[FCM] 갱신 토큰 동기화 실패", { error });
+        registerRefreshedFcmToken(token).catch((error) => {
+          if (!active) return;
+          console.error("[FCM] 갱신 토큰 동기화 실패", { error });
+        });
+      }).then((cleanup) => {
+        if (!active) {
+          cleanup();
+          return;
+        }
+
+        unsubscribePushTokens = cleanup;
       });
-    });
+    }
 
     return () => {
       active = false;
-      tokenSubscription.remove();
+      unsubscribePushTokens?.();
     };
   }, [accessToken, authHydrated, isAuthenticated]);
 
