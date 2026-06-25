@@ -125,15 +125,30 @@ async function registerToken(token: string) {
     return tokenRegistrationPromise;
   }
 
+  const previousRegistration = tokenRegistrationPromise;
+  let currentRegistration: Promise<void>;
+
   tokenRegistrationKey = token;
-  tokenRegistrationPromise = (async () => {
+  currentRegistration = (async () => {
+    await previousRegistration?.catch(() => undefined);
+
+    if (registeredToken === token) {
+      return;
+    }
+
     const deviceInfo = await getFcmDeviceInfo();
     await registerFcmToken({ token, deviceInfo });
     registeredToken = token;
-  })().finally(() => {
-    tokenRegistrationPromise = null;
-    tokenRegistrationKey = null;
+  })();
+
+  tokenRegistrationPromise = currentRegistration.finally(() => {
+    if (tokenRegistrationPromise === currentRegistration) {
+      tokenRegistrationPromise = null;
+      tokenRegistrationKey = null;
+    }
   });
+
+  return tokenRegistrationPromise;
 
   return tokenRegistrationPromise;
 }
