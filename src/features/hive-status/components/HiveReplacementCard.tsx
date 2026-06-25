@@ -92,7 +92,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
   };
 
   const handleTodayReplace = () => {
-    if (!hive.id || createHistory.isPending) return;
+    if (!hive.id || createHistory.isLoading) return;
 
     runLightHaptic();
     const body = { replacedAt: formatReplacementDate(new Date()) };
