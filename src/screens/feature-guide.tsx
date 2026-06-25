@@ -14,10 +14,18 @@ type FeatureHighlight = {
   description: string;
 };
 
+type FeatureRoute =
+  | "/bee-news"
+  | "/fruit-price"
+  | "/pesticide"
+  | "/recommend"
+  | "/bee-chat"
+  | "/hive-control";
+
 type FeatureGuideItem = {
   label: string;
   summary: string;
-  route: string;
+  route: FeatureRoute;
   stepColor: string;
   iconBg: string;
   icon: ImageSourcePropType;
@@ -330,9 +338,9 @@ export default function FeatureGuideScreen() {
     }
   };
 
-  const handleFeaturePress = (route: string) => {
+  const handleFeaturePress = (route: FeatureRoute) => {
     haptic();
-    router.push(route as never);
+    router.push(route);
   };
 
   return (
