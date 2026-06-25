@@ -161,6 +161,7 @@ interface ConfirmSheetProps {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
 }
 
@@ -172,6 +173,7 @@ export function ConfirmSheet({
   confirmLabel = "확인",
   cancelLabel = "취소",
   destructive = false,
+  confirmDisabled = false,
   onConfirm,
 }: ConfirmSheetProps) {
   const confirmingRef = useRef(false);
@@ -181,7 +183,7 @@ export function ConfirmSheet({
   }, [visible]);
 
   const handleConfirm = () => {
-    if (confirmingRef.current) return;
+    if (confirmingRef.current || confirmDisabled) return;
     confirmingRef.current = true;
     try {
       onConfirm();
@@ -208,8 +210,12 @@ export function ConfirmSheet({
       <View className="gap-3">
         <Pressable
           onPress={handleConfirm}
+          disabled={confirmDisabled}
           className="items-center rounded-2xl py-4 active:opacity-70"
-          style={{ backgroundColor: destructive ? C.error : C.primary }}
+          style={{
+            backgroundColor: destructive ? C.error : C.primary,
+            opacity: confirmDisabled ? 0.5 : 1,
+          }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
             {confirmLabel}

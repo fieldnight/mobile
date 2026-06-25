@@ -96,7 +96,7 @@ export default function HiveOverviewScreen() {
 
   const confirmDeleteHive = () => {
     const hiveToDelete = pendingDeleteHive;
-    if (!hiveToDelete) return;
+    if (!hiveToDelete || deleteHiveMutation.isLoading) return;
 
     deleteHiveMutation.mutate(hiveToDelete.id, {
       onSuccess: () => {
@@ -157,6 +157,7 @@ export default function HiveOverviewScreen() {
         }을 삭제할까요? 이 작업은 되돌릴 수 없어요.`}
         confirmLabel="삭제"
         destructive
+        confirmDisabled={deleteHiveMutation.isLoading}
         onConfirm={confirmDeleteHive}
       />
     </ImageBackground>
