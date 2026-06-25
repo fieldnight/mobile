@@ -179,8 +179,9 @@ export default function PesticideTable() {
   const { items, totalPages, totalCount, suggestions, isFetching, isError: listError, refetch: refetchList } =
     usePesticideList();
   const selectedFilterCount = [crop, usage, insect].filter(Boolean).length;
+  const hasQuery = query.trim().length > 0;
   const showComboEmptyState =
-    selectedFilterCount >= 2 && !isFetching && !listError && items.length === 0;
+    !hasQuery && selectedFilterCount >= 2 && !isFetching && !listError && items.length === 0;
   const showDefaultEmptyState =
     !showComboEmptyState && !isFetching && !listError && items.length === 0;
 
