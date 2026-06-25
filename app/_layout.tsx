@@ -23,6 +23,7 @@ import Footer from "@/navigation/Footer";
 import { SideMenu } from "@/components/SideMenu";
 import { ToastProvider } from "@/components/ToastContext";
 import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
+import { FcmTokenSync } from "@/features/notification/components/FcmTokenSync";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 SplashScreen.preventAutoHideAsync();
@@ -63,6 +64,8 @@ const HIDE_FOOTER_ROUTES = [
   "login",
   "register",
   "index",
+  "add-farm",
+  "bee-chat",
   "oauth-register",
 ];
 
@@ -229,6 +232,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Providers>
+      <FcmTokenSync />
       <ToastProvider>
         <View style={{ flex: 1, backgroundColor: "#000" }}>
           {/* 메인 콘텐츠 */}

@@ -377,13 +377,17 @@ module.exports = function withWeBeeHce(config) {
       if (fs.existsSync(mainApplicationPath)) {
         const mainApplication = fs.readFileSync(mainApplicationPath, "utf8");
         if (!mainApplication.includes("add(WeBeeHcePackage())")) {
-          fs.writeFileSync(
-            mainApplicationPath,
-            mainApplication.replace(
-              "// add(MyReactNativePackage())",
-              "add(WeBeeHcePackage())"
-            )
+          const patched = mainApplication.replace(
+            "// add(MyReactNativePackage())",
+            "add(WeBeeHcePackage())"
           );
+          if (patched === mainApplication) {
+            console.warn(
+              "[withWeBeeHce] MainApplication.kt에 '// add(MyReactNativePackage())' 주석을 찾지 못했습니다. WeBeeHcePackage()를 수동으로 등록해 주세요."
+            );
+          } else {
+            fs.writeFileSync(mainApplicationPath, patched);
+          }
         }
       }
       fs.writeFileSync(apduPath, apduServiceXml);

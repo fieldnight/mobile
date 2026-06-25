@@ -92,7 +92,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
   };
 
   const handleTodayReplace = () => {
-    if (!hive.id || createHistory.isPending) return;
+    if (!hive.id || createHistory.isLoading) return;
 
     runLightHaptic();
     const body = { replacedAt: formatReplacementDate(new Date()) };
@@ -350,14 +350,15 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
               return (
                 <View
                   key={date ? formatReplacementDate(date) : `empty-${index}`}
-                  className="items-center justify-center py-1"
+                  className="items-center justify-center py-2"
                   style={{ width: `${100 / 7}%` }}
                 >
                   {date ? (
                     <Pressable
                       disabled={disabled}
                       onPress={() => setSelectedDate(date)}
-                      className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+                      hitSlop={6}
+                      className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
                       style={{
                         backgroundColor: selected ? C.primary : C.white,
                         opacity: disabled ? 0.35 : 1,
@@ -371,7 +372,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
                       </PretendardFont>
                     </Pressable>
                   ) : (
-                    <View className="h-9 w-9" />
+                    <View className="h-11 w-11" />
                   )}
                 </View>
               );

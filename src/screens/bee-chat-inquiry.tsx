@@ -99,7 +99,6 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
 
     setIsSubmitting(true);
     console.log("[Inquiry UI] 피드백 제출 시작", {
-      email: trimmedEmail,
       contentLength: trimmedContent.length,
     });
 
@@ -109,9 +108,7 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
         content: trimmedContent,
       });
 
-      console.log("[Inquiry UI] 피드백 제출 완료", {
-        email: trimmedEmail,
-      });
+      console.log("[Inquiry UI] 피드백 제출 완료");
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
