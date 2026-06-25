@@ -58,6 +58,9 @@ export function FcmTokenSync() {
         }
 
         unsubscribePushTokens = cleanup;
+      }).catch((error) => {
+        if (!active) return;
+        console.error("[FCM] 푸시 토큰 변경 구독 실패", { error });
       });
     }
 
