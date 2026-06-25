@@ -184,20 +184,22 @@ export default function PesticideTable() {
   const showDefaultEmptyState =
     !showComboEmptyState && !isFetching && !listError && items.length === 0;
 
-  useEffect(() => {
-    if (!showComboEmptyState) {
-      emptyToastShownRef.current = "";
-      return;
-    }
+  const comboKey = `${crop}|${usage}|${insect}`;
 
-    const comboKey = `${crop}|${usage}|${insect}`;
+  useEffect(() => {
+    emptyToastShownRef.current = "";
+  }, [comboKey]);
+
+  useEffect(() => {
+    if (!showComboEmptyState) return;
     if (emptyToastShownRef.current === comboKey) return;
+
     emptyToastShownRef.current = comboKey;
     showToast(
       "해당 조합의 검색결과가 없습니다. 다른 작물·용도·곤충 조합을 선택해 주세요.",
       "error",
     );
-  }, [crop, insect, showComboEmptyState, showToast, usage]);
+  }, [comboKey, showComboEmptyState, showToast]);
 
   const handlePage = useCallback((p: number) => setPage(p), []);
   const handleSuggestion = useCallback((s: string) => setQuery(s), []);
