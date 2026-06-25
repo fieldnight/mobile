@@ -12,6 +12,20 @@ module.exports = () => {
     ...expo,
     android: {
       ...expo.android,
+  const googleServicesPath = path.join(__dirname, "google-services.json");
+  const hasGoogleServicesFile = fs.existsSync(googleServicesPath);
+  const requireGoogleServicesFile =
+    process.env.REQUIRE_GOOGLE_SERVICES_FILE === "true";
+
+  if (requireGoogleServicesFile && !hasGoogleServicesFile) {
+    throw new Error(
+      "google-services.json is required for Android FCM builds.",
+    );
+  }
+
+  return {
+    ...expo,
+    android: {
       ...(hasGoogleServicesFile
         ? { googleServicesFile: "./google-services.json" }
         : {}),
