@@ -68,7 +68,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   {
     id: "bloom-30-60",
     title: "개화 30~60%",
-    description: "오전부터 오후 2시까지 운영해요",
+    description: "하루 열고 다음날 닫는 격일 운영이에요",
     detail:
       "개화가 30~60%라면 매일 오전부터 오후 2시까지 열거나, 하루 열고 다음날 닫는 퐁당퐁당 운영을 많이 해요.",
     icon: "repeat",
