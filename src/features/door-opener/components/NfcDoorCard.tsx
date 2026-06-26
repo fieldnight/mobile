@@ -73,7 +73,7 @@ export function NfcDoorCard({
             )}
           </View>
 
-          <View>
+          <View style={{ gap: 3 }}>
             <PretendardFont
               weight="bold"
               numberOfLines={1}
@@ -83,12 +83,10 @@ export function NfcDoorCard({
             </PretendardFont>
             <PretendardFont
               weight="medium"
-              numberOfLines={2}
               style={{
-                fontSize: 12.5,
-                lineHeight: 17,
+                fontSize: 12,
+                lineHeight: 16,
                 color: "rgba(255,255,255,0.8)",
-                marginTop: 3,
               }}
             >
               {card.description}
@@ -139,7 +137,7 @@ function CardShell({
     <View
       className={dashed ? "items-center justify-center" : "justify-between"}
       style={{
-        height: size * 0.6,
+        minHeight: size * 0.58,
         borderRadius: 14,
         padding: 14,
         backgroundColor: "rgba(255,255,255,0.16)",

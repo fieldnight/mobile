@@ -48,6 +48,9 @@ async function fetchTradePage(
   pageNo = 1,
   pageSize = PAGE_SIZE,
 ): Promise<TradePage> {
+  const t0 = Date.now();
+  console.log("[시세 API] 요청 시작", { params, pageNo, pageSize });
+
   const { data } = await axios.get(BASE_URL, {
     timeout: 15_000,
     params: {
@@ -60,7 +63,9 @@ async function fetchTradePage(
     paramsSerializer: serializeTradeParams,
   });
 
-  return parseRows(data);
+  const result = parseRows(data);
+  console.log(`[시세 API] 완료 ${Date.now() - t0}ms`, { totalCount: result.totalCount, rows: result.rows.length });
+  return result;
 }
 
 export async function apiFetch(params: Record<string, string>): Promise<TradePage> {

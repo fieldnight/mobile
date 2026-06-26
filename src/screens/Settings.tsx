@@ -42,7 +42,7 @@ function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuIt
         className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}
       >
         {label}
-      </Text>
+      </PretendardFont>
 
       {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
     </Pressable>
