@@ -52,7 +52,7 @@ export function NfcDoorCardSection({
   cardsRef.current = cards;
 
   const cell = useMemo(
-    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.4 + GRID_GAP }),
+    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.58 + GRID_GAP }),
     [cardWidth],
   );
   const cellRef = useRef(cell);
