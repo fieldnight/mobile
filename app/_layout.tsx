@@ -72,7 +72,7 @@ const HIDE_FOOTER_ROUTES = [
 // 서버에 저장된 사용자 데이터가 필요한 화면에서는 로그인 안내 모달을 띄웁니다.
 const AUTH_REQUIRED_ROUTES = [
   "bee-chat",
-  "bee-news",
+  // bee-news는 비로그인 사용자에게 RSS 뉴스를 제공하므로 여기서 제외
   "diagnose-history",
   "hive-add",
   "hive-control",
