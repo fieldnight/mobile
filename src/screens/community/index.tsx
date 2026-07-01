@@ -22,7 +22,7 @@
  * - 헤더 영역(배너~공지)은 ListHeaderComponent로 스크롤에 포함
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { memo, useState, useCallback, useMemo } from "react";
 import { View, FlatList, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRouter } from "expo-router";
@@ -46,6 +46,35 @@ import { FAB } from "@/components/community/FAB";
 import type { PostListItem, CategoryTab, SortKey } from "@/types/community";
 import AppHeader from "@/components/AppHeader";
 
+// ── 리스트 헤더 — memo로 분리해야 FlatList가 재마운트하지 않음
+// useMemo로 JSX를 만들면 참조가 바뀔 때마다 ListHeaderComponent가 unmount→mount되어
+// 내부 훅(useTrendingCategories, useActiveUsers)이 API를 중복 호출함
+const ListHeader = memo(function ListHeader({
+  category,
+  sort,
+  onCategoryChange,
+  onSortChange,
+}: {
+  category: CategoryTab;
+  sort: SortKey;
+  onCategoryChange: (c: CategoryTab) => void;
+  onSortChange: (s: SortKey) => void;
+}) {
+  return (
+    <>
+      <HeroBanner />
+      <View style={{ height: 8 }} />
+      <ActiveFarmers />
+      <CategoryTabs active={category} onChange={onCategoryChange} />
+      <FilterChips active={sort} onChange={onSortChange} />
+      <PinnedNotice />
+      <View style={{ height: 8 }} />
+      <TrendingTags />
+      <View style={{ height: 4 }} />
+    </>
+  );
+});
+
 export default function CommunityScreen() {
   const router = useRouter();
   const [category, setCategory] = useState<CategoryTab>("all");
@@ -66,11 +95,11 @@ export default function CommunityScreen() {
   } = usePostList("desc");
 
   // 모든 페이지를 하나로 펼침
-  const posts: PostListItem[] = useMemo(
-    () =>
-      data?.pages.flatMap((p) => (p as any).content as PostListItem[]) ?? [],
-    [data],
-  );
+  const posts: PostListItem[] = useMemo(() => {
+    if (!data) return [];
+    console.log("[Community] pages[0] 구조:", JSON.stringify(data.pages[0]));
+    return data.pages.flatMap((p) => (p as any).content as PostListItem[]) ?? [];
+  }, [data]);
 
   const handlePostPress = useCallback(
     (postId: number) => {
@@ -89,20 +118,16 @@ export default function CommunityScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // ── 헤더 (리스트와 함께 스크롤) ────────────────────────────────────────
-  const ListHeader = useMemo(
+  // ListHeaderComponent는 컴포넌트 참조를 받아야 재마운트를 막을 수 있음
+  // useCallback으로 감싸 category/sort가 바뀌어도 함수 참조를 안정화
+  const renderListHeader = useCallback(
     () => (
-      <>
-        <HeroBanner />
-        <View style={{ height: 8 }} />
-        <ActiveFarmers />
-        <CategoryTabs active={category} onChange={setCategory} />
-        <FilterChips active={sort} onChange={setSort} />
-        <PinnedNotice />
-        <View style={{ height: 8 }} />
-        <TrendingTags />
-        <View style={{ height: 4 }} />
-      </>
+      <ListHeader
+        category={category}
+        sort={sort}
+        onCategoryChange={setCategory}
+        onSortChange={setSort}
+      />
     ),
     [category, sort],
   );
@@ -115,29 +140,24 @@ export default function CommunityScreen() {
     >
       <AppHeader title="농부의 수다" onBack={() => navigation.goBack()} isScrolled={isScrolled} />
 
-      {/* 본문 */}
+      {/* 본문 — FlatList를 하나로 유지해야 ListHeader 재마운트로 인한 중복 API 호출을 막을 수 있음 */}
       {isError ? (
         <ErrorState onRetry={refetch} />
-      ) : isLoading ? (
-        <FlatList
-          data={[1, 2, 3, 4]}
-          keyExtractor={(i) => String(i)}
-          renderItem={() => <PostCardSkeleton />}
-          ListHeaderComponent={ListHeader}
-          showsVerticalScrollIndicator={false}
-          onScroll={onScroll}
-          scrollEventThrottle={scrollEventThrottle}
-          contentContainerStyle={{ paddingTop: HEADER_HEIGHT }}
-        />
       ) : (
         <FlatList
-          data={posts}
-          keyExtractor={(item) => String(item.postId)}
-          renderItem={({ item }) => (
-            <PostCard post={item} onPress={handlePostPress} />
-          )}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={<EmptyState onWritePress={handleWritePress} />}
+          data={isLoading ? ([1, 2, 3, 4] as any[]) : posts}
+          keyExtractor={(item) =>
+            isLoading ? String(item) : String((item as PostListItem).postId)
+          }
+          renderItem={({ item }) =>
+            isLoading ? (
+              <PostCardSkeleton />
+            ) : (
+              <PostCard post={item as PostListItem} onPress={handlePostPress} />
+            )
+          }
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={!isLoading ? <EmptyState onWritePress={handleWritePress} /> : null}
           ListFooterComponent={<LoadMoreFooter loading={isFetchingNextPage} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
@@ -154,7 +174,6 @@ export default function CommunityScreen() {
           contentContainerStyle={{ paddingTop: HEADER_HEIGHT, paddingBottom: 100 }}
           onScroll={onScroll}
           scrollEventThrottle={scrollEventThrottle}
-          // 성능 최적화
           removeClippedSubviews
           windowSize={5}
           initialNumToRender={6}
