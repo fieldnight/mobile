@@ -53,7 +53,7 @@ export function useNewsDetail(newsArticleId: number | null) {
   return useQuery({
     queryKey: QK.detail(newsArticleId ?? 0),
     queryFn: () => getNewsDetail(newsArticleId!),
-    enabled: newsArticleId !== null,
+    enabled: newsArticleId !== null && !Number.isNaN(newsArticleId),
     staleTime: 1000 * 60 * 5,
   });
 }
