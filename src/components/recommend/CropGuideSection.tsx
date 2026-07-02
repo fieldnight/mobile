@@ -1,26 +1,25 @@
-import { useState } from 'react';
-import { View, Pressable, ActivityIndicator, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useCropCategories, useCropGuide } from '@/features/crop-guide';
-import { Card } from '@/components/hive/hive-shared';
-import { PageTitle } from '@/components/PageTitle';
-import { PretendardFont } from '@/components/PretendardFont';
-import { FilterDropdown } from '@/components/FilterDropdown';
-import { C } from '@/constants/hive-colors';
-import type { CropGuide, Pollinator } from '@/types/crop-guide';
+import { useState } from "react";
+import { View, Pressable, ActivityIndicator, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useCropCategories, useCropGuide } from "@/features/crop-guide";
+import { Card } from "@/components/hive/hive-shared";
+import { PageTitle } from "@/components/PageTitle";
+import { PretendardFont } from "@/components/PretendardFont";
+import { FilterDropdown } from "@/components/FilterDropdown";
+import { C } from "@/constants/hive-colors";
+import type { CropGuide, Pollinator } from "@/types/crop-guide";
 
-function triggerHaptic(style: 'light' | 'medium') {
-  if (Platform.OS !== 'web') {
+function triggerHaptic(style: "light" | "medium") {
+  if (Platform.OS !== "web") {
     Haptics.impactAsync(
-      style === 'light'
+      style === "light"
         ? Haptics.ImpactFeedbackStyle.Light
         : Haptics.ImpactFeedbackStyle.Medium,
     );
   }
 }
 
-// ── 섹션 헤더 (얇은 액센트 바 + 제목) — 미니멀 ─────────────────────────────────
 function SectionHeader({
   title,
   accent = C.primary,
@@ -40,7 +39,6 @@ function SectionHeader({
   );
 }
 
-// ── 라벨 + 공용 FilterDropdown 묶음 ────────────────────────────────────────────
 function LabeledDropdown({
   label,
   placeholder,
@@ -67,7 +65,7 @@ function LabeledDropdown({
       <FilterDropdown
         label={label}
         placeholder={placeholder}
-        value={value ?? ''}
+        value={value ?? ""}
         options={options}
         onSelect={onSelect}
         disabled={disabled}
@@ -83,6 +81,149 @@ export function CropGuideSection({
   isAuthenticated?: boolean;
   onRequireLogin?: () => void;
 }) {
+  if (!isAuthenticated) {
+    return <GuestCropGuideSection onRequireLogin={onRequireLogin} />;
+  }
+
+  return <MemberCropGuideSection />;
+}
+
+function GuestCropGuideSection({
+  onRequireLogin,
+}: {
+  onRequireLogin?: () => void;
+}) {
+  const handleRequireLogin = () => {
+    triggerHaptic("light");
+    onRequireLogin?.();
+  };
+
+  return (
+    <>
+      <PageTitle
+        title={"작물별\n수정벌 가이드"}
+        subtitle="로그인하면 작물별 가이드를 저장하고 바로 볼 수 있어요"
+      />
+
+      <Card>
+        <View className="flex-row items-start" style={{ gap: 12 }}>
+          <View
+            className="h-10 w-10 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: C.primarySoft }}
+          >
+            <Feather name="lock" size={18} color={C.primary} />
+          </View>
+          <View className="flex-1">
+            <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+              로그인 후 작물별 가이드를 이용할 수 있어요
+            </PretendardFont>
+            <PretendardFont
+              style={{ fontSize: 13, color: C.sec, lineHeight: 20, marginTop: 4 }}
+            >
+              작물을 선택하면 적합한 수정벌, 적용 시기, 주의사항을 한 번에 확인할 수 있어요.
+            </PretendardFont>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={handleRequireLogin}
+          className="mt-4 active:opacity-90"
+        >
+          <View
+            className="rounded-2xl border p-4"
+            style={{ backgroundColor: C.bgAlt, borderColor: C.sectionBorder }}
+          >
+            <View className="flex-row items-start" style={{ gap: 12 }}>
+              <View
+                className="h-12 w-12 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: C.primarySoft }}
+              >
+                <Feather name="sun" size={20} color={C.primary} />
+              </View>
+              <View className="flex-1">
+                <View
+                  className="self-start rounded-full px-2.5 py-1"
+                  style={{ backgroundColor: C.infoBg, marginBottom: 6 }}
+                >
+                  <PretendardFont weight="semibold" style={{ fontSize: 10.5, color: C.primary }}>
+                    예시
+                  </PretendardFont>
+                </View>
+                <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                  딸기
+                </PretendardFont>
+                <PretendardFont
+                  style={{ fontSize: 13, color: C.textAlt, lineHeight: 19, marginTop: 3 }}
+                >
+                  적용 시기: 개화기 전후
+                </PretendardFont>
+              </View>
+            </View>
+
+            <View className="mt-4 flex-row flex-wrap" style={{ gap: 8 }}>
+              <PreviewChip label="수정벌" value="개화기 중심" />
+              <PreviewChip label="주의사항" value="농약 살포 전" />
+              <PreviewChip label="효과" value="착과율 보완" />
+            </View>
+          </View>
+        </Pressable>
+      </Card>
+
+      <Card>
+        <View className="flex-row items-start" style={{ gap: 12 }}>
+          <View
+            className="h-9 w-9 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: C.infoBg, marginTop: 1 }}
+          >
+            <Feather name="info" size={15} color={C.primary} />
+          </View>
+          <View className="flex-1">
+            <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text, marginBottom: 6 }}>
+              로그인하면 이런 내용을 볼 수 있어요
+            </PretendardFont>
+            <PretendardFont style={{ fontSize: 13.5, color: C.textAlt, lineHeight: 22 }}>
+              {"· 작물에 적합한 수정벌 종류\n· 방사 시기 및 권장 수량\n· 단계별 설치 방법\n· 온도·군세·농약 관련 주의사항"}
+            </PretendardFont>
+          </View>
+        </View>
+      </Card>
+
+      <Pressable
+        onPress={handleRequireLogin}
+        className="flex-row items-center justify-center active:opacity-90"
+        style={{
+          gap: 8,
+          height: 52,
+          borderRadius: 14,
+          backgroundColor: C.primary,
+        }}
+      >
+        <Feather name="log-in" size={16} color={C.white} />
+        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+          로그인하고 가이드 보기
+        </PretendardFont>
+      </Pressable>
+    </>
+  );
+}
+
+function PreviewChip({ label, value }: { label: string; value: string }) {
+  return (
+    <View
+      className="rounded-xl border px-3 py-2"
+      style={{ backgroundColor: C.white, borderColor: C.border }}
+    >
+      <PretendardFont style={{ fontSize: 10.5, color: C.sec, marginBottom: 2 }}>
+        {label}
+      </PretendardFont>
+      <PretendardFont weight="semibold" style={{ fontSize: 12.5, color: C.text }}>
+        {value}
+      </PretendardFont>
+    </View>
+  );
+}
+
+function MemberCropGuideSection() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -105,28 +246,24 @@ export function CropGuideSection({
     setSelectedCategory(cat);
     setSelectedCrop(null);
     setIsSubmitted(false);
-    triggerHaptic('light');
+    triggerHaptic("light");
   };
 
   const handleCropChange = (crop: string) => {
     setSelectedCrop(crop);
     setIsSubmitted(false);
-    triggerHaptic('light');
+    triggerHaptic("light");
   };
 
   const handleSubmit = () => {
     if (!selectedCategory || !selectedCrop) return;
-    if (!isAuthenticated) {
-      onRequireLogin?.();
-      return;
-    }
-    triggerHaptic('medium');
+    triggerHaptic("medium");
     setIsSubmitted(true);
   };
 
   const handleReset = () => {
     setIsSubmitted(false);
-    triggerHaptic('light');
+    triggerHaptic("light");
   };
 
   const categoryOptions = categories?.map((c) => c.category) ?? [];
@@ -135,123 +272,141 @@ export function CropGuideSection({
   const canSubmit = !!selectedCategory && !!selectedCrop;
   const isNotFound = (guideRawError as any)?.response?.status === 404;
 
-  // ── 카테고리 로딩 ─────────────────────────────────────────────────────────
   if (categoriesLoading) {
     return (
-      <Card className="items-center" style={{ paddingVertical: 48 }}>
-        <ActivityIndicator size="large" color={C.primary} />
-        <PretendardFont style={{ color: C.sec, marginTop: 14, fontSize: 14 }}>
-          작물 목록을 불러오는 중...
-        </PretendardFont>
-      </Card>
+      <>
+        <PageTitle
+          title={"작물별\n수정벌 가이드"}
+          subtitle="로그인한 뒤 작물을 선택하면 가이드를 바로 볼 수 있어요"
+        />
+        <Card className="items-center" style={{ paddingVertical: 48 }}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <PretendardFont style={{ color: C.sec, marginTop: 14, fontSize: 14 }}>
+            작물 목록을 불러오는 중...
+          </PretendardFont>
+        </Card>
+      </>
     );
   }
 
-  // ── 카테고리 로딩 실패 ────────────────────────────────────────────────────
   if (categoriesError) {
     return (
-      <Card className="items-center" style={{ paddingVertical: 44 }}>
-        <View
-          style={{
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            backgroundColor: '#FEF2F2',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 14,
-          }}
-        >
-          <Feather name="wifi-off" size={26} color={C.error} />
-        </View>
-        <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 6 }}>
-          목록을 불러오지 못했어요
-        </PretendardFont>
-        <PretendardFont
-          style={{ fontSize: 13, color: C.sec, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}
-        >
-          {'네트워크 상태를 확인하고\n다시 시도해 주세요'}
-        </PretendardFont>
-        <Pressable
-          onPress={() => refetchCategories()}
-          className="active:opacity-90"
-          style={{ backgroundColor: C.primary, paddingHorizontal: 24, height: 48, borderRadius: 14, justifyContent: 'center' }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
-            다시 시도하기
+      <>
+        <PageTitle
+          title={"작물별\n수정벌 가이드"}
+          subtitle="로그인한 뒤 작물을 선택하면 가이드를 바로 볼 수 있어요"
+        />
+        <Card className="items-center" style={{ paddingVertical: 44 }}>
+          <View
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: "#FEF2F2",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 14,
+            }}
+          >
+            <Feather name="wifi-off" size={26} color={C.error} />
+          </View>
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 6 }}>
+            목록을 불러오지 못했어요
           </PretendardFont>
-        </Pressable>
-      </Card>
+          <PretendardFont
+            style={{ fontSize: 13, color: C.sec, textAlign: "center", lineHeight: 20, marginBottom: 20 }}
+          >
+            {"네트워크 상태를 확인하고\n다시 시도해 주세요"}
+          </PretendardFont>
+          <Pressable
+            onPress={() => refetchCategories()}
+            className="active:opacity-90"
+            style={{ backgroundColor: C.primary, paddingHorizontal: 24, height: 48, borderRadius: 14, justifyContent: "center" }}
+          >
+            <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
+              다시 시도하기
+            </PretendardFont>
+          </Pressable>
+        </Card>
+      </>
     );
   }
 
-  // ── 가이드 로딩 ───────────────────────────────────────────────────────────
   if (isSubmitted && guideLoading) {
     return (
-      <Card className="items-center" style={{ paddingVertical: 52 }}>
-        <ActivityIndicator size="large" color={C.primary} />
-        <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginTop: 16 }}>
-          정보를 불러오는 중이에요
-        </PretendardFont>
-        <PretendardFont style={{ fontSize: 13, color: C.ter, marginTop: 4 }}>
-          잠깐만 기다려 주세요
-        </PretendardFont>
-      </Card>
+      <>
+        <PageTitle
+          title={"작물별\n수정벌 가이드"}
+          subtitle="로그인한 뒤 작물을 선택하면 가이드를 바로 볼 수 있어요"
+        />
+        <Card className="items-center" style={{ paddingVertical: 52 }}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginTop: 16 }}>
+            정보를 불러오는 중이에요
+          </PretendardFont>
+          <PretendardFont style={{ fontSize: 13, color: C.ter, marginTop: 4 }}>
+            잠깐만 기다려 주세요
+          </PretendardFont>
+        </Card>
+      </>
     );
   }
 
-  // ── 가이드 오류 ───────────────────────────────────────────────────────────
   if (isSubmitted && guideError) {
     return (
-      <Card className="items-center" style={{ paddingVertical: 44 }}>
-        <View
-          style={{
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            backgroundColor: isNotFound ? '#FFFBEB' : '#FEF2F2',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 14,
-          }}
-        >
-          <Feather
-            name={isNotFound ? 'search' : 'alert-circle'}
-            size={26}
-            color={isNotFound ? C.warning : C.error}
-          />
-        </View>
-        <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 6 }}>
-          {isNotFound ? '해당 작물 가이드를 찾지 못했어요' : '잠시 오류가 생겼어요'}
-        </PretendardFont>
-        <PretendardFont
-          style={{ fontSize: 13, color: C.sec, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}
-        >
-          {isNotFound ? '다른 작물을 선택해 보세요' : '네트워크 상태를 확인하고\n다시 시도해 주세요'}
-        </PretendardFont>
-        <Pressable
-          onPress={handleReset}
-          className="active:opacity-90"
-          style={{ backgroundColor: C.primary, paddingHorizontal: 24, height: 48, borderRadius: 14, justifyContent: 'center' }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
-            다른 작물 보기
+      <>
+        <PageTitle
+          title={"작물별\n수정벌 가이드"}
+          subtitle="로그인한 뒤 작물을 선택하면 가이드를 바로 볼 수 있어요"
+        />
+        <Card className="items-center" style={{ paddingVertical: 44 }}>
+          <View
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: isNotFound ? "#FFFBEB" : "#FEF2F2",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 14,
+            }}
+          >
+            <Feather
+              name={isNotFound ? "search" : "alert-circle"}
+              size={26}
+              color={isNotFound ? C.warning : C.error}
+            />
+          </View>
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 6 }}>
+            {isNotFound ? "해당 작물 가이드를 찾지 못했어요" : "잠시 오류가 생겼어요"}
           </PretendardFont>
-        </Pressable>
-      </Card>
+          <PretendardFont
+            style={{ fontSize: 13, color: C.sec, textAlign: "center", lineHeight: 20, marginBottom: 20 }}
+          >
+            {isNotFound ? "다른 작물을 선택해 보세요" : "네트워크 상태를 확인하고\n다시 시도해 주세요"}
+          </PretendardFont>
+          <Pressable
+            onPress={handleReset}
+            className="active:opacity-90"
+            style={{ backgroundColor: C.primary, paddingHorizontal: 24, height: 48, borderRadius: 14, justifyContent: "center" }}
+          >
+            <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
+              다른 작물 보기
+            </PretendardFont>
+          </Pressable>
+        </Card>
+      </>
     );
   }
 
-  // ── 가이드 결과 ───────────────────────────────────────────────────────────
   if (isSubmitted && guide) {
     return <GuideResult guide={guide} onReset={handleReset} />;
   }
 
-  // ── 선택 UI (기본) ────────────────────────────────────────────────────────
   return (
     <>
       <PageTitle
-        title={'작물별\n수정벌 가이드'}
+        title={"작물별\n수정벌 가이드"}
         subtitle="작물을 선택하면 딱 맞는 수정벌 정보를 알려드려요"
       />
 
@@ -268,14 +423,13 @@ export function CropGuideSection({
 
         <LabeledDropdown
           label="작물명"
-          placeholder={selectedCategory ? '작물을 선택해주세요' : '먼저 대분류를 선택해주세요'}
+          placeholder={selectedCategory ? "작물을 선택해주세요" : "먼저 대분류를 선택해주세요"}
           value={selectedCrop}
           options={cropOptions}
           onSelect={handleCropChange}
           disabled={!selectedCategory}
         />
 
-        {/* 가이드 보기 버튼 */}
         <Pressable
           onPress={handleSubmit}
           disabled={!canSubmit}
@@ -295,7 +449,6 @@ export function CropGuideSection({
         </Pressable>
       </Card>
 
-      {/* 안내 카드 */}
       <Card>
         <View className="flex-row items-start" style={{ gap: 12 }}>
           <View
@@ -304,8 +457,8 @@ export function CropGuideSection({
               height: 34,
               borderRadius: 12,
               backgroundColor: C.primarySoft,
-              alignItems: 'center',
-              justifyContent: 'center',
+              alignItems: "center",
+              justifyContent: "center",
               marginTop: 1,
             }}
           >
@@ -316,7 +469,7 @@ export function CropGuideSection({
               이런 정보를 확인할 수 있어요
             </PretendardFont>
             <PretendardFont style={{ fontSize: 13.5, color: C.textAlt, lineHeight: 23 }}>
-              {'· 작물에 적합한 수분매개곤충 종류\n· 방사 시기 및 권장 수량\n· 단계별 설치 방법\n· 온도·군세·농약 관련 주의사항\n· 수분 효과 및 출처 정보'}
+              {"· 작물에 적합한 수분매개곤충 종류\n· 방사 시기 및 권장 수량\n· 단계별 설치 방법\n· 온도·군세·농약 관련 주의사항\n· 수분 효과 및 출처 정보"}
             </PretendardFont>
           </View>
         </View>
@@ -325,8 +478,6 @@ export function CropGuideSection({
   );
 }
 
-// ── 가이드 결과 ───────────────────────────────────────────────────────────────
-
 function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void }) {
   const applicableVarieties = guide.applicableVarieties ?? [];
   const pollinators = guide.pollinators ?? [];
@@ -334,27 +485,26 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
   const temperature = guide.precautions?.temperature ?? [];
   const pesticideSafety = guide.precautions?.pesticideSafety ?? [];
   const highlights = guide.effectiveness?.highlights ?? [];
-  const source = guide.effectiveness?.source ?? '';
+  const source = guide.effectiveness?.source ?? "";
 
   return (
     <>
       <PageTitle title="작물 가이드" subtitle={`${guide.name} 수정벌 정보를 확인하세요`} />
 
-      {/* 헤더 */}
       <Card>
         <View className="flex-row items-center" style={{ marginBottom: 16 }}>
           <View style={{ flex: 1 }}>
             <View
               style={{
-                alignSelf: 'flex-start',
-                backgroundColor: '#D1FAE5',
+                alignSelf: "flex-start",
+                backgroundColor: "#D1FAE5",
                 paddingHorizontal: 9,
                 paddingVertical: 3,
                 borderRadius: 20,
                 marginBottom: 5,
               }}
             >
-              <PretendardFont weight="semibold" style={{ fontSize: 11, color: '#065F46' }}>
+              <PretendardFont weight="semibold" style={{ fontSize: 11, color: "#065F46" }}>
                 {guide.category}
               </PretendardFont>
             </View>
@@ -380,7 +530,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
         </View>
       </Card>
 
-      {/* 적용 가능 품종 */}
       {applicableVarieties.length > 0 && (
         <Card>
           <SectionHeader title="적용 가능 품종" accent={C.success} />
@@ -388,9 +537,14 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
             {applicableVarieties.map((variety, i) => (
               <View
                 key={i}
-                style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20 }}
+                style={{
+                  backgroundColor: "#ECFDF5",
+                  paddingHorizontal: 13,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                }}
               >
-                <PretendardFont weight="semibold" style={{ fontSize: 13, color: '#065F46' }}>
+                <PretendardFont weight="semibold" style={{ fontSize: 13, color: "#065F46" }}>
                   {variety}
                 </PretendardFont>
               </View>
@@ -399,7 +553,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
         </Card>
       )}
 
-      {/* 수분매개곤충 */}
       {pollinators.length > 0 && (
         <View>
           <View className="flex-row items-center" style={{ gap: 8, paddingHorizontal: 4, marginBottom: 12 }}>
@@ -408,9 +561,9 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
                 width: 32,
                 height: 32,
                 borderRadius: 10,
-                backgroundColor: '#F5F3FF',
-                alignItems: 'center',
-                justifyContent: 'center',
+                backgroundColor: "#F5F3FF",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <Feather name="zap" size={15} color="#7C3AED" />
@@ -425,7 +578,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
         </View>
       )}
 
-      {/* 주의사항 */}
       {(colonyManagement.length > 0 || temperature.length > 0 || pesticideSafety.length > 0) && (
         <Card>
           <SectionHeader title="주의사항" accent={C.warning} />
@@ -463,7 +615,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
         </Card>
       )}
 
-      {/* 효과 정보 */}
       {(highlights.length > 0 || source) && (
         <Card>
           <SectionHeader title="효과 정보" accent={C.chartHumidity} />
@@ -475,8 +626,8 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
                   height: 22,
                   borderRadius: 11,
                   backgroundColor: C.chartHumidity,
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  alignItems: "center",
+                  justifyContent: "center",
                   marginTop: 1,
                 }}
               >
@@ -499,7 +650,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
         </Card>
       )}
 
-      {/* 다른 작물 보기 */}
       <Pressable
         onPress={onReset}
         className="flex-row items-center justify-center active:opacity-90"
@@ -521,8 +671,6 @@ function GuideResult({ guide, onReset }: { guide: CropGuide; onReset: () => void
   );
 }
 
-// ── 수분매개곤충 카드 ─────────────────────────────────────────────────────────
-
 function PollinatorCard({ pollinator, last }: { pollinator: Pollinator; last?: boolean }) {
   const installationSteps = pollinator.installationSteps ?? [];
   return (
@@ -537,9 +685,9 @@ function PollinatorCard({ pollinator, last }: { pollinator: Pollinator; last?: b
               width: 38,
               height: 38,
               borderRadius: 12,
-              backgroundColor: '#F5F3FF',
-              alignItems: 'center',
-              justifyContent: 'center',
+              backgroundColor: "#F5F3FF",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Feather name="zap" size={17} color="#7C3AED" />
@@ -548,8 +696,8 @@ function PollinatorCard({ pollinator, last }: { pollinator: Pollinator; last?: b
             {pollinator.insectType}
           </PretendardFont>
         </View>
-        <View style={{ backgroundColor: '#F5F3FF', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20 }}>
-          <PretendardFont weight="semibold" style={{ fontSize: 12, color: '#6D28D9' }}>
+        <View style={{ backgroundColor: "#F5F3FF", paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20 }}>
+          <PretendardFont weight="semibold" style={{ fontSize: 12, color: "#6D28D9" }}>
             {pollinator.durationDays}일 활동
           </PretendardFont>
         </View>
@@ -572,8 +720,8 @@ function PollinatorCard({ pollinator, last }: { pollinator: Pollinator; last?: b
                       height: 20,
                       borderRadius: 10,
                       backgroundColor: C.infoBg,
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      alignItems: "center",
+                      justifyContent: "center",
                       marginTop: 1,
                     }}
                   >
@@ -607,8 +755,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── 주의사항 그룹 ─────────────────────────────────────────────────────────────
-
 function PrecautionGroup({
   icon,
   iconColor,
@@ -618,7 +764,7 @@ function PrecautionGroup({
   items,
   last,
 }: {
-  icon: React.ComponentProps<typeof Feather>['name'];
+  icon: React.ComponentProps<typeof Feather>["name"];
   iconColor: string;
   bgColor: string;
   textColor: string;

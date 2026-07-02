@@ -2,27 +2,79 @@ const { AndroidConfig, withAndroidManifest, withDangerousMod } = require("@expo/
 const fs = require("fs");
 const path = require("path");
 
-const AID = "F012345678";
+const AID = "F057424545";
 const SERVICE_NAME = ".WeBeeHceService";
 
 const serviceSource = (packageName) => `package ${packageName}
 
+import android.content.Context
+import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
+import android.util.Log
 
 class WeBeeHceService : HostApduService() {
   override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
-    if (commandApdu == null) return UNKNOWN_COMMAND_RESPONSE
-    return if (isSelectAidCommand(commandApdu)) {
-      SUCCESS_RESPONSE
-    } else {
-      UNKNOWN_COMMAND_RESPONSE
+    if (commandApdu == null) {
+      Log.w(TAG, "APDU command is null")
+      return UNKNOWN_COMMAND_RESPONSE
+    }
+
+    return when {
+      isSelectAidCommand(commandApdu) -> {
+        val payload = getActivePayload()
+        Log.d(TAG, "SELECT AID matched, responding payload=$payload")
+        payload.toByteArray(Charsets.UTF_8) + SUCCESS_RESPONSE
+      }
+      isResultReportCommand(commandApdu) -> {
+        val result = parseResultReport(commandApdu)
+        Log.d(TAG, "ESP32 result received=$result")
+        broadcastResult(result)
+        SUCCESS_RESPONSE
+      }
+      else -> {
+        Log.w(TAG, "Unknown APDU command=" + toHexString(commandApdu))
+        UNKNOWN_COMMAND_RESPONSE
+      }
     }
   }
 
   override fun onDeactivated(reason: Int) = Unit
 
+  private fun getActivePayload(): String {
+    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val title = prefs.getString(KEY_TITLE, "WeBee") ?: "WeBee"
+    val mode = prefs.getString(KEY_MODE, "window") ?: "window"
+    val start = prefs.getString(KEY_START, "") ?: ""
+    val end = prefs.getString(KEY_END, "") ?: ""
+    val repeat = prefs.getBoolean(KEY_REPEAT, false)
+    val repeatFlag = if (repeat) "1" else "0"
+    return "WBEE|" + sanitize(title) + "|" + mode + "|" + start + "|" + end + "|" + repeatFlag
+  }
+
+  private fun sanitize(value: String): String = value.replace("|", " ").trim()
+
+  private fun broadcastResult(result: String) {
+    sendBroadcast(
+      Intent(ACTION_HCE_RESULT)
+        .setPackage(packageName)
+        .putExtra(EXTRA_RESULT, result)
+    )
+  }
+
   companion object {
+    private const val TAG = "WeBeeHceService"
+    private const val PREFS_NAME = "webee_hce"
+    private const val KEY_TITLE = "title"
+    private const val KEY_MODE = "mode"
+    private const val KEY_START = "start"
+    private const val KEY_END = "end"
+    private const val KEY_REPEAT = "repeat"
+    const val ACTION_HCE_RESULT = "${packageName}.WEBEE_HCE_RESULT"
+    const val EXTRA_RESULT = "result"
+    private const val RESULT_CLA = 0x80.toByte()
+    private const val RESULT_INS = 0x52.toByte()
+
     private val SELECT_AID_COMMAND = byteArrayOf(
       0x00.toByte(),
       0xA4.toByte(),
@@ -30,10 +82,10 @@ class WeBeeHceService : HostApduService() {
       0x00.toByte(),
       0x05.toByte(),
       0xF0.toByte(),
-      0x12.toByte(),
-      0x34.toByte(),
-      0x56.toByte(),
-      0x78.toByte()
+      0x57.toByte(),
+      0x42.toByte(),
+      0x45.toByte(),
+      0x45.toByte()
     )
     private val SUCCESS_RESPONSE = byteArrayOf(0x90.toByte(), 0x00.toByte())
     private val UNKNOWN_COMMAND_RESPONSE = byteArrayOf(0x6D.toByte(), 0x00.toByte())
@@ -44,7 +96,187 @@ class WeBeeHceService : HostApduService() {
         command[index] == SELECT_AID_COMMAND[index]
       }
     }
+
+    private fun isResultReportCommand(command: ByteArray): Boolean =
+      command.size >= 5 && command[0] == RESULT_CLA && command[1] == RESULT_INS
+
+    private fun parseResultReport(command: ByteArray): String {
+      val lc = command[4].toInt() and 0xFF
+      val payloadStart = 5
+      val available = command.size - payloadStart
+      val payloadLength = minOf(lc, available)
+
+      if (payloadLength <= 0) return ""
+
+      return command
+        .copyOfRange(payloadStart, payloadStart + payloadLength)
+        .toString(Charsets.UTF_8)
+        .trim()
+    }
+
+    private fun toHexString(command: ByteArray): String =
+      command.joinToString(" ") { "%02X".format(it) }
   }
+}
+`;
+
+const moduleSource = (packageName) => `package ${packageName}
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.util.Log
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
+
+class WeBeeHceModule(
+  private val reactContext: ReactApplicationContext
+) : ReactContextBaseJavaModule(reactContext) {
+  private var listenerCount = 0
+  private var receiverRegistered = false
+  private val resultReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      val result = intent?.getStringExtra(WeBeeHceService.EXTRA_RESULT).orEmpty()
+      Log.d(TAG, "Broadcast HCE result received=$result")
+      emitResult(result)
+    }
+  }
+
+  override fun getName(): String = "WeBeeHceModule"
+
+  @ReactMethod
+  fun setActiveCard(card: ReadableMap, promise: Promise) {
+    try {
+      val title = card.getStringOrDefault("title", "WeBee")
+      val mode = card.getStringOrDefault("mode", "window")
+      val start = card.getStringOrDefault("start", "")
+      val end = card.getStringOrDefault("end", "")
+      val repeat = card.getBooleanOrDefault("repeat", false)
+
+      reactContext
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putString(KEY_TITLE, sanitize(title))
+        .putString(KEY_MODE, normalizeMode(mode))
+        .putString(KEY_START, sanitize(start))
+        .putString(KEY_END, sanitize(end))
+        .putBoolean(KEY_REPEAT, repeat)
+        .apply()
+
+      Log.d(TAG, "Active HCE card updated title=$title mode=$mode start=$start end=$end repeat=$repeat")
+      promise.resolve(true)
+    } catch (error: Exception) {
+      Log.e(TAG, "Failed to update active HCE card", error)
+      promise.reject("WEBEE_HCE_SET_ACTIVE_CARD_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun addListener(eventName: String) {
+    listenerCount += 1
+    if (eventName == RESULT_EVENT_NAME) {
+      registerResultReceiver()
+    }
+  }
+
+  @ReactMethod
+  fun removeListeners(count: Int) {
+    listenerCount = (listenerCount - count).coerceAtLeast(0)
+    if (listenerCount == 0) {
+      unregisterResultReceiver()
+    }
+  }
+
+  override fun invalidate() {
+    unregisterResultReceiver()
+    super.invalidate()
+  }
+
+  private fun sanitize(value: String): String = value.replace("|", " ").trim()
+
+  private fun normalizeMode(mode: String): String =
+    when (mode) {
+      "open_now", "close_now", "alternate_days", "window", "lock_days" -> mode
+      else -> "window"
+    }
+
+  private fun registerResultReceiver() {
+    if (receiverRegistered) return
+
+    val filter = IntentFilter(WeBeeHceService.ACTION_HCE_RESULT)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      reactContext.registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    } else {
+      reactContext.registerReceiver(resultReceiver, filter)
+    }
+    receiverRegistered = true
+    Log.d(TAG, "HCE result receiver registered")
+  }
+
+  private fun unregisterResultReceiver() {
+    if (!receiverRegistered) return
+
+    try {
+      reactContext.unregisterReceiver(resultReceiver)
+      Log.d(TAG, "HCE result receiver unregistered")
+    } catch (error: IllegalArgumentException) {
+      Log.w(TAG, "HCE result receiver was already unregistered", error)
+    } finally {
+      receiverRegistered = false
+    }
+  }
+
+  private fun emitResult(result: String) {
+    val params = Arguments.createMap().apply {
+      putString("result", result)
+    }
+
+    reactContext
+      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit(RESULT_EVENT_NAME, params)
+  }
+
+  private fun ReadableMap.getStringOrDefault(key: String, fallback: String): String =
+    if (hasKey(key) && !isNull(key)) getString(key) ?: fallback else fallback
+
+  private fun ReadableMap.getBooleanOrDefault(key: String, fallback: Boolean): Boolean =
+    if (hasKey(key) && !isNull(key)) getBoolean(key) else fallback
+
+  companion object {
+    private const val TAG = "WeBeeHceModule"
+    private const val PREFS_NAME = "webee_hce"
+    private const val RESULT_EVENT_NAME = "WeBeeHceResult"
+    private const val KEY_TITLE = "title"
+    private const val KEY_MODE = "mode"
+    private const val KEY_START = "start"
+    private const val KEY_END = "end"
+    private const val KEY_REPEAT = "repeat"
+  }
+}
+`;
+
+const packageSource = (packageName) => `package ${packageName}
+
+import com.facebook.react.ReactPackage
+import com.facebook.react.bridge.NativeModule
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.uimanager.ViewManager
+
+class WeBeeHcePackage : ReactPackage {
+  override fun createNativeModules(
+    reactContext: ReactApplicationContext
+  ): List<NativeModule> = listOf(WeBeeHceModule(reactContext))
+
+  override fun createViewManagers(
+    reactContext: ReactApplicationContext
+  ): List<ViewManager<*, *>> = emptyList()
 }
 `;
 
@@ -132,11 +364,32 @@ module.exports = function withWeBeeHce(config) {
       const packagePath = packageName.split(".").join(path.sep);
       const mainPath = path.join(config.modRequest.platformProjectRoot, "app", "src", "main");
       const servicePath = path.join(mainPath, "java", packagePath, "WeBeeHceService.kt");
+      const modulePath = path.join(mainPath, "java", packagePath, "WeBeeHceModule.kt");
+      const packageFilePath = path.join(mainPath, "java", packagePath, "WeBeeHcePackage.kt");
+      const mainApplicationPath = path.join(mainPath, "java", packagePath, "MainApplication.kt");
       const apduPath = path.join(mainPath, "res", "xml", "apduservice.xml");
 
       fs.mkdirSync(path.dirname(servicePath), { recursive: true });
       fs.mkdirSync(path.dirname(apduPath), { recursive: true });
       fs.writeFileSync(servicePath, serviceSource(packageName));
+      fs.writeFileSync(modulePath, moduleSource(packageName));
+      fs.writeFileSync(packageFilePath, packageSource(packageName));
+      if (fs.existsSync(mainApplicationPath)) {
+        const mainApplication = fs.readFileSync(mainApplicationPath, "utf8");
+        if (!mainApplication.includes("add(WeBeeHcePackage())")) {
+          const patched = mainApplication.replace(
+            "// add(MyReactNativePackage())",
+            "add(WeBeeHcePackage())"
+          );
+          if (patched === mainApplication) {
+            console.warn(
+              "[withWeBeeHce] MainApplication.kt에 '// add(MyReactNativePackage())' 주석을 찾지 못했습니다. WeBeeHcePackage()를 수동으로 등록해 주세요."
+            );
+          } else {
+            fs.writeFileSync(mainApplicationPath, patched);
+          }
+        }
+      }
       fs.writeFileSync(apduPath, apduServiceXml);
 
       return config;

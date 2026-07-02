@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   ActivityIndicator,
@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useCodeOptions, usePesticideList } from "@/features/pesticide/hooks";
-import { usePesticideStore } from "@/features/pesticide";
+import { usePesticideStore, InterestPesticideList } from "@/features/pesticide";
+import { PesticideDetailSheet } from "@/features/pesticide/components/PesticideDetailSheet";
 import type { ResultItem } from "@/features/pesticide";
 import Pagination from "@/components/pagination";
 import { COLS } from "@/constants";
@@ -24,6 +25,7 @@ import { FilterDropdown } from "@/components/FilterDropdown";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing } from "@/constants";
+import { useAppToast } from "@/components/ToastContext";
 
 // ── 검색창 ─────────────────────────────────────────────────────────────────────
 function SearchInput({
@@ -108,9 +110,10 @@ function SearchInput({
 }
 
 // ── 테이블 행 ─────────────────────────────────────────────────────────────────
-const ResultRow = memo(({ item, index }: { item: ResultItem; index: number }) => (
-  <View
-    className="flex-row border-b"
+const ResultRow = memo(({ item, index, onPress }: { item: ResultItem; index: number; onPress: (item: ResultItem) => void }) => (
+  <Pressable
+    onPress={() => onPress(item)}
+    className="flex-row border-b active:opacity-70"
     style={{
       borderColor: C.border,
       backgroundColor: index % 2 === 0 ? C.white : C.bg,
@@ -132,31 +135,31 @@ const ResultRow = memo(({ item, index }: { item: ResultItem; index: number }) =>
         {item[key as keyof ResultItem]}
       </PretendardFont>
     ))}
-  </View>
+  </Pressable>
 ));
 
 // ── 테이블 내용 ───────────────────────────────────────────────────────────────
-function TableBody({ isFetching, items }: { isFetching: boolean; items: ResultItem[] }) {
+function TableBody({
+  isFetching,
+  items,
+  emptyState,
+  onRowPress,
+}: {
+  isFetching: boolean;
+  items: ResultItem[];
+  emptyState?: React.ReactNode;
+  onRowPress: (item: ResultItem) => void;
+}) {
   if (isFetching) {
     return <ActivityIndicator size="large" color={C.primary} style={{ marginVertical: 48 }} />;
   }
   if (items.length === 0) {
-    return (
-      <View className="items-center justify-center py-12 px-4">
-        <Feather name="search" size={36} color={C.ter} />
-        <PretendardFont
-          weight="regular"
-          style={{ fontSize: 14, color: C.ter, marginTop: 12, textAlign: "center" }}
-        >
-          해당 조합으로 된 검색결과가 없습니다.
-        </PretendardFont>
-      </View>
-    );
+    return <>{emptyState ?? null}</>;
   }
   return (
     <>
       {items.map((item, index) => (
-        <ResultRow key={item.agchmApplcNo + index} item={item} index={index} />
+        <ResultRow key={item.agchmApplcNo + index} item={item} index={index} onPress={onRowPress} />
       ))}
     </>
   );
@@ -173,16 +176,43 @@ export default function PesticideTable() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [fullscreen, setFullscreen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ResultItem | null>(null);
+  const { show: showToast } = useAppToast();
+  const emptyToastShownRef = useRef("");
 
   const { isError: codesError, refetch: refetchCodes } = useCodeOptions();
   const { items, totalPages, totalCount, suggestions, isFetching, isError: listError, refetch: refetchList } =
     usePesticideList();
+  const selectedFilterCount = [crop, usage, insect].filter(Boolean).length;
+  const hasQuery = query.trim().length > 0;
+  const showComboEmptyState =
+    !hasQuery && selectedFilterCount >= 2 && !isFetching && !listError && items.length === 0;
+  const showDefaultEmptyState =
+    !showComboEmptyState && !isFetching && !listError && items.length === 0;
+
+  const comboKey = `${crop}|${usage}|${insect}`;
+
+  useEffect(() => {
+    emptyToastShownRef.current = "";
+  }, [comboKey]);
+
+  useEffect(() => {
+    if (!showComboEmptyState) return;
+    if (emptyToastShownRef.current === comboKey) return;
+
+    emptyToastShownRef.current = comboKey;
+    showToast(
+      "해당 조합의 검색결과가 없습니다. 다른 작물·용도·곤충 조합을 선택해 주세요.",
+      "error",
+    );
+  }, [comboKey, showComboEmptyState, showToast]);
 
   const handlePage = useCallback((p: number) => setPage(p), []);
   const handleSuggestion = useCallback((s: string) => setQuery(s), []);
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchCodes(), refetchList()]);
   }, [refetchCodes, refetchList]);
+  const handleRowPress = useCallback((item: ResultItem) => setSelectedItem(item), []);
 
   const tableContent = (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -210,7 +240,24 @@ export default function PesticideTable() {
             </PretendardFont>
           ))}
         </View>
-        <TableBody isFetching={isFetching} items={items} />
+        <TableBody
+          isFetching={isFetching}
+          items={items}
+          onRowPress={handleRowPress}
+          emptyState={
+            showDefaultEmptyState ? (
+              <View className="items-center justify-center py-12 px-4">
+                <Feather name="search" size={36} color={C.ter} />
+                <PretendardFont
+                  weight="regular"
+                  style={{ fontSize: 14, color: C.ter, marginTop: 12, textAlign: "center" }}
+                >
+                  해당 조합으로 된 검색결과가 없습니다.
+                </PretendardFont>
+              </View>
+            ) : null
+          }
+        />
       </View>
     </ScrollView>
   );
@@ -242,6 +289,9 @@ export default function PesticideTable() {
           title="안심농약찾기"
           subtitle={`작물·용도·병해충으로\n등록 농약 안전 정보를 확인하세요`}
         />
+
+        {/* 관심 농약 — 저장된 항목이 있을 때만 렌더링 */}
+        <InterestPesticideList />
 
         {/* 에러 배너 */}
         {codesError && (
@@ -325,6 +375,25 @@ export default function PesticideTable() {
             </PretendardFont>
           </View>
 
+          {showComboEmptyState && (
+            <View className="px-4 pb-4">
+              <View
+                className="items-start rounded-2xl border px-4 py-3"
+                style={{ backgroundColor: "#FFF7ED", borderColor: "#FDBA74" }}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Feather name="search" size={16} color="#C2410C" />
+                  <PretendardFont weight="bold" style={{ fontSize: 14, color: "#9A3412" }}>
+                    해당 조합의 검색결과가 없습니다
+                  </PretendardFont>
+                </View>
+                <PretendardFont style={{ marginTop: 6, fontSize: 12, color: "#B45309", lineHeight: 18 }}>
+                  다른 작물명·용도·곤충 조합으로 다시 찾아보세요.
+                </PretendardFont>
+              </View>
+            </View>
+          )}
+
           {tableContent}
 
           {totalCount > 0 && (
@@ -339,6 +408,7 @@ export default function PesticideTable() {
               <View style={{ width: 40 }} />
             </View>
           )}
+
         </Card>
       </PullToRefresh>
 
@@ -364,6 +434,25 @@ export default function PesticideTable() {
             </Pressable>
           </View>
 
+          {showComboEmptyState && (
+            <View className="px-4 pt-4">
+              <View
+                className="items-start rounded-2xl border px-4 py-3"
+                style={{ backgroundColor: "#FFF7ED", borderColor: "#FDBA74" }}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Feather name="search" size={16} color="#C2410C" />
+                  <PretendardFont weight="bold" style={{ fontSize: 14, color: "#9A3412" }}>
+                    해당 조합의 검색결과가 없습니다
+                  </PretendardFont>
+                </View>
+                <PretendardFont style={{ marginTop: 6, fontSize: 12, color: "#B45309", lineHeight: 18 }}>
+                  다른 작물명·용도·곤충 조합으로 다시 찾아보세요.
+                </PretendardFont>
+              </View>
+            </View>
+          )}
+
           <ScrollView>{tableContent}</ScrollView>
 
           {totalCount > 0 && (
@@ -380,6 +469,12 @@ export default function PesticideTable() {
           )}
         </View>
       </Modal>
+
+      {/* 농약 상세 + 관심 저장 바텀시트 */}
+      <PesticideDetailSheet
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
     </View>
   );
 }

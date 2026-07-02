@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, Switch } from 'react-native';
+import { View, ScrollView, Pressable, Switch, Alert } from 'react-native';
 import Text from '@/components/Text';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PretendardFont } from '@/components/PretendardFont';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import AppHeader from '@/components/AppHeader';
@@ -36,9 +37,13 @@ function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuIt
         color={danger ? '#FF3B30' : '#8E8E93'}
         style={{ marginRight: 12 }}
       />
-      <Text className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}>
+      <PretendardFont
+        weight="regular"
+        className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}
+      >
         {label}
-      </Text>
+      </PretendardFont>
+
       {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
     </Pressable>
   );
@@ -46,14 +51,13 @@ function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuIt
 
 export default function Settings() {
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { logout, withdraw } = useAuthStore();
   const { fontOffset, increaseFontSize, decreaseFontSize } = useSettingsStore();
   const [newsNotificationEnabled, setNewsNotificationEnabled] = useState(false);
   const [communityNotificationEnabled, setCommunityNotificationEnabled] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(true);
   const [inquiryVisible, setInquiryVisible] = useState(false);
   const insets = useSafeAreaInsets();
-
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -65,8 +69,25 @@ export default function Settings() {
 
   const handleDeleteAccount = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: 계정 삭제 확인 모달
-    console.log('계정 삭제');
+    Alert.alert(
+      '계정 삭제',
+      '정말 탈퇴하시겠습니까?\n탈퇴 후 데이터는 복구할 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '탈퇴',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await withdraw();
+              router.replace('/login');
+            } catch {
+              Alert.alert('오류', '탈퇴 처리 중 문제가 발생했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -81,7 +102,9 @@ export default function Settings() {
       >
         {/* 설정 섹션 */}
         <View className="mb-4">
-          <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">설정</Text>
+          <PretendardFont weight="semibold" className="text-xs text-gray-600 mb-2 px-5">
+            설정
+          </PretendardFont>
           <View className="mx-4 bg-white rounded-2xl overflow-hidden">
             <MenuItem
               icon="bell"
@@ -102,7 +125,9 @@ export default function Settings() {
                   onPress={() => setNewsNotificationEnabled(!newsNotificationEnabled)}
                   className="flex-row items-center pl-11 pr-4 py-4 active:bg-gray-50"
                 >
-                  <Text className="flex-1 text-base text-gray-900">뉴스</Text>
+                  <PretendardFont className="flex-1 text-base text-gray-900">
+                    뉴스
+                  </PretendardFont>
                   <Switch
                     value={newsNotificationEnabled}
                     onValueChange={setNewsNotificationEnabled}
@@ -115,7 +140,9 @@ export default function Settings() {
                   onPress={() => setCommunityNotificationEnabled(!communityNotificationEnabled)}
                   className="flex-row items-center pl-11 pr-4 py-4 active:bg-gray-50"
                 >
-                  <Text className="flex-1 text-base text-gray-900">커뮤니티</Text>
+                  <PretendardFont className="flex-1 text-base text-gray-900">
+                    커뮤니티
+                  </PretendardFont>
                   <Switch
                     value={communityNotificationEnabled}
                     onValueChange={setCommunityNotificationEnabled}
@@ -128,7 +155,9 @@ export default function Settings() {
             <View className="h-px bg-gray-100 ml-11" />
             <View className="flex-row items-center px-4 py-4">
               <Feather name="type" size={20} color="#8E8E93" style={{ marginRight: 12 }} />
-              <Text className="flex-1 text-base text-gray-900">폰트 크기</Text>
+              <PretendardFont className="flex-1 text-base text-gray-900">
+                폰트 크기
+              </PretendardFont>
               <View className="flex-row items-center gap-3">
                 <Pressable
                   onPress={decreaseFontSize}
@@ -157,7 +186,9 @@ export default function Settings() {
 
         {/* 계정 섹션 */}
         <View className="mb-4">
-          <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">계정</Text>
+          <PretendardFont weight="semibold" className="text-xs text-gray-600 mb-2 px-5">
+            계정
+          </PretendardFont>
           <View className="mx-4 bg-white rounded-2xl overflow-hidden">
             <MenuItem icon="log-out" label="로그아웃" onPress={handleLogout} />
             <View className="h-px bg-gray-100 ml-11" />
@@ -167,7 +198,7 @@ export default function Settings() {
 
         {/* 버전 정보 */}
         <View className="items-center py-5 mb-8">
-          <Text className="text-sm text-gray-600">버전 1.0.0</Text>
+          <PretendardFont className="text-sm text-gray-600">버전 1.0.0</PretendardFont>
         </View>
       </ScrollView>
       <InquiryModal visible={inquiryVisible} onClose={() => setInquiryVisible(false)} />

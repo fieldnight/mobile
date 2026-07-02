@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '@/lib/api';
 import { registerTokenCallbacks } from '@/lib/tokenManager';
 import { queryClient } from '@/providers';
+import { unregisterCurrentDeviceFcmToken } from '@/features/notification/model/fcmTokenService';
 import type { User, LoginRequest, RegisterRequest, ApiResponse, SignInResponseData, OAuthSignInResponse } from '@/types';
 
 interface AuthState {
@@ -16,6 +17,7 @@ interface AuthState {
   socialLogin: (platform: 'KAKAO' | 'NAVER', code: string) => Promise<OAuthSignInResponse>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  withdraw: () => Promise<void>;
   setUser: (user: User | null) => void;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -167,13 +169,29 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
+          // 인증 헤더가 살아 있을 때 현재 기기의 FCM 등록부터 해제합니다.
+          try {
+            await unregisterCurrentDeviceFcmToken();
+          } catch (error) {
+            // FCM 해제 실패가 사용자의 로그아웃을 막아서는 안 됩니다.
+            console.error('[Auth] 로그아웃 전 FCM 토큰 삭제 실패', { error });
+          }
+
           await api.post('/api/v1/auth/sign-out');
         } catch (error) {
-          console.error('Logout error:', error);
+          console.error('[Auth] 로그아웃 API 실패', { error });
         } finally {
-          // 토큰 제거
           delete api.defaults.headers.common['Authorization'];
-          // React Query 캐시 초기화 (다른 계정 데이터 제거)
+          queryClient.clear();
+          set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+        }
+      },
+
+      withdraw: async () => {
+        try {
+          await api.delete('/api/v1/users/me');
+        } finally {
+          delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }

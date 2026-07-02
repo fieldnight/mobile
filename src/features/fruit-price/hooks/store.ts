@@ -30,8 +30,13 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
   fetchMarket: async (marketCode, date = getTodayKST()) => {
     const key = `${marketCode}_${date}`;
     const cached = get().cache[key];
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return;
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+      console.log("[시세 Store] 캐시 히트:", key);
+      return;
+    }
 
+    console.log("[시세 Store] fetchMarket 시작:", key);
+    const t0 = Date.now();
     setLoading(set, key, true);
     setError(set, key, null);
     try {
@@ -43,7 +48,9 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
 
       const { rows, totalCount } = await apiFetch(params);
       setCache(set, key, rows, totalCount);
+      console.log(`[시세 Store] fetchMarket 완료 ${Date.now() - t0}ms:`, key);
     } catch (e: any) {
+      console.error(`[시세 Store] fetchMarket 실패 ${Date.now() - t0}ms:`, key, e?.message);
       setError(set, key, e?.message ?? "오류");
     } finally {
       setLoading(set, key, false);
@@ -54,8 +61,13 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
   fetchByMiddle: async (middleName, date = getTodayKST(), marketCode = "") => {
     const key = `${middleKey(middleName)}_${date}_${marketCode}`;
     const cached = get().cache[key];
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return;
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+      console.log("[시세 Store] 캐시 히트:", key);
+      return;
+    }
 
+    console.log("[시세 Store] fetchByMiddle 시작:", key);
+    const t0 = Date.now();
     setLoading(set, key, true);
     setError(set, key, null);
     try {
@@ -67,7 +79,9 @@ export const useTradeStore = create<TradeStore>((set, get) => ({
 
       const { rows, totalCount } = await apiFetch(params);
       setCache(set, key, rows, totalCount);
+      console.log(`[시세 Store] fetchByMiddle 완료 ${Date.now() - t0}ms:`, key);
     } catch (e: any) {
+      console.error(`[시세 Store] fetchByMiddle 실패 ${Date.now() - t0}ms:`, key, e?.message);
       setError(set, key, e?.message ?? "오류");
     } finally {
       setLoading(set, key, false);

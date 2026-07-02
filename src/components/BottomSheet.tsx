@@ -89,13 +89,12 @@ export function BottomSheet({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       {/* 딤 배경 80% 불투명 */}
-      <Pressable
+      <View
         className="flex-1 justify-end"
         style={{ backgroundColor: "rgba(0,0,0,0.8)" }}
-        onPress={handleClose}
       >
+        <Pressable className="absolute inset-0" onPress={handleClose} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <Pressable onPress={() => {}}>
             <Animated.View
               style={{
                 maxHeight: SCREEN_H * snapHeight,
@@ -142,9 +141,8 @@ export function BottomSheet({
                 )}
               </BottomSheetScrollContext.Provider>
             </Animated.View>
-          </Pressable>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -168,6 +166,7 @@ interface ConfirmSheetProps {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
 }
 
@@ -179,10 +178,34 @@ export function ConfirmSheet({
   confirmLabel = "확인",
   cancelLabel = "취소",
   destructive = false,
+  confirmDisabled = false,
   onConfirm,
 }: ConfirmSheetProps) {
+  const confirmingRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) confirmingRef.current = false;
+  }, [visible]);
+
+  const handleConfirm = () => {
+    if (confirmingRef.current || confirmDisabled) return;
+    confirmingRef.current = true;
+    try {
+      onConfirm();
+      onClose();
+    } finally {
+      confirmingRef.current = false;
+    }
+  };
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title} snapHeight={0.4}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={title}
+      snapHeight={0.4}
+      contentScrollEnabled={false}
+    >
       {message && (
         <PretendardFont style={{ fontSize: 14, color: C.sec, marginBottom: 24, lineHeight: 22 }}>
           {message}
@@ -191,9 +214,13 @@ export function ConfirmSheet({
 
       <View className="gap-3">
         <Pressable
-          onPress={() => { onConfirm(); onClose(); }}
+          onPress={handleConfirm}
+          disabled={confirmDisabled}
           className="items-center rounded-2xl py-4 active:opacity-70"
-          style={{ backgroundColor: destructive ? C.error : C.primary }}
+          style={{
+            backgroundColor: destructive ? C.error : C.primary,
+            opacity: confirmDisabled ? 0.5 : 1,
+          }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
             {confirmLabel}

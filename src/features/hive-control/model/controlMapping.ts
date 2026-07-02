@@ -7,6 +7,10 @@ import type {
 
 export type QuickControlKey = "heaterOn" | "coolerOn" | "ventOn" | "circOn";
 
+function isAutoEnabled(prev: HiveControlState, id: string) {
+  return prev.controls.find((control) => control.id === id)?.enabled ?? false;
+}
+
 /**
  * 기존 화면 id와 서버 enum을 연결합니다.
  * 서버 명세에 아직 없는 쿨러/순환은 일부러 제외해 로컬 fallback으로만 처리합니다.
@@ -79,6 +83,65 @@ export function buildOptimisticManualState(
 }
 
 /**
+ * 수동 빠른 제어를 누르려 할 때 자동 제어가 이미 켜져 있으면 보여줄 경고 문구를 반환합니다.
+ * 현재 버튼이 이미 켜진 상태라면 끄기는 허용하기 위해 null을 반환합니다.
+ */
+export function getQuickControlBlockedMessage(
+  prev: HiveControlState,
+  key: QuickControlKey,
+): string | null {
+  if (prev[key]) return null;
+
+  const heatingEnabled = isAutoEnabled(prev, "heating");
+  const humidityEnabled = isAutoEnabled(prev, "humidity");
+  const ventilationEnabled = isAutoEnabled(prev, "ventilation");
+
+  if ((key === "heaterOn" || key === "coolerOn") && heatingEnabled) {
+    return "온도 유지가 켜져 있을 때는 히터와 쿨러를 조절할 수 없어요.";
+  }
+
+  if (
+    (key === "ventOn" || key === "circOn") &&
+    (humidityEnabled || ventilationEnabled)
+  ) {
+    return "습도 조절 / 환기 시스템이 켜져 있을 때는 환기와 순환을 조절할 수 없어요.";
+  }
+
+  return null;
+}
+
+/**
+ * 자동 제어를 누르려 할 때 수동 제어가 이미 켜져 있으면 보여줄 경고 문구를 반환합니다.
+ * 현재 자동 제어가 이미 켜진 상태라면 끄기는 허용하기 위해 null을 반환합니다.
+ */
+export function getAutoControlBlockedMessage(
+  prev: HiveControlState,
+  id: string,
+): string | null {
+  const enabled = isAutoEnabled(prev, id);
+  if (enabled) return null;
+
+  const heaterOn = prev.heaterOn;
+  const coolerOn = prev.coolerOn;
+  const ventOn = prev.ventOn;
+  const circOn = prev.circOn;
+
+  if (id === "heating" && (heaterOn || coolerOn)) {
+    return "히터/쿨러가 켜져 있을 때는 온도 유지를 켤 수 없어요.";
+  }
+
+  if (id === "humidity" && (ventOn || circOn)) {
+    return "환기/순환이 켜져 있을 때는 습도 조절을 켤 수 없어요.";
+  }
+
+  if (id === "ventilation" && (ventOn || circOn)) {
+    return "환기/순환이 켜져 있을 때는 환기 시스템을 켤 수 없어요.";
+  }
+
+  return null;
+}
+
+/**
  * 서버 제어 설정을 기존 화면 상태 구조로 병합합니다.
  * 백엔드에 없는 쿨러/순환 상태는 기존 로컬 값을 유지해 UI가 갑자기 사라지지 않게 합니다.
  */
@@ -86,6 +149,7 @@ export function mergeControlSettings(
   prev: HiveControlState,
   settings: HiveControlSettingsResponse,
   pendingAutoTypes: ReadonlySet<HiveControlType> = new Set(),
+  pendingManualTypes: ReadonlySet<HiveControlType> = new Set(),
 ): HiveControlState {
   const nextControls = prev.controls.map((control) => {
     const serverType = AUTO_CONTROL_TYPE_BY_ID[control.id];
@@ -98,12 +162,18 @@ export function mergeControlSettings(
 
   const heater = settings.manual.find((item) => item.type === "HEATER");
   const fan = settings.manual.find((item) => item.type === "FAN");
+  const heaterOn = pendingManualTypes.has("HEATER")
+    ? prev.heaterOn
+    : (heater?.isOn ?? prev.heaterOn);
+  const ventOn = pendingManualTypes.has("FAN")
+    ? prev.ventOn
+    : (fan?.isOn ?? prev.ventOn);
 
   return {
     ...prev,
     controls: nextControls,
-    heaterOn: heater?.isOn ?? prev.heaterOn,
-    ventOn: fan?.isOn ?? prev.ventOn,
+    heaterOn,
+    ventOn,
   };
 }
 

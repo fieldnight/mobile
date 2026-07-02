@@ -1,63 +1,82 @@
 /**
  * 벌통 센서 mock 데이터
- * - 일간 데이터는 00시부터 23시까지 정각 기준 24개 슬롯만 생성합니다.
- * - 현재 기기 시간 이후 슬롯은 hasData:false 로 두어 x축은 유지하되 점/값은 그리지 않습니다.
- * - 이 파일은 화면에서 조회할 때마다 일간 데이터를 새로 계산합니다.
+ * - telemetry API가 비어 있거나 실패한 센서가 있을 때 화면 형태를 유지하기 위한 fallback입니다.
+ * - 실제 연동 시에는 /api/v1/hives/{hiveId}/telemetry 응답의 label/value가 우선 사용됩니다.
  */
 import type { DataPoint, Period } from "@/types";
 
 type HiveId = "1" | "2" | "3";
 
+function point(
+  label: string,
+  internalTemperature: number,
+  externalTemperature: number,
+  internalHumidity: number,
+  externalHumidity: number,
+  co2: number,
+  hasData = true,
+): DataPoint {
+  return {
+    label,
+    internalTemperature,
+    externalTemperature,
+    internalHumidity,
+    externalHumidity,
+    co2,
+    hasData,
+  };
+}
+
 const WEEKLY_AND_MONTHLY: Record<HiveId, Pick<Record<Period, DataPoint[]>, "주간" | "월간">> = {
   "1": {
     주간: [
-      { label: "월", temp: 34.0, humidity: 60, methane: 0.9, co2: 430 },
-      { label: "화", temp: 34.2, humidity: 58, methane: 0.8, co2: 425 },
-      { label: "수", temp: 33.8, humidity: 62, methane: 1.0, co2: 445 },
-      { label: "목", temp: 35.1, humidity: 55, methane: 1.1, co2: 460 },
-      { label: "금", temp: 34.7, humidity: 57, methane: 1.0, co2: 450 },
-      { label: "토", temp: 34.3, humidity: 61, methane: 0.9, co2: 435 },
-      { label: "일", temp: 34.5, humidity: 62, methane: 0.9, co2: 440 },
+      point("월", 34.0, 22.0, 60, 48, 430),
+      point("화", 34.2, 22.4, 58, 47, 425),
+      point("수", 33.8, 21.8, 62, 50, 445),
+      point("목", 35.1, 23.2, 55, 46, 460),
+      point("금", 34.7, 22.9, 57, 47, 450),
+      point("토", 34.3, 22.5, 61, 49, 435),
+      point("일", 34.5, 22.7, 62, 50, 440),
     ],
     월간: [
-      { label: "1주", temp: 33.5, humidity: 62, methane: 0.9, co2: 430 },
-      { label: "2주", temp: 34.2, humidity: 58, methane: 1.0, co2: 445 },
-      { label: "3주", temp: 34.8, humidity: 56, methane: 1.1, co2: 455 },
-      { label: "4주", temp: 34.5, humidity: 60, methane: 0.9, co2: 440 },
+      point("1주", 33.5, 21.5, 62, 50, 430),
+      point("2주", 34.2, 22.3, 58, 47, 445),
+      point("3주", 34.8, 22.9, 56, 46, 455),
+      point("4주", 34.5, 22.6, 60, 49, 440),
     ],
   },
   "2": {
     주간: [
-      { label: "월", temp: 33.5, humidity: 57, methane: 0.7, co2: 410 },
-      { label: "화", temp: 33.8, humidity: 55, methane: 0.7, co2: 415 },
-      { label: "수", temp: 33.2, humidity: 59, methane: 0.8, co2: 425 },
-      { label: "목", temp: 34.5, humidity: 52, methane: 0.9, co2: 440 },
-      { label: "금", temp: 34.1, humidity: 54, methane: 0.8, co2: 430 },
-      { label: "토", temp: 33.7, humidity: 58, methane: 0.7, co2: 420 },
-      { label: "일", temp: 33.8, humidity: 58, methane: 0.7, co2: 418 },
+      point("월", 33.5, 21.6, 57, 45, 410),
+      point("화", 33.8, 21.9, 55, 44, 415),
+      point("수", 33.2, 21.2, 59, 48, 425),
+      point("목", 34.5, 22.7, 52, 43, 440),
+      point("금", 34.1, 22.4, 54, 44, 430),
+      point("토", 33.7, 22.0, 58, 47, 420),
+      point("일", 33.8, 22.1, 58, 47, 418),
     ],
     월간: [
-      { label: "1주", temp: 33.0, humidity: 59, methane: 0.7, co2: 415 },
-      { label: "2주", temp: 33.6, humidity: 55, methane: 0.8, co2: 425 },
-      { label: "3주", temp: 34.2, humidity: 53, methane: 0.9, co2: 440 },
-      { label: "4주", temp: 33.8, humidity: 57, methane: 0.7, co2: 420 },
+      point("1주", 33.0, 21.0, 59, 48, 415),
+      point("2주", 33.6, 21.7, 55, 44, 425),
+      point("3주", 34.2, 22.3, 53, 43, 440),
+      point("4주", 33.8, 21.9, 57, 46, 420),
     ],
   },
   "3": {
     주간: [
-      { label: "월", temp: 32.0, humidity: 63, methane: 0.6, co2: 400 },
-      { label: "화", temp: 31.5, humidity: 65, methane: 0.5, co2: 390 },
-      { label: "수", temp: 31.8, humidity: 64, methane: 0.6, co2: 395 },
-      { label: "목", temp: 32.2, humidity: 61, methane: 0.7, co2: 410 },
-      { label: "금", temp: 31.9, humidity: 62, methane: 0.6, co2: 400 },
-      { label: "토", temp: 31.3, humidity: 66, methane: 0.5, co2: 385 },
-      { label: "일", temp: 0, humidity: 0, methane: 0, co2: 0, hasData: false },
+      point("월", 32.0, 20.8, 63, 52, 400),
+      point("화", 31.5, 20.4, 65, 54, 390),
+      point("수", 31.8, 20.7, 64, 53, 395),
+      point("목", 32.2, 21.0, 61, 50, 410),
+      point("금", 31.9, 20.8, 62, 51, 400),
+      point("토", 31.3, 20.2, 66, 55, 385),
+      point("일", 0, 0, 0, 0, 0, false),
     ],
     월간: [
-      { label: "1주", temp: 31.5, humidity: 65, methane: 0.5, co2: 390 },
-      { label: "2주", temp: 32.0, humidity: 63, methane: 0.6, co2: 400 },
-      { label: "3주", temp: 31.8, humidity: 64, methane: 0.6, co2: 395 },
-      { label: "4주", temp: 31.0, humidity: 66, methane: 0.5, co2: 385 },
+      point("1주", 31.5, 20.3, 65, 54, 390),
+      point("2주", 32.0, 20.8, 63, 52, 400),
+      point("3주", 31.8, 20.6, 64, 53, 395),
+      point("4주", 31.0, 20.0, 66, 55, 385),
     ],
   },
 };
@@ -65,20 +84,30 @@ const WEEKLY_AND_MONTHLY: Record<HiveId, Pick<Record<Period, DataPoint[]>, "주�
 const HIVE_DAILY_CONFIG: Record<
   HiveId,
   {
-    tempBase: number;
-    tempAmp: number;
-    humidityBase: number;
-    humidityAmp: number;
+    internalTempBase: number;
+    externalTempBase: number;
+    internalHumidityBase: number;
+    externalHumidityBase: number;
     offlineFrom?: number;
   }
 > = {
-  "1": { tempBase: 34.5, tempAmp: 1.5, humidityBase: 59, humidityAmp: 6 },
-  "2": { tempBase: 33.8, tempAmp: 1.4, humidityBase: 56, humidityAmp: 5 },
+  "1": {
+    internalTempBase: 34.5,
+    externalTempBase: 22.5,
+    internalHumidityBase: 59,
+    externalHumidityBase: 48,
+  },
+  "2": {
+    internalTempBase: 33.8,
+    externalTempBase: 21.8,
+    internalHumidityBase: 56,
+    externalHumidityBase: 45,
+  },
   "3": {
-    tempBase: 31.8,
-    tempAmp: 1.2,
-    humidityBase: 63,
-    humidityAmp: 4,
+    internalTempBase: 31.8,
+    externalTempBase: 20.6,
+    internalHumidityBase: 63,
+    externalHumidityBase: 52,
     offlineFrom: 20,
   },
 };
@@ -96,34 +125,27 @@ function makeHourlyData(hiveId: HiveId): DataPoint[] {
   const config = HIVE_DAILY_CONFIG[hiveId];
 
   return Array.from({ length: 24 }, (_, hour) => {
-    const label = `${String(hour).padStart(2, "0")}시`;
+    const label = `${String(hour).padStart(2, "0")}:00`;
 
     if (hour > currentHour) {
-      return {
-        label,
-        temp: 0,
-        humidity: 0,
-        methane: 0,
-        co2: 0,
-        hasData: false,
-      };
+      return point(label, 0, 0, 0, 0, 0, false);
     }
 
     const offline = config.offlineFrom !== undefined && hour >= config.offlineFrom;
     const angle = ((hour - 4) / 24) * Math.PI * 2;
 
-    return {
+    if (offline) {
+      return point(label, 0, 0, 0, 0, 0, false);
+    }
+
+    return point(
       label,
-      temp: offline
-        ? 0
-        : Number((config.tempBase + Math.sin(angle) * config.tempAmp).toFixed(1)),
-      humidity: offline
-        ? 0
-        : Math.round(config.humidityBase - Math.sin(angle) * config.humidityAmp),
-      methane: offline ? 0 : Number((0.8 + Math.sin(angle) * 0.2).toFixed(1)),
-      co2: offline ? 0 : Math.round(435 + Math.sin(angle) * 35),
-      hasData: !offline,
-    };
+      Number((config.internalTempBase + Math.sin(angle) * 1.5).toFixed(1)),
+      Number((config.externalTempBase + Math.sin(angle) * 2.2).toFixed(1)),
+      Math.round(config.internalHumidityBase - Math.sin(angle) * 6),
+      Math.round(config.externalHumidityBase - Math.sin(angle) * 8),
+      Math.round(435 + Math.sin(angle) * 35),
+    );
   });
 }
 

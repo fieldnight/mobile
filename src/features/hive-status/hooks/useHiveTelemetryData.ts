@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { DataPoint, Period } from "@/types";
 import {
   getHiveTelemetry,
+  HIVE_TELEMETRY_SENSORS,
+  mergeTelemetryData,
   type HiveTelemetryResponse,
   type HiveTelemetrySensorType,
-  mergeTelemetryData,
 } from "../api/telemetryApi";
 
 interface UseHiveTelemetryDataParams {
@@ -14,21 +15,11 @@ interface UseHiveTelemetryDataParams {
 }
 
 const HIVE_TELEMETRY_QUERY_KEY = "hive-telemetry";
-const SENSOR_TYPES: HiveTelemetrySensorType[] = [
-  "INTERNAL_TEMPERATURE",
-  "INTERNAL_HUMIDITY",
-  "CO2",
-];
-
-function getSettledValue(
-  result: PromiseSettledResult<HiveTelemetryResponse>,
-) {
-  return result.status === "fulfilled" ? result.value : undefined;
-}
 
 /**
- * 벌통 통계 화면용 센서 데이터 hook.
- * API가 센서별로 나뉘어 있어 온도/습도/CO2를 병렬 조회한 뒤 차트 데이터로 합친다.
+ * 벌통 통계 화면의 센서 데이터 hook.
+ * 내부 온도, 외부 온도, 내부 습도, 외부 습도, CO2를 병렬 조회한 뒤
+ * 서버 응답의 label/value를 차트/표 데이터로 합칩니다.
  */
 export function useHiveTelemetryData({
   hiveId,
@@ -43,44 +34,34 @@ export function useHiveTelemetryData({
       console.log("[Hive Telemetry Hook] 센서 데이터 병렬 조회 시작", {
         hiveId,
         period,
-        sensors: SENSOR_TYPES,
+        sensors: HIVE_TELEMETRY_SENSORS.map((sensor) => sensor.sensorType),
       });
 
-      const results = await Promise.allSettled([
-        getHiveTelemetry({
-          hiveId,
-          period,
-          sensorType: "INTERNAL_TEMPERATURE",
-        }),
-        getHiveTelemetry({
-          hiveId,
-          period,
-          sensorType: "INTERNAL_HUMIDITY",
-        }),
-        getHiveTelemetry({
-          hiveId,
-          period,
-          sensorType: "CO2",
-        }),
-      ]);
+      const results = await Promise.allSettled(
+        HIVE_TELEMETRY_SENSORS.map(({ sensorType }) =>
+          getHiveTelemetry({ hiveId, period, sensorType }),
+        ),
+      );
+
+      const responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>> = {};
 
       results.forEach((result, index) => {
-        if (result.status === "rejected") {
-          console.error("[Hive Telemetry Hook] 센서 일부 조회 실패", {
-            hiveId,
-            period,
-            sensorType: SENSOR_TYPES[index],
-            reason: result.reason,
-          });
+        const sensorType = HIVE_TELEMETRY_SENSORS[index].sensorType;
+
+        if (result.status === "fulfilled") {
+          responses[sensorType] = result.value;
+          return;
         }
+
+        console.error("[Hive Telemetry Hook] 센서별 조회 실패", {
+          hiveId,
+          period,
+          sensorType,
+          reason: result.reason,
+        });
       });
 
-      const merged = mergeTelemetryData(
-        fallbackData,
-        getSettledValue(results[0]),
-        getSettledValue(results[1]),
-        getSettledValue(results[2]),
-      );
+      const merged = mergeTelemetryData(fallbackData, responses);
 
       console.log("[Hive Telemetry Hook] 센서 데이터 화면 반영 준비", {
         hiveId,

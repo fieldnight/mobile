@@ -13,9 +13,13 @@ import type { ControlSetting } from "@/types/hive-control";
 export function ControlItem({
   control,
   onToggle,
+  blocked = false,
+  onBlockedPress,
 }: {
   control: ControlSetting;
   onToggle: (id: string) => void;
+  blocked?: boolean;
+  onBlockedPress?: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -26,14 +30,23 @@ export function ControlItem({
 
   return (
     <Pressable
-      onPress={() => onToggle(control.id)}
+      onPress={() => {
+        if (blocked) {
+          onBlockedPress?.();
+          return;
+        }
+        onToggle(control.id);
+      }}
       onPressIn={pressIn}
       onPressOut={pressOut}
       android_ripple={{ color: "rgba(0,0,0,0.04)", borderless: false }}
     >
       <Animated.View
         className="flex-row items-center py-1"
-        style={{ transform: [{ scale }] }}
+        style={{
+          transform: [{ scale }],
+          opacity: blocked ? 0.56 : 1,
+        }}
       >
         <View className="flex-1 pr-3">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

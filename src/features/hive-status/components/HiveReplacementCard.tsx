@@ -1,18 +1,24 @@
-import { useMemo, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
-import { BottomSheet } from "@/components/BottomSheet";
+import { BottomSheet, ConfirmSheet } from "@/components/BottomSheet";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
-import { useHiveStore } from "@/stores/useHiveStore";
 import type { HiveData } from "@/types/hive-control";
+import type { HiveReplacementHistory } from "../api/replacementHistoryApi";
+import {
+  useCreateHiveReplacementHistory,
+  useDeleteHiveReplacementHistory,
+  useHiveReplacementHistoryDetail,
+  useHiveReplacementHistoryList,
+  useUpdateHiveReplacementHistory,
+} from "../hooks/useHiveReplacementHistory";
 import {
   formatReplacementDate,
-  getHiveReplacementHistory,
   getReplacementElapsed,
-  normalizeReplacementDate,
   parseReplacementDate,
 } from "../model/replacement";
 
@@ -25,22 +31,44 @@ const INFO_PANEL_BG = "#EAF4FF";
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 /**
- * 선택된 벌통의 현재 교체 상태를 표 형태로 보여줍니다.
- * API 연결 전까지 당일 또는 사용자가 고른 날짜를 로컬 store에 기록합니다.
+ * 스마트벌통 메인 화면의 벌통 교체 섹션.
+ * 목록 조회, 등록, 수정, 삭제, 상세 조회 API를 모두 연결합니다.
  */
 export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
-  const updateReplacedAt = useHiveStore((state) => state.updateReplacedAt);
-  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const { show: showToast } = useAppToast();
+  const [sheetMode, setSheetMode] = useState<"create" | "edit">("create");
+  const [sheetVisible, setSheetVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
+  const [editingHistoryId, setEditingHistoryId] = useState<number | undefined>();
+  const [deletingRecord, setDeletingRecord] = useState<HiveReplacementHistory | null>(null);
+
+  const historyQuery = useHiveReplacementHistoryList(hive?.id, { size: 5 });
+  const detailQuery = useHiveReplacementHistoryDetail({
+    hiveId: hive?.id,
+    historyId: editingHistoryId,
+  });
+  const createHistory = useCreateHiveReplacementHistory();
+  const updateHistory = useUpdateHiveReplacementHistory();
+  const deleteHistory = useDeleteHiveReplacementHistory();
+
+  const history = historyQuery.data?.content ?? [];
+  const latest = history[0];
+  const elapsed = getReplacementElapsed(latest?.replacedAt, latest?.usageDays);
   const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
+  const submitting =
+    createHistory.isLoading || updateHistory.isLoading || deleteHistory.isLoading;
+
+  useEffect(() => {
+    if (!detailQuery.data || sheetMode !== "edit") return;
+
+    const date = parseReplacementDate(detailQuery.data.replacedAt) ?? new Date();
+    setSelectedDate(date);
+    setVisibleMonth(startOfMonth(date));
+    setSheetVisible(true);
+  }, [detailQuery.data, sheetMode]);
 
   if (!hive) return null;
-
-  const history = getHiveReplacementHistory(hive);
-  const latest = history[0];
-  const lastReplacedAt = normalizeReplacementDate(latest?.replacedAt ?? hive.replacedAt);
-  const elapsed = getReplacementElapsed(lastReplacedAt);
 
   const runLightHaptic = () => {
     if (Platform.OS !== "web") {
@@ -48,22 +76,109 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
     }
   };
 
+  const openCreateSheet = (date = new Date()) => {
+    runLightHaptic();
+    setSheetMode("create");
+    setEditingHistoryId(undefined);
+    setSelectedDate(date);
+    setVisibleMonth(startOfMonth(date));
+    setSheetVisible(true);
+  };
+
+  const openEditSheet = (record: HiveReplacementHistory) => {
+    runLightHaptic();
+    setSheetMode("edit");
+    setEditingHistoryId(record.replacementHistoryId);
+  };
+
   const handleTodayReplace = () => {
+    if (!hive.id || createHistory.isLoading) return;
+
     runLightHaptic();
-    updateReplacedAt(hive.id);
+    const body = { replacedAt: formatReplacementDate(new Date()) };
+
+    createHistory.mutate(
+      { hiveId: hive.id, body },
+      {
+        onSuccess: () => {
+          console.log("[Hive Replacement UI] 당일 교체 등록 반영", {
+            hiveId: hive.id,
+            body,
+          });
+          showToast("오늘 날짜로 교체 기록을 등록했어요", "success");
+        },
+        onError: () => {
+          showToast("교체 기록 등록에 실패했어요", "error");
+        },
+      },
+    );
   };
 
-  const openDateModal = () => {
-    const baseDate = parseReplacementDate(lastReplacedAt) ?? new Date();
-    setSelectedDate(baseDate);
-    setVisibleMonth(startOfMonth(baseDate));
-    setDateModalVisible(true);
+  const submitSheet = () => {
+    if (!hive.id || submitting) return;
+
+    const body = { replacedAt: formatReplacementDate(selectedDate) };
+
+    if (sheetMode === "edit" && editingHistoryId) {
+      updateHistory.mutate(
+        { hiveId: hive.id, historyId: editingHistoryId, body },
+        {
+          onSuccess: () => {
+            console.log("[Hive Replacement UI] 교체 기록 수정 반영", {
+              hiveId: hive.id,
+              historyId: editingHistoryId,
+              body,
+            });
+            showToast("교체 기록을 수정했어요", "success");
+            setSheetVisible(false);
+            setEditingHistoryId(undefined);
+          },
+          onError: () => {
+            showToast("교체 기록 수정에 실패했어요", "error");
+          },
+        },
+      );
+      return;
+    }
+
+    createHistory.mutate(
+      { hiveId: hive.id, body },
+      {
+        onSuccess: () => {
+          console.log("[Hive Replacement UI] 교체 기록 등록 반영", {
+            hiveId: hive.id,
+            body,
+          });
+          showToast("교체 기록을 등록했어요", "success");
+          setSheetVisible(false);
+        },
+        onError: () => {
+          showToast("교체 기록 등록에 실패했어요", "error");
+        },
+      },
+    );
   };
 
-  const handleSelectedDateReplace = () => {
-    runLightHaptic();
-    updateReplacedAt(hive.id, formatReplacementDate(selectedDate));
-    setDateModalVisible(false);
+  const confirmDelete = () => {
+    if (!hive.id || !deletingRecord) return;
+
+    const record = deletingRecord;
+    deleteHistory.mutate(
+      { hiveId: hive.id, historyId: record.replacementHistoryId },
+      {
+        onSuccess: () => {
+          console.log("[Hive Replacement UI] 교체 기록 삭제 반영", {
+            hiveId: hive.id,
+            historyId: record.replacementHistoryId,
+          });
+          showToast("교체 기록을 삭제했어요", "success");
+          setDeletingRecord(null);
+        },
+        onError: () => {
+          showToast("교체 기록 삭제에 실패했어요", "error");
+        },
+      },
+    );
   };
 
   const moveMonth = (amount: number) => {
@@ -83,36 +198,64 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
       >
         <View className="mb-4">
           <View className="flex-row items-center justify-between" style={{ gap: 8 }}>
-            <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-              벌통 교체
-            </PretendardFont>
+            <View className="flex-1">
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                벌통 교체
+              </PretendardFont>
+              <PretendardFont style={{ fontSize: 13, color: C.textSx, lineHeight: 19, marginTop: 6 }}>
+                수정벌 교체 날짜와 사용일수를 기록해요.
+              </PretendardFont>
+            </View>
             <View className="flex-row" style={{ gap: 6 }}>
               <ReplacementActionButton
                 label="당일교체"
                 icon="check"
                 selected
                 compact
+                disabled={createHistory.isPending}
                 onPress={handleTodayReplace}
               />
               <ReplacementActionButton
-                label="날짜 설정"
+                label="날짜추가"
                 icon="calendar"
                 compact
-                onPress={openDateModal}
+                onPress={() => openCreateSheet()}
               />
             </View>
           </View>
-          <PretendardFont style={{ fontSize: 13, color: C.textSx, lineHeight: 19, marginTop: 6 }}>
-            수정벌을 교체한 날짜와 사용일수를 확인해요.
-          </PretendardFont>
+        </View>
+
+        <View className="mb-3 rounded-2xl px-4 py-3" style={{ backgroundColor: C.bgAlt }}>
+          <View className="flex-row items-center justify-between">
+            <View>
+              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.sec }}>
+                마지막 교체
+              </PretendardFont>
+              <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text, marginTop: 3 }}>
+                {latest?.replacedAt ?? "미등록"}
+              </PretendardFont>
+            </View>
+            <View className="items-end">
+              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.sec }}>
+                사용일수
+              </PretendardFont>
+              <PretendardFont
+                weight="bold"
+                style={{
+                  fontSize: 18,
+                  color: elapsed.isOverdue ? C.error : C.text,
+                  marginTop: 3,
+                }}
+              >
+                {elapsed.label}
+              </PretendardFont>
+            </View>
+          </View>
         </View>
 
         <View className="flex-row rounded-xl px-3 py-2" style={{ backgroundColor: C.bgAlt }}>
-          <PretendardFont weight="bold" style={{ flex: 1, fontSize: 12, color: C.sec }}>
-            구분
-          </PretendardFont>
-          <PretendardFont weight="bold" style={{ flex: 1.35, fontSize: 12, color: C.sec }}>
-            마지막 교체
+          <PretendardFont weight="bold" style={{ flex: 1.3, fontSize: 12, color: C.sec }}>
+            교체날짜
           </PretendardFont>
           <PretendardFont
             weight="bold"
@@ -120,62 +263,73 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           >
             사용일수
           </PretendardFont>
+          <View style={{ width: 108 }} />
         </View>
 
-        <View
-          className="flex-row px-3 py-3"
-          style={{ borderBottomWidth: 1, borderBottomColor: C.border }}
-        >
-          <PretendardFont style={{ flex: 1, fontSize: 13, color: C.text }}>
-            {hive.name}
-          </PretendardFont>
-          <PretendardFont style={{ flex: 1.35, fontSize: 13, color: C.text }}>
-            {lastReplacedAt || "미등록"}
-          </PretendardFont>
-          <PretendardFont
-            weight="semibold"
-            style={{
-              flex: 1,
-              fontSize: 13,
-              color: elapsed.isOverdue ? "#DC2626" : C.text,
-              textAlign: "right",
-            }}
-          >
-            {elapsed.label}
-          </PretendardFont>
-        </View>
-
+        {historyQuery.isLoading ? (
+          <View className="items-center py-5">
+            <ActivityIndicator size="small" color={C.primary} />
+          </View>
+        ) : history.length ? (
+          history.slice(0, 5).map((record, index) => (
+            <View
+              key={record.replacementHistoryId}
+              className="flex-row items-center px-3 py-3"
+              style={{
+                borderBottomWidth: index < Math.min(history.length, 5) - 1 ? 1 : 0,
+                borderBottomColor: C.border,
+              }}
+            >
+              <PretendardFont style={{ flex: 1.3, fontSize: 13, color: C.text }}>
+                {record.replacedAt}
+              </PretendardFont>
+              <PretendardFont
+                weight="semibold"
+                style={{ flex: 1, fontSize: 13, color: C.text, textAlign: "right" }}
+              >
+                {getReplacementElapsed(record.replacedAt, record.usageDays).label}
+              </PretendardFont>
+              <View className="ml-3 flex-row" style={{ gap: 10 }}>
+                <IconAction
+                  icon="edit-2"
+                  color={C.text}
+                  disabled={detailQuery.isFetching && editingHistoryId === record.replacementHistoryId}
+                  onPress={() => openEditSheet(record)}
+                />
+                <IconAction
+                  icon="trash-2"
+                  color={C.error}
+                  onPress={() => setDeletingRecord(record)}
+                />
+              </View>
+            </View>
+          ))
+        ) : (
+          <View className="px-3 py-5">
+            <PretendardFont style={{ fontSize: 13, color: C.ter }}>
+              아직 등록된 교체 기록이 없습니다.
+            </PretendardFont>
+          </View>
+        )}
       </Card>
 
       <BottomSheet
-        visible={dateModalVisible}
-        onClose={() => setDateModalVisible(false)}
-        title="교체 날짜 선택"
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        title={sheetMode === "edit" ? "교체 기록 수정" : "교체 기록 추가"}
         contentScrollEnabled={false}
       >
         <SheetInfo>
-          실제로 수정벌을 교체한 날짜를 선택하면 이 벌통의 마지막 교체일로 기록돼요.
+          실제로 수정벌을 교체한 날짜를 선택하면 서버 교체 기록에 저장돼요.
         </SheetInfo>
 
         <View className="mt-5 rounded-2xl p-4" style={{ backgroundColor: FORM_PANEL_BG }}>
           <View className="mb-4 flex-row items-center justify-between">
-            <Pressable
-              onPress={() => moveMonth(-1)}
-              className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-              style={{ backgroundColor: C.white }}
-            >
-              <Feather name="chevron-left" size={18} color={C.text} />
-            </Pressable>
+            <IconAction icon="chevron-left" color={C.text} onPress={() => moveMonth(-1)} />
             <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
               {visibleMonth.getFullYear()}년 {visibleMonth.getMonth() + 1}월
             </PretendardFont>
-            <Pressable
-              onPress={() => moveMonth(1)}
-              className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-              style={{ backgroundColor: C.white }}
-            >
-              <Feather name="chevron-right" size={18} color={C.text} />
-            </Pressable>
+            <IconAction icon="chevron-right" color={C.text} onPress={() => moveMonth(1)} />
           </View>
 
           <View className="mb-2 flex-row">
@@ -196,14 +350,15 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
               return (
                 <View
                   key={date ? formatReplacementDate(date) : `empty-${index}`}
-                  className="items-center justify-center py-1"
+                  className="items-center justify-center py-2"
                   style={{ width: `${100 / 7}%` }}
                 >
                   {date ? (
                     <Pressable
                       disabled={disabled}
                       onPress={() => setSelectedDate(date)}
-                      className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+                      hitSlop={6}
+                      className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
                       style={{
                         backgroundColor: selected ? C.primary : C.white,
                         opacity: disabled ? 0.35 : 1,
@@ -217,7 +372,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
                       </PretendardFont>
                     </Pressable>
                   ) : (
-                    <View className="h-9 w-9" />
+                    <View className="h-11 w-11" />
                   )}
                 </View>
               );
@@ -233,7 +388,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
 
         <View className="mt-6 flex-row gap-2.5">
           <Pressable
-            onPress={() => setDateModalVisible(false)}
+            onPress={() => setSheetVisible(false)}
             className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
             style={{ backgroundColor: FORM_PANEL_BG }}
           >
@@ -242,16 +397,32 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
             </PretendardFont>
           </Pressable>
           <Pressable
-            onPress={handleSelectedDateReplace}
+            onPress={submitSheet}
+            disabled={submitting}
             className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
-            style={{ backgroundColor: C.primary }}
+            style={{ backgroundColor: submitting ? C.ter : C.primary }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
-              기록하기
+              {submitting ? "저장 중" : sheetMode === "edit" ? "수정하기" : "등록하기"}
             </PretendardFont>
           </Pressable>
         </View>
       </BottomSheet>
+
+      <ConfirmSheet
+        visible={deletingRecord != null}
+        onClose={() => setDeletingRecord(null)}
+        title="교체 기록 삭제"
+        message={
+          deletingRecord
+            ? `${deletingRecord.replacedAt} 교체 기록을 삭제할까요?`
+            : undefined
+        }
+        confirmLabel="삭제하기"
+        cancelLabel="취소"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </>
   );
 }
@@ -261,23 +432,27 @@ function ReplacementActionButton({
   icon,
   selected = false,
   compact = false,
+  disabled = false,
   onPress,
 }: {
   label: string;
   icon: keyof typeof Feather.glyphMap;
   selected?: boolean;
   compact?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       className="flex-row items-center justify-center rounded-2xl active:opacity-85"
       style={{
         backgroundColor: selected ? C.text : FORM_PANEL_BG,
         paddingHorizontal: compact ? 10 : 16,
         paddingVertical: compact ? 8 : 12,
         gap: 6,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <Feather name={icon} size={15} color={selected ? C.white : C.text} />
@@ -291,15 +466,39 @@ function ReplacementActionButton({
   );
 }
 
+function IconAction({
+  icon,
+  color,
+  disabled = false,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={10}
+      className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+      style={{ backgroundColor: C.white, opacity: disabled ? 0.5 : 1 }}
+    >
+      <Feather name={icon} size={20} color={color} />
+    </Pressable>
+  );
+}
+
 function SheetInfo({ children }: { children: string }) {
   return (
     <View className="mb-2 rounded-2xl p-4" style={{ backgroundColor: INFO_PANEL_BG }}>
       <PretendardFont
         weight="semibold"
         style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
-        >
-          {children}
-        </PretendardFont>
+      >
+        {children}
+      </PretendardFont>
     </View>
   );
 }

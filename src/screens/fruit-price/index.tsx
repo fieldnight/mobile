@@ -6,7 +6,7 @@
  * - FruitPriceScreen  : Card 3개 구조 (내 맞춤 시세 / 도매시장 설정 / 조회 결과)
  *                       날짜 이동, 시장 선택, 분류 필터, 빠른 검색, 페이지네이션
  */
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useReducer } from "react";
 import { useRouter } from "expo-router";
 import {
   View,
@@ -63,6 +63,43 @@ const BASE_FONT = 13;
 const MIN_SCALE = 1.0;
 const MAX_SCALE = 3.0;
 const EMPTY_ROWS: Row[] = [];
+
+const LOADING_TIPS = [
+  { icon: "trending-up", text: "빠른검색으로 딸기·사과·포도 시세를\n한 탭에 바로 볼 수 있어요." },
+  { icon: "bookmark", text: "자주 보는 시장·작물을 바로가기로\n저장하면 다음엔 더 빠르게 열려요." },
+  { icon: "calendar", text: "최근 7일치 시세를 날짜별로\n비교해볼 수 있어요." },
+  { icon: "map-pin", text: "서울, 부산, 대구 등 33개 도매시장\n시세를 모두 조회할 수 있어요." },
+  { icon: "zoom-in", text: "테이블을 핀치 줌으로 확대하면\n작은 글씨도 편하게 읽혀요." },
+  { icon: "list", text: "행을 탭하면 낙찰 상세 정보를\n자세히 볼 수 있어요." },
+  { icon: "bell", text: "스마트 벌통, 스마트 개페기도 앱에서 한 번에 관리해요." },
+  { icon: "bar-chart-2", text: "중분류·소분류 필터로 원하는\n품목만 골라서 볼 수 있어요." },
+];
+
+function LoadingTips() {
+  const [tip, setTip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTip((prev) => {
+        const next = LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)];
+        return next === prev ? LOADING_TIPS[(LOADING_TIPS.indexOf(prev) + 1) % LOADING_TIPS.length] : next;
+      });
+    }, 2500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <View style={{ paddingVertical: 60, alignItems: "center", gap: 16 }}>
+      <ActivityIndicator size="large" color={C.primary} />
+      <View style={{ alignItems: "center", gap: 8, paddingHorizontal: 32 }}>
+        <Feather name={tip.icon as any} size={22} color={C.primary} />
+        <PretendardFont style={{ color: C.sec, fontSize: 13, textAlign: "center", lineHeight: 20 }}>
+          {tip.text}
+        </PretendardFont>
+      </View>
+    </View>
+  );
+}
 
 // ── 상세 모달 ─────────────────────────────────────────────────────────────────
 function DetailModal({
@@ -398,22 +435,64 @@ const moveDateBy = (date: string, delta: number): string => {
 const getMinDateKST = () => moveDateBy(getTodayKST(), -7);
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
+
+type FilterState = {
+  marketCode: string;
+  largeCode: string;
+  middleCode: string;
+  smallCode: string;
+  selectedDate: string;
+  quickItem: string | null;
+};
+
+type FilterAction =
+  | { type: "SELECT_INTEREST"; marketCode: string; largeCode: string; middleCode: string; smallCode: string; quickItem: string | null }
+  | { type: "DATE_CHANGE"; date: string }
+  | { type: "MARKET_CHANGE"; code: string }
+  | { type: "QUICK_ITEM"; name: string }
+  | { type: "MIDDLE_CHANGE"; code: string; quickItem: string | null }
+  | { type: "LARGE_CHANGE"; code: string }
+  | { type: "SMALL_CHANGE"; code: string };
+
 export default function FruitPriceScreen() {
   const router = useRouter();
   const { toastState, show: showToast, hide: hideToast } = useToast();
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const [marketCode, setMarketCode] = useState(() =>
-    getDefaultMarket(getTodayKST()),
+  const [filter, dispatchFilter] = useReducer(
+    (state: FilterState, action: FilterAction): FilterState => {
+      switch (action.type) {
+        case "SELECT_INTEREST":
+          return { ...state, marketCode: action.marketCode, largeCode: action.largeCode, middleCode: action.middleCode, smallCode: action.smallCode, quickItem: action.quickItem };
+        case "DATE_CHANGE":
+          return { ...state, selectedDate: action.date, marketCode: getDefaultMarket(action.date), largeCode: "", middleCode: "", smallCode: "", quickItem: null };
+        case "MARKET_CHANGE":
+          return { ...state, marketCode: action.code, largeCode: "", middleCode: "", smallCode: "", quickItem: null };
+        case "QUICK_ITEM":
+          return { ...state, quickItem: state.quickItem === action.name ? null : action.name, largeCode: "", middleCode: "", smallCode: "" };
+        case "MIDDLE_CHANGE":
+          return { ...state, middleCode: action.code, smallCode: "", quickItem: action.quickItem };
+        case "LARGE_CHANGE":
+          return { ...state, largeCode: action.code, middleCode: "", smallCode: "", quickItem: null };
+        case "SMALL_CHANGE":
+          return { ...state, smallCode: action.code };
+      }
+    },
+    {
+      marketCode: getDefaultMarket(getTodayKST()),
+      largeCode: "",
+      middleCode: "",
+      smallCode: "",
+      selectedDate: getTodayKST(),
+      quickItem: null,
+    },
   );
-  const [largeCode, setLargeCode] = useState("");
-  const [middleCode, setMiddleCode] = useState("");
-  const [smallCode, setSmallCode] = useState("");
-  const [selectedDate, setSelectedDate] = useState(getTodayKST());
+
+  const { marketCode, largeCode, middleCode, smallCode, selectedDate, quickItem } = filter;
+
   const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState<Row | null>(null);
-  const [quickItem, setQuickItem] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("default");
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -436,13 +515,16 @@ export default function FruitPriceScreen() {
 
   const handleSelectInterestMarket = useCallback(
     (item: InterestMarket) => {
-      setMarketCode(item.marketCode);
-      setLargeCode(item.cropMajorCode);
       const midRow = rows.find((r) => r.gds_mclsf_nm === item.cropMidName);
       const smallRow = rows.find((r) => r.gds_sclsf_nm === item.cropMinorName);
-      setMiddleCode(midRow?.gds_mclsf_cd ?? "");
-      setSmallCode(smallRow?.gds_sclsf_cd ?? "");
-      setQuickItem(item.cropMidName || null);
+      dispatchFilter({
+        type: "SELECT_INTEREST",
+        marketCode: item.marketCode,
+        largeCode: item.cropMajorCode,
+        middleCode: midRow?.gds_mclsf_cd ?? "",
+        smallCode: smallRow?.gds_sclsf_cd ?? "",
+        quickItem: item.cropMidName || null,
+      });
       setPage(1);
     },
     [rows],
@@ -455,37 +537,25 @@ export default function FruitPriceScreen() {
         showToast("최근 7일 이내 데이터만 조회할 수 있어요.", "error");
         return;
       }
-      setSelectedDate(date);
-      setMarketCode(getDefaultMarket(date));
-      setLargeCode("");
-      setMiddleCode("");
-      setSmallCode("");
+      dispatchFilter({ type: "DATE_CHANGE", date });
       setPage(1);
     },
     [showToast],
   );
 
   const handleMarketChange = useCallback((code: string) => {
-    setMarketCode(code);
-    setLargeCode("");
-    setMiddleCode("");
-    setSmallCode("");
+    dispatchFilter({ type: "MARKET_CHANGE", code });
     setPage(1);
   }, []);
 
   const handleQuickItem = useCallback((name: string) => {
-    setQuickItem((p) => (p === name ? null : name));
-    setLargeCode("");
-    setMiddleCode("");
-    setSmallCode("");
+    dispatchFilter({ type: "QUICK_ITEM", name });
     setPage(1);
   }, []);
 
   const handleMiddleChange = useCallback((code: string, name: string) => {
     const quickName = getQuickMiddleName(code);
-    setMiddleCode(code);
-    setSmallCode("");
-    setQuickItem(code ? quickName || name : null);
+    dispatchFilter({ type: "MIDDLE_CHANGE", code, quickItem: code ? quickName || name : null });
     setPage(1);
   }, []);
 
@@ -737,10 +807,7 @@ export default function FruitPriceScreen() {
                 value={largeCode}
                 options={largeOptions}
                 onSelect={(c) => {
-                  setLargeCode(c);
-                  setMiddleCode("");
-                  setSmallCode("");
-                  setQuickItem(null);
+                  dispatchFilter({ type: "LARGE_CHANGE", code: c });
                   setPage(1);
                 }}
                 disabled={!largeOptions.length}
@@ -757,7 +824,7 @@ export default function FruitPriceScreen() {
                 value={smallCode}
                 options={smallOptions}
                 onSelect={(c) => {
-                  setSmallCode(c);
+                  dispatchFilter({ type: "SMALL_CHANGE", code: c });
                   setPage(1);
                 }}
                 disabled={!middleCode}
@@ -827,14 +894,7 @@ export default function FruitPriceScreen() {
 
             {/* 로딩/빈화면/테이블 */}
             {isLoading && !hasRows ? (
-              <View
-                style={{ paddingVertical: 60, alignItems: "center", gap: 8 }}
-              >
-                <ActivityIndicator size="large" color={C.primary} />
-                <PretendardFont style={{ color: C.ter, fontSize: 13 }}>
-                  시세 불러오는 중…
-                </PretendardFont>
-              </View>
+              <LoadingTips />
             ) : pagedRows.length > 0 ? (
               <ZoomableTable rows={pagedRows} onRowPress={setDetailRow} />
             ) : (

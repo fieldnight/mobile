@@ -1,4 +1,5 @@
-import { Text, TextProps } from "react-native";
+import { StyleSheet, Text, TextProps } from "react-native";
+import { useSettingsStore } from "@/stores/useSettingsStore";
 
 type Weight =
   | "thin"
@@ -26,11 +27,16 @@ export function PretendardFont({
   style,
   ...props
 }: TextProps & { weight?: Weight }) {
+  const fontOffset = useSettingsStore((s) => s.fontOffset);
+  const flat = StyleSheet.flatten(style);
+  const baseFontSize = typeof flat?.fontSize === "number" ? flat.fontSize : undefined;
+
   return (
     <Text
       style={[
         { fontFamily: familyMap[weight] },
         style,
+        baseFontSize != null && { fontSize: baseFontSize + fontOffset },
       ]}
       {...props}
     />

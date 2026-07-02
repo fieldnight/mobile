@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Easing,
   Modal,
   PanResponder,
   Pressable,
@@ -11,12 +12,19 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import type { NfcDoorCardConfig } from "./nfcDoorCards";
+import {
+  setActiveHceCard,
+  subscribeHceResult,
+  toHceCardPayload,
+  type HceResultEvent,
+} from "../model/webeeHce";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ACTIVE_CARD_W = SCREEN_W - 42;
-const ACTIVE_CARD_H = 232;
+const ACTIVE_CARD_H = 276;
 const LABEL_BG = "#EEF2F6";
 
 export function NfcDoorCardModal({
@@ -28,44 +36,118 @@ export function NfcDoorCardModal({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { show: showToast } = useAppToast();
   const translateY = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
+  const ripple1 = useRef(new Animated.Value(0)).current;
+  const ripple2 = useRef(new Animated.Value(0)).current;
+  const ripple3 = useRef(new Animated.Value(0)).current;
+  const [hceResult, setHceResult] = useState<HceResultEvent | null>(null);
+  const [hceActivateError, setHceActivateError] = useState<string | null>(null);
+  const rippleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const hapticTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resultToastShownRef = useRef(false);
 
-  // ---- NFC 활성 상태 효과 ----
-  // 모달이 열려 있는 동안 느린 햅틱과 상단 반원 펄스를 반복합니다.
+  const stopRipple = () => {
+    rippleAnimRef.current?.stop();
+    rippleAnimRef.current = null;
+    if (hapticTimerRef.current) {
+      clearInterval(hapticTimerRef.current);
+      hapticTimerRef.current = null;
+    }
+  };
+
+  const startRipple = () => {
+    const makeRipple = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 1400,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ]),
+      );
+
+    ripple1.setValue(0);
+    ripple2.setValue(0);
+    ripple3.setValue(0);
+
+    const anim = Animated.parallel([
+      makeRipple(ripple1, 0),
+      makeRipple(ripple2, 460),
+      makeRipple(ripple3, 920),
+    ]);
+    rippleAnimRef.current = anim;
+    anim.start();
+
+    hapticTimerRef.current = setInterval(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }, 1400);
+  };
+
+  // 선택된 카드를 네이티브 HCE 서비스에 저장하고 ESP32 적용 결과 이벤트를 기다립니다.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !card) return;
 
+    setHceResult(null);
+    setHceActivateError(null);
+    resultToastShownRef.current = false;
     translateY.setValue(0);
-    pulse.setValue(0);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const pulseOnce = () => {
-      pulse.setValue(0);
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 360,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 720,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    let hceSubscription: ReturnType<typeof subscribeHceResult> | null = null;
+
+    const activate = async () => {
+      // ripple·진동은 HCE 결과와 무관하게 모달이 열리면 바로 시작
+      startRipple();
+
+      const ok = await setActiveHceCard(card);
+
+      if (!ok) {
+        setHceActivateError("이 기기에서는 HCE NFC를 사용할 수 없어요.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        console.warn("[NFC Door Card Modal] HCE 카드 활성화 실패");
+        return;
+      }
+
+      console.log("[NFC Door Card Modal] HCE 카드 활성화 완료", toHceCardPayload(card));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      hceSubscription = subscribeHceResult((event) => {
+        setHceResult(event);
+        if (event.status === "ok" || event.status === "error") {
+          stopRipple();
+
+          if (!resultToastShownRef.current) {
+            resultToastShownRef.current = true;
+            if (event.status === "ok") {
+              showToast(`${card.title} 카드가 개폐기에 적용됐어요.`, "success");
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else {
+              showToast("NFC 카드 적용에 실패했어요.", "error");
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            }
+          }
+        }
+      });
     };
 
-    pulseOnce();
-    const timer = setInterval(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      pulseOnce();
-    }, 1400);
+    activate();
 
-    return () => clearInterval(timer);
-  }, [pulse, translateY, visible]);
+    return () => {
+      stopRipple();
+      hceSubscription?.remove();
+      console.log("[NFC Door Card Modal] HCE 결과 구독 해제");
+    };
+  }, [card, showToast, visible]);
 
-  // ---- 닫기 애니메이션 ----
+  const hceStatus = useMemo(
+    () => getHceStatus(hceResult, hceActivateError),
+    [hceResult, hceActivateError],
+  );
+
   const closeWithSlide = () => {
     Animated.timing(translateY, {
       toValue: 420,
@@ -74,8 +156,6 @@ export function NfcDoorCardModal({
     }).start(onClose);
   };
 
-  // ---- 전체 영역 드래그 닫기 ----
-  // 카드 안쪽이나 아래쪽을 잡아도 아래로 밀어 닫을 수 있게 루트와 카드에 함께 연결합니다.
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 8,
@@ -88,7 +168,6 @@ export function NfcDoorCardModal({
           closeWithSlide();
           return;
         }
-
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
@@ -100,13 +179,21 @@ export function NfcDoorCardModal({
 
   if (!card) return null;
 
-  const pulseScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1.12],
-  });
-  const pulseOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.08, 0.22],
+  const makeRippleStyle = (anim: Animated.Value, baseSize: number) => ({
+    position: "absolute" as const,
+    width: baseSize,
+    height: baseSize / 2,
+    borderTopLeftRadius: baseSize,
+    borderTopRightRadius: baseSize,
+    backgroundColor: C.white,
+    opacity: anim.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.22, 0.12, 0] }),
+    transform: [
+      { translateX: -baseSize / 2 },
+      { scaleX: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.1] }) },
+      { scaleY: anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.2] }) },
+    ],
+    bottom: 0,
+    left: "50%" as any,
   });
 
   return (
@@ -127,25 +214,10 @@ export function NfcDoorCardModal({
         />
 
         <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: 200,
-            width: ACTIVE_CARD_W * 0.9,
-            height: ACTIVE_CARD_W * 0.46,
-            borderTopLeftRadius: ACTIVE_CARD_W,
-            borderTopRightRadius: ACTIVE_CARD_W,
-            backgroundColor: C.white,
-            opacity: pulseOpacity,
-            transform: [{ scale: pulseScale }],
-          }}
-        />
-
-        <Animated.View
           {...panResponder.panHandlers}
           style={{
             position: "absolute",
-            top: 200 + ACTIVE_CARD_W * 0.46 - 70,
+            top: "28%",
             width: ACTIVE_CARD_W,
             transform: [{ translateY }],
           }}
@@ -168,6 +240,15 @@ export function NfcDoorCardModal({
           >
             <RadialGradientFill />
 
+            {/* 반원 ripple — 카드 상단 중앙에서 퍼져나가는 애니메이션 */}
+            {([ripple1, ripple2, ripple3] as Animated.Value[]).map((anim, i) => (
+              <Animated.View
+                key={i}
+                pointerEvents="none"
+                style={makeRippleStyle(anim, ACTIVE_CARD_W * (0.85 + i * 0.2))}
+              />
+            ))}
+
             <View className="flex-row items-center justify-between">
               <View
                 className="items-center justify-center rounded-full"
@@ -176,7 +257,6 @@ export function NfcDoorCardModal({
                 <Feather name="radio" size={22} color="#1D4ED8" />
               </View>
 
-              {/* NFC 추가 모달의 선택 라벨과 같은 밝은 패널 톤으로 통일합니다. */}
               <View
                 className="rounded-full px-3 py-2"
                 style={{ backgroundColor: LABEL_BG }}
@@ -193,31 +273,59 @@ export function NfcDoorCardModal({
             <View style={{ marginTop: 66 }}>
               <PretendardFont
                 weight="bold"
-                style={{ fontSize: 25, color: C.text }}
+                style={{ fontSize: 31, lineHeight: 36, color: C.text }}
               >
                 {card.title}
               </PretendardFont>
               <PretendardFont
                 weight="semibold"
-                numberOfLines={2}
                 style={{
-                  fontSize: 14,
-                  lineHeight: 21,
+                  fontSize: 15,
+                  lineHeight: 22,
                   color: C.textAlt,
                   marginTop: 3,
                 }}
               >
                 {card.description}
               </PretendardFont>
+
+              {card.detail ? (
+                <View
+                  className="mt-4 rounded-2xl px-4 py-3"
+                  style={{ backgroundColor: "rgba(255,255,255,0.3)" }}
+                >
+                  <PretendardFont
+                    weight="semibold"
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 20,
+                      color: C.textAlt,
+                    }}
+                  >
+                    {card.detail}
+                  </PretendardFont>
+                </View>
+              ) : null}
             </View>
           </View>
 
-          <View className="mt-7 items-center">
+          <View style={{ marginTop: 28, alignItems: "center", paddingHorizontal: 24, gap: 8 }}>
             <PretendardFont
               weight="bold"
-              style={{ fontSize: 18, color: C.white, textAlign: "center" }}
+              style={{ fontSize: 17, color: C.white, textAlign: "center" }}
             >
-              개폐기 NFC 리더기에 휴대폰을 가까이 대주세요
+              개폐기 NFC 리더기에{"\n"}휴대폰을 가까이 대주세요
+            </PretendardFont>
+            <PretendardFont
+              weight="semibold"
+              style={{
+                fontSize: 13,
+                color: hceStatus.color,
+                lineHeight: 19,
+                textAlign: "center",
+              }}
+            >
+              {hceStatus.message}
             </PretendardFont>
           </View>
         </Animated.View>
@@ -226,8 +334,39 @@ export function NfcDoorCardModal({
   );
 }
 
-// ---- 카드 배경 그라데이션 ----
-// Android에서 원형 도형처럼 보이지 않도록 카드 전체에 방사형 색을 겹쳐 깔아줍니다.
+function getHceStatus(result: HceResultEvent | null, activateError: string | null) {
+  if (activateError) {
+    return { message: activateError, color: "#FFE1E1" };
+  }
+
+  if (!result) {
+    return {
+      message: "카드를 전송한 뒤 개폐기 적용 결과를 기다리고 있어요",
+      color: "rgba(255,255,255,0.78)",
+    };
+  }
+
+  if (result.status === "ok") {
+    return {
+      message: "개폐기에 적용됐어요",
+      color: "#DDFBEA",
+    };
+  }
+
+  if (result.status === "error") {
+    const errorMessage = result.detail || result.command || "처리 오류";
+    return {
+      message: `개폐기 적용 실패: ${errorMessage}`,
+      color: "#FFE1E1",
+    };
+  }
+
+  return {
+    message: `개폐기 응답: ${result.result}`,
+    color: "rgba(255,255,255,0.78)",
+  };
+}
+
 function RadialGradientFill() {
   return (
     <Svg
