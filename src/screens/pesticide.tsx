@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useCodeOptions, usePesticideList } from "@/features/pesticide/hooks";
-import { usePesticideStore } from "@/features/pesticide";
+import { usePesticideStore, InterestPesticideList } from "@/features/pesticide";
+import { PesticideDetailSheet } from "@/features/pesticide/components/PesticideDetailSheet";
 import type { ResultItem } from "@/features/pesticide";
 import Pagination from "@/components/pagination";
 import { COLS } from "@/constants";
@@ -109,9 +110,10 @@ function SearchInput({
 }
 
 // ── 테이블 행 ─────────────────────────────────────────────────────────────────
-const ResultRow = memo(({ item, index }: { item: ResultItem; index: number }) => (
-  <View
-    className="flex-row border-b"
+const ResultRow = memo(({ item, index, onPress }: { item: ResultItem; index: number; onPress: (item: ResultItem) => void }) => (
+  <Pressable
+    onPress={() => onPress(item)}
+    className="flex-row border-b active:opacity-70"
     style={{
       borderColor: C.border,
       backgroundColor: index % 2 === 0 ? C.white : C.bg,
@@ -133,7 +135,7 @@ const ResultRow = memo(({ item, index }: { item: ResultItem; index: number }) =>
         {item[key as keyof ResultItem]}
       </PretendardFont>
     ))}
-  </View>
+  </Pressable>
 ));
 
 // ── 테이블 내용 ───────────────────────────────────────────────────────────────
@@ -141,10 +143,12 @@ function TableBody({
   isFetching,
   items,
   emptyState,
+  onRowPress,
 }: {
   isFetching: boolean;
   items: ResultItem[];
   emptyState?: React.ReactNode;
+  onRowPress: (item: ResultItem) => void;
 }) {
   if (isFetching) {
     return <ActivityIndicator size="large" color={C.primary} style={{ marginVertical: 48 }} />;
@@ -155,7 +159,7 @@ function TableBody({
   return (
     <>
       {items.map((item, index) => (
-        <ResultRow key={item.agchmApplcNo + index} item={item} index={index} />
+        <ResultRow key={item.agchmApplcNo + index} item={item} index={index} onPress={onRowPress} />
       ))}
     </>
   );
@@ -172,6 +176,7 @@ export default function PesticideTable() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [fullscreen, setFullscreen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ResultItem | null>(null);
   const { show: showToast } = useAppToast();
   const emptyToastShownRef = useRef("");
 
@@ -207,6 +212,7 @@ export default function PesticideTable() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchCodes(), refetchList()]);
   }, [refetchCodes, refetchList]);
+  const handleRowPress = useCallback((item: ResultItem) => setSelectedItem(item), []);
 
   const tableContent = (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -237,6 +243,7 @@ export default function PesticideTable() {
         <TableBody
           isFetching={isFetching}
           items={items}
+          onRowPress={handleRowPress}
           emptyState={
             showDefaultEmptyState ? (
               <View className="items-center justify-center py-12 px-4">
@@ -282,6 +289,9 @@ export default function PesticideTable() {
           title="안심농약찾기"
           subtitle={`작물·용도·병해충으로\n등록 농약 안전 정보를 확인하세요`}
         />
+
+        {/* 관심 농약 — 저장된 항목이 있을 때만 렌더링 */}
+        <InterestPesticideList />
 
         {/* 에러 배너 */}
         {codesError && (
@@ -459,6 +469,12 @@ export default function PesticideTable() {
           )}
         </View>
       </Modal>
+
+      {/* 농약 상세 + 관심 저장 바텀시트 */}
+      <PesticideDetailSheet
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
     </View>
   );
 }
