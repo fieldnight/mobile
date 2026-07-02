@@ -3,11 +3,11 @@
  *
  * useInterestPesticides     : 목록 조회 (5분 캐시)
  * useAddInterestPesticide   : 등록 → 성공 시 목록 자동 갱신
- *   - 409(중복) 에러는 호출부에서 토스트 처리
- *   - 그 외 에러는 console.log 후 종료
+ *   - 에러는 호출부에서 토스트로 안내 (409는 중복 문구, 그 외는 범용 실패 문구)
+ *   - 여기서는 console.log로 로깅만 수행
  * useDeleteInterestPesticide: 삭제 → 낙관적 업데이트
- *   - 404(미존재) 에러는 호출부에서 토스트 처리
- *   - 그 외 에러는 console.log 후 롤백
+ *   - 에러는 호출부에서 토스트로 안내 (404는 미존재 문구, 그 외는 범용 실패 문구)
+ *   - 여기서는 console.log 후 롤백
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

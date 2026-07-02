@@ -126,6 +126,8 @@ export function InterestPesticideList() {
       onError: (err: any) => {
         if (err?.response?.status === 404) {
           showToast("이미 삭제된 관심 농약입니다.", "error");
+        } else {
+          showToast("삭제에 실패했어요. 다시 시도해주세요", "error");
         }
       },
     });
