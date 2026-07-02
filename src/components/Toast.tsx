@@ -71,38 +71,51 @@ export function Toast({
 
   const { icon, iconColor } = CONFIG[type];
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
-      <View pointerEvents="box-none" className="flex-1">
-        <Animated.View
-          className="absolute left-6 right-6 z-[99999] items-center"
+    // pointerEvents="box-none" 으로 토스트 영역 외 터치를 통과시킴
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 99999,
+      }}
+    >
+      <Animated.View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          left: 24,
+          right: 24,
+          top: insets.top + 56,
+          alignItems: "center",
+          transform: [{ translateY }],
+          opacity,
+        }}
+      >
+        <Pressable
+          onPress={dismiss}
+          className="flex-row items-center gap-2.5 rounded-full bg-white px-5 py-3.5 active:opacity-75"
           style={{
-            // SafeArea 상단 inset 기준, 탭바 높이(약 48) + 여백을 더해 탭바 아래에 위치
-            top: insets.top + 56,
-            transform: [{ translateY }],
-            opacity,
+            shadowColor: C.shadow,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.14,
+            shadowRadius: 16,
+            elevation: 10,
           }}
         >
-          {/* 토스트를 Modal로 띄워 바텀시트보다 높은 레이어에서 보여줍니다. */}
-          <Pressable
-            onPress={dismiss}
-            className="flex-row items-center gap-2.5 rounded-full bg-white px-5 py-3.5 active:opacity-75"
-            style={{
-              shadowColor: C.shadow,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.14,
-              shadowRadius: 16,
-              elevation: 10,
-            }}
-          >
-            <Feather name={icon as any} size={20} color={iconColor} />
-            <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.text }}>
-              {message}
-            </PretendardFont>
-          </Pressable>
-        </Animated.View>
-      </View>
-    </Modal>
+          <Feather name={icon as any} size={20} color={iconColor} />
+          <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.text }}>
+            {message}
+          </PretendardFont>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
