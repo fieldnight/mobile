@@ -6,8 +6,9 @@
  * - ToastContext(useAppToast)를 통해 어디서든 호출 가능
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Animated, Modal, Pressable, View } from "react-native";
+import { Animated, Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FullWindowOverlay } from "react-native-screens";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -73,7 +74,7 @@ export function Toast({
 
   if (!visible) return null;
 
-  return (
+  const content = (
     // pointerEvents="box-none" 으로 토스트 영역 외 터치를 통과시킴
     <View
       pointerEvents="box-none"
@@ -116,6 +117,15 @@ export function Toast({
         </Pressable>
       </Animated.View>
     </View>
+  );
+
+  // iOS는 Modal(BottomSheet 등)이 네이티브 레벨에서 항상 위 레이어에 그려져
+  // 일반 View+zIndex로는 가려질 수 있으므로 FullWindowOverlay로 그 위에 띄움.
+  // Android는 미지원(호출 시 console.warn 발생)이라 기존 zIndex 방식을 그대로 사용
+  return Platform.OS === "ios" ? (
+    <FullWindowOverlay>{content}</FullWindowOverlay>
+  ) : (
+    content
   );
 }
 

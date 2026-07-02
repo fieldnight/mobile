@@ -223,11 +223,26 @@ function ApiNewsList({
     setCurrentPage(1);
   }, [keyword]);
 
-  const { data, isLoading, error, refetch } = useNewsList(keyword);
+  const {
+    content,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useNewsList(keyword);
 
-  const allArticles: ApiNewsItem[] = data?.content ?? [];
+  const allArticles: ApiNewsItem[] = content;
   const totalPages = Math.max(1, Math.ceil(allArticles.length / PAGE_SIZE));
   const articles = allArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // 프론트 페이지네이션이 마지막 로드된 서버 청크 근처에 도달하면 다음 서버 페이지를 미리 이어붙임
+  useEffect(() => {
+    if (currentPage >= totalPages - 1 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [currentPage, totalPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handlePress = useCallback(
     (id: number) => {

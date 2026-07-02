@@ -8,7 +8,8 @@
  * [훅 목록]
  * useNews         — Google RSS 뉴스 (비로그인 사용자용, 기존)
  * useNewsList     — GET /api/v1/news (로그인 사용자용)
- *                   keyword + page 파라미터 지원. page 바뀔 때마다 새 쿼리 키 생성.
+ *                   keyword 파라미터 지원. 서버 Slice의 last가 false인 동안
+ *                   fetchNextPage로 다음 서버 페이지를 이어붙여 100건 상한을 넘김.
  * useNewsDetail   — GET /api/v1/news/{newsArticleId} (로그인 사용자용)
  *                   newsArticleId가 null이면 쿼리 비활성화.
  *
@@ -18,12 +19,13 @@
  * useNewsDetail   staleTime 5분  — 기사 본문은 바뀌지 않으므로 좀 길게
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { fetchGoogleNews, getNewsList, getNewsDetail } from '../api';
+import type { SlicePage, ApiNewsItem } from '@/types/news';
 
 const QK = {
   rss: (keyword: string) => ['news', 'rss', keyword] as const,
-  list: (keyword: string, page: number) => ['news', 'api', 'list', keyword, page] as const,
+  list: (keyword: string) => ['news', 'api', 'list', keyword] as const,
   detail: (id: number) => ['news', 'api', 'detail', id] as const,
 };
 
@@ -38,14 +40,20 @@ export function useNews(keyword: string) {
 }
 
 // ── 목록 API (로그인) ──────────────────────────────────────────────────────────
-// size=100으로 한 번에 다 받아서 프론트에서 페이지 슬라이싱 (RSS와 동일 방식)
-// 서버 Slice에 totalPages가 없어 page별 호출로는 전체 수를 알 수 없기 때문
+// 서버 페이지당 size=100으로 요청하되, last가 false면(=100건 초과) fetchNextPage로
+// 다음 서버 페이지를 이어붙임. 서버 Slice에 totalPages가 없어 last 플래그로만 종료 판단 가능
 export function useNewsList(keyword: string) {
-  return useQuery({
-    queryKey: QK.list(keyword, 0),
-    queryFn: () => getNewsList(keyword, 0, 100),
+  const query = useInfiniteQuery({
+    queryKey: QK.list(keyword),
+    queryFn: ({ pageParam = 0 }) => getNewsList(keyword, pageParam, 100),
+    getNextPageParam: (lastPage: SlicePage<ApiNewsItem>, allPages) =>
+      lastPage.last ? undefined : allPages.length,
     staleTime: 1000 * 60 * 3,
   });
+
+  const content = query.data?.pages.flatMap((p) => p.content) ?? [];
+
+  return { ...query, content };
 }
 
 // ── 상세 API (로그인) ──────────────────────────────────────────────────────────
