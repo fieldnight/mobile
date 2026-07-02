@@ -48,6 +48,7 @@ import Pagination from "@/components/pagination";
 import { NewsCardSkeleton, KeywordChipSkeleton } from "@/components/Skeleton";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
+import { useAppToast } from "@/components/ToastContext";
 import type { NewsItem, ApiNewsItem } from "@/types/news";
 
 const DEFAULT_KEYWORDS = ["수정벌", "꿀벌", "호박벌", "양봉"];
@@ -432,6 +433,7 @@ export default function BeeNewsScreen() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: userKeywords = [], isLoading: kwLoading } = useInterestKeywords();
   const { mutate: addKeyword, isPending } = useAddInterestKeyword();
+  const { show: showToast } = useAppToast();
 
   const allKeywords = [
     ...DEFAULT_KEYWORDS,
@@ -456,9 +458,12 @@ export default function BeeNewsScreen() {
           setSheetVisible(false);
           setSelectedKeyword(kw);
         },
+        onError: () => {
+          showToast("키워드 추가에 실패했어요. 다시 시도해주세요", "error");
+        },
       });
     },
-    [addKeyword],
+    [addKeyword, showToast],
   );
 
   return (
@@ -494,18 +499,20 @@ export default function BeeNewsScreen() {
               );
             })}
 
-            <Pressable
-              onPress={() => {
-                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSheetVisible(true);
-              }}
-              className="flex-row items-center gap-1 px-3 py-2 rounded-full border border-dashed border-gray-300"
-            >
-              <Feather name="plus" size={14} color={C.sec} />
-              <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.sec }}>
-                추가
-              </PretendardFont>
-            </Pressable>
+            {isAuthenticated ? (
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSheetVisible(true);
+                }}
+                className="flex-row items-center gap-1 px-3 py-2 rounded-full border border-dashed border-gray-300"
+              >
+                <Feather name="plus" size={14} color={C.sec} />
+                <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.sec }}>
+                  추가
+                </PretendardFont>
+              </Pressable>
+            ) : null}
           </ScrollView>
         )}
       </View>
@@ -528,7 +535,7 @@ export default function BeeNewsScreen() {
       )}
 
       <AddKeywordSheet
-        visible={sheetVisible}
+        visible={isAuthenticated && sheetVisible}
         onClose={() => setSheetVisible(false)}
         onAdd={handleAddKeyword}
         isPending={isPending}

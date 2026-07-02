@@ -30,7 +30,6 @@ interface BottomSheetProps {
   children: React.ReactNode;
   snapHeight?: number;
   contentScrollEnabled?: boolean;
-  stickyHeader?: React.ReactNode;
   stickyHeaderIndices?: number[];
 }
 
@@ -41,7 +40,6 @@ export function BottomSheet({
   children,
   snapHeight = 0.9,
   contentScrollEnabled = true,
-  stickyHeader,
   stickyHeaderIndices,
 }: BottomSheetProps) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
