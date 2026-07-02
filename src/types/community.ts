@@ -68,6 +68,18 @@ export type CategoryTab =
   | "weather"
   | "market";
 
+// ── 커뮤니티 탐색 ─────────────────────────────────────────────────────────────
+export interface TrendingCategory {
+  category: string;
+  postCount: number;
+}
+
+export interface ActiveUser {
+  userId: number;
+  name: string;
+  profileImageUrl: string;
+}
+
 // ── 댓글 ─────────────────────────────────────────────────────────────────────
 export interface Comment {
   commentId: number;

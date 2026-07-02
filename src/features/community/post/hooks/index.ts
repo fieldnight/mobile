@@ -40,7 +40,6 @@ export function usePostList(sort: string = "desc") {
     queryKey: QK.list(sort),
     queryFn: ({ pageParam = 0 }) => getPostList(pageParam, PAGE_SIZE, sort),
     getNextPageParam: (lastPage) => {
-      console.log("lastPage:", lastPage);
       const page = lastPage.page;
 
       if (!page) return undefined;
