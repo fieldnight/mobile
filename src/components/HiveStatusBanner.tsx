@@ -33,7 +33,7 @@ export function HiveStatusBanner() {
   return (
     <View className="mb-4">
       <View className="px-5 mb-2">
-        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
+        <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
           농장 한 바퀴 둘러볼까요?
         </PretendardFont>
       </View>

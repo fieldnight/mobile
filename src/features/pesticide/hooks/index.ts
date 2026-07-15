@@ -1,31 +1,27 @@
-/**
- * 농약 검색 커스텀 훅
- *
- * useCodeOptions
- *   - 작물/용도/곤충 드롭다운 코드 목록 조회
- *   - AsyncStorage에 있으면 API 호출 생략
- *   - 실패 시 2초 간격 최대 3회 재시도
- *
- * usePesticideList
- *   - 전체 데이터 1회 조회 후 클라이언트 필터링
- *   - AsyncStorage에 있으면 API 호출 없음
- *   - 필터/페이지/검색어는 useMemo + slice로 처리
- */
-
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import { PUBLIC_CONFIG } from "@/lib/publicConfig";
 import { assertNongsaroSuccess, parseOptions, parseResults } from "./utils";
 import { usePesticideStore } from "./store";
 
-const BASE = process.env.EXPO_PUBLIC_NONGSARO_BASE_URL!;
-const API_KEY = process.env.EXPO_PUBLIC_NONGSARO_API_KEY!;
+const BASE = PUBLIC_CONFIG.nongsaroBaseUrl.replace(/\/+$/, "");
+const API_KEY = PUBLIC_CONFIG.nongsaroApiKey;
 const ROWS_PER_PAGE = 15;
 const MAX_RETRY = 3;
 const RETRY_DELAY_MS = 2000;
 
 const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+const safeText = (value: unknown) => (typeof value === "string" ? value : "");
 
-// ── 드롭다운 코드 목록 ────────────────────────────────────────────────────────
+function assertNongsaroConfig() {
+  if (!BASE) {
+    throw new Error("농약 정보 API 주소가 설정되지 않았습니다.");
+  }
+  if (!API_KEY) {
+    throw new Error("농약 정보 API 인증키가 설정되지 않았습니다.");
+  }
+}
+
 export const useCodeOptions = () => {
   const { aList, bList, cList, setOptions } = usePesticideStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +35,8 @@ export const useCodeOptions = () => {
 
     for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
       try {
+        assertNongsaroConfig();
+
         const { data } = await axios.get(`${BASE}/insectAgchApplcCode`, {
           params: { apiKey: API_KEY },
           responseType: "text",
@@ -57,7 +55,7 @@ export const useCodeOptions = () => {
           !result.bList.length &&
           !result.cList.length
         ) {
-          throw new Error("코드 목록이 비어있습니다.");
+          throw new Error("코드 목록이 비어 있습니다.");
         }
 
         setOptions(result.aList, result.bList, result.cList);
@@ -82,7 +80,6 @@ export const useCodeOptions = () => {
   return { isLoading, isError, refetch: fetch };
 };
 
-// ── 전체 데이터 조회 + 필터링 + 검색 + 페이지네이션 ──────────────────────────
 export const usePesticideList = () => {
   const { crop, usage, insect, page, query, allItems, setAllItems } =
     usePesticideStore();
@@ -97,6 +94,8 @@ export const usePesticideList = () => {
 
     for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
       try {
+        assertNongsaroConfig();
+
         const { data } = await axios.get(`${BASE}/insectAgchApplcLst`, {
           params: { apiKey: API_KEY, numOfRows: "1000", pageNo: "1" },
           responseType: "text",
@@ -104,7 +103,7 @@ export const usePesticideList = () => {
 
         assertNongsaroSuccess(data);
         const items = parseResults(data);
-        if (!items.length) throw new Error("데이터가 비어있습니다.");
+        if (!items.length) throw new Error("농약 데이터가 비어 있습니다.");
 
         setAllItems(items);
         setIsFetching(false);
@@ -125,7 +124,6 @@ export const usePesticideList = () => {
     fetch();
   }, []);
 
-  // 드롭다운 필터 + 검색어 필터 (클라이언트 JS)
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allItems.filter((r) => {
@@ -134,26 +132,26 @@ export const usePesticideList = () => {
         (!usage || r.prpos === usage) &&
         (!insect || r.sprngspcsNm === insect);
 
-      // 검색어: 상표명 OR 병해충명
       const matchQuery =
         !q ||
-        r.brandNm.toLowerCase().includes(q) ||
-        r.applcsicknsHlsctsickns.toLowerCase().includes(q);
+        safeText(r.brandNm).toLowerCase().includes(q) ||
+        safeText(r.applcsicknsHlsctsickns).toLowerCase().includes(q);
 
       return matchFilter && matchQuery;
     });
   }, [allItems, crop, usage, insect, query]);
 
-  // 추천 검색어 — 현재 필터 기준 상표명/병해충명 unique 목록 (최대 8개)
   const suggestions = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.trim().toLowerCase();
     const set = new Set<string>();
 
     allItems.forEach((r) => {
-      if (r.brandNm.toLowerCase().includes(q)) set.add(r.brandNm);
-      if (r.applcsicknsHlsctsickns.toLowerCase().includes(q))
-        set.add(r.applcsicknsHlsctsickns);
+      const brandName = safeText(r.brandNm);
+      const diseaseName = safeText(r.applcsicknsHlsctsickns);
+
+      if (brandName.toLowerCase().includes(q)) set.add(brandName);
+      if (diseaseName.toLowerCase().includes(q)) set.add(diseaseName);
     });
 
     return Array.from(set).slice(0, 8);

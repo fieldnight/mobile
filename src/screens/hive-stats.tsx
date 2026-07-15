@@ -21,6 +21,7 @@ import * as Haptics from "expo-haptics";
 import { useRoute } from "@react-navigation/native";
 import { useScrollHeader } from "@/hooks";
 import { Spacing } from "../constants";
+import { HiveAddSheet } from "@/components/HiveAddSheet";
 import {
   HiveEnvironmentGuide,
   PeriodCard,
@@ -37,6 +38,7 @@ import {
   getHivePeriodData,
   useHiveTelemetryData,
 } from "@/features/hive-status";
+import { useSyncHiveList } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { Period } from "../types";
 
@@ -53,11 +55,13 @@ export default function HiveStatsScreen() {
   const route = useRoute<any>();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
+  useSyncHiveList();
 
   const [period, setPeriod] = useState<Period>("일간");
   const [selectedHive, setSelectedHive] = useState<string>(
-    route.params?.selectedHiveId ?? hives[0]?.id ?? "1",
+    route.params?.selectedHiveId ?? hives[0]?.id ?? "",
   );
+  const [addHiveVisible, setAddHiveVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
     "chart",
   );
@@ -72,6 +76,7 @@ export default function HiveStatsScreen() {
     0,
     hives.findIndex((hive) => hive.id === selectedHive),
   );
+  const hasHives = hives.length > 0;
 
   useEffect(() => {
     if (hives.length && !hives.some((hive) => hive.id === selectedHive)) {
@@ -88,7 +93,7 @@ export default function HiveStatsScreen() {
     }
   }, [selectedIndex]);
 
-  const fallbackStatData = getHivePeriodData(selectedHive, period);
+  const fallbackStatData = hasHives ? getHivePeriodData(selectedHive, period) : [];
   const telemetryQuery = useHiveTelemetryData({
     hiveId: selectedHive,
     period,
@@ -127,7 +132,7 @@ export default function HiveStatsScreen() {
       period,
     });
     await Promise.all([
-      refetchTelemetry(),
+      selectedHive ? refetchTelemetry() : Promise.resolve(),
       new Promise<void>((resolve) => setTimeout(resolve, 300)),
     ]);
   }, [period, refetchTelemetry, selectedHive]);
@@ -179,36 +184,46 @@ export default function HiveStatsScreen() {
           sliderRef={sliderRef}
           onHivePress={handleHivePress}
           onSlideEnd={handleSlideEnd}
+          onAddHive={() => setAddHiveVisible(true)}
         />
 
-        <PeriodCard
-          period={period}
-          onSelect={setPeriod}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          weatherContent={
-            <WeatherSection
+        {hasHives ? (
+          <>
+            <PeriodCard
               period={period}
-              stn={stn}
-              regionName={regionName}
-              loading={loading}
-              errorMsg={errorMsg}
-              todayWeather={todayWeather}
-              weeklyWeather={weeklyWeather}
-            />
-          }
-        >
-          {viewMode === "table" ? (
-            <DataTable data={statData} period={period} />
-          ) : (
-            <ChartCards data={statData} viewMode={viewMode} />
-          )}
-        </PeriodCard>
+              onSelect={setPeriod}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              weatherContent={
+                <WeatherSection
+                  period={period}
+                  stn={stn}
+                  regionName={regionName}
+                  loading={loading}
+                  errorMsg={errorMsg}
+                  todayWeather={todayWeather}
+                  weeklyWeather={weeklyWeather}
+                />
+              }
+            >
+              {viewMode === "table" ? (
+                <DataTable data={statData} period={period} />
+              ) : (
+                <ChartCards data={statData} viewMode={viewMode} />
+              )}
+            </PeriodCard>
 
-        <HiveReplacementTable hiveId={selectedHive} />
+            <HiveReplacementTable hiveId={selectedHive} />
 
-        <HiveEnvironmentGuide />
+            <HiveEnvironmentGuide />
+          </>
+        ) : null}
       </PullToRefresh>
+
+      <HiveAddSheet
+        visible={addHiveVisible}
+        onClose={() => setAddHiveVisible(false)}
+      />
     </ImageBackground>
   );
 }

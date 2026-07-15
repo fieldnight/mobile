@@ -10,6 +10,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { HiveAddSheet } from "@/components/HiveAddSheet";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
@@ -69,7 +70,7 @@ export default function HiveControlScreen() {
   const initialId =
     selectedHiveId && hives.some((h) => h.id === selectedHiveId)
       ? selectedHiveId
-      : (hives[0]?.id ?? "1");
+      : (hives[0]?.id ?? "");
   const initialIndex = Math.max(
     0,
     hives.findIndex((h) => h.id === initialId),
@@ -77,6 +78,7 @@ export default function HiveControlScreen() {
 
   const [controlHive, setControlHive] = useState(initialId);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
+  const [addHiveVisible, setAddHiveVisible] = useState(false);
   const hiveSliderRef = useRef<ScrollView>(null);
   // 복합키 `${hiveId}:${type}` 로 관리 → 벌통 간 pending 상태 오염 방지
   const pendingAutoTypesRef = useRef(new Set<string>());
@@ -95,8 +97,9 @@ export default function HiveControlScreen() {
   const itemWidth = windowWidth - 32;
 
   const current =
-    hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? "1"];
+    hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? ""];
   const currentHive = hives.find((hive) => hive.id === controlHive);
+  const hasHives = hives.length > 0;
 
   const queueControlPendingRelease = useCallback(
     (hiveId: string, type: HiveControlType, delayMs: number) => {
@@ -390,19 +393,29 @@ export default function HiveControlScreen() {
             setSelectedIndex(nextIndex);
             setControlHive(nextHive.id);
           }}
+          onAddHive={() => setAddHiveVisible(true)}
         />
 
-        <HiveControlSection
-          hives={hives}
-          current={current}
-          controlHive={controlHive}
-          onToggleControl={handleToggleControl}
-          onToggleQuickControl={toggleQuickControl}
-          onSelectHive={handleSelectHive}
-        />
+        {hasHives && current ? (
+          <>
+            <HiveControlSection
+              hives={hives}
+              current={current}
+              controlHive={controlHive}
+              onToggleControl={handleToggleControl}
+              onToggleQuickControl={toggleQuickControl}
+              onSelectHive={handleSelectHive}
+            />
 
-        <HiveReplacementCard hive={currentHive} />
+            <HiveReplacementCard hive={currentHive} />
+          </>
+        ) : null}
       </PullToRefresh>
+
+      <HiveAddSheet
+        visible={addHiveVisible}
+        onClose={() => setAddHiveVisible(false)}
+      />
     </ImageBackground>
   );
 }

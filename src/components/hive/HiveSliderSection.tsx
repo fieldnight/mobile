@@ -27,6 +27,7 @@ interface HiveSliderSectionProps {
   sliderRef: React.RefObject<ScrollView | null>;
   onHivePress: (id: string) => void;
   onSlideEnd: (index: number) => void;
+  onAddHive?: () => void;
   onEditHive?: (hive: HiveData) => void;
   onDeleteHive?: (hive: HiveData) => void;
 }
@@ -113,15 +114,24 @@ function MetricPair({
   humidity: number;
 }) {
   return (
-    <View className="mb-3">
-      <PretendardFont style={{ marginBottom: 4, fontSize: 11, color: C.text }}>
+    <View className="mb-4">
+      <PretendardFont
+        weight="bold"
+        style={{ marginBottom: 6, fontSize: 14, color: C.text }}
+      >
         {title}
       </PretendardFont>
       <View
-        className="rounded-xl px-3 py-2"
+        className="rounded-xl px-4 py-3"
         style={{ backgroundColor: "#F8FAFC" }}
       >
-        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
+        <PretendardFont
+          weight="bold"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.86}
+          style={{ fontSize: 19.5, color: C.text }}
+        >
           온도 {temperature}°C · 습도 {humidity}%
         </PretendardFont>
       </View>
@@ -145,8 +155,8 @@ function TagRow({
     <View>
       <PretendardFont
         weight="bold"
-        className="text-[13px] mb-[3px]"
-        style={{ color: C.text }}
+        className="mb-[5px]"
+        style={{ fontSize: 13, color: C.text }}
       >
         제어 기능
       </PretendardFont>
@@ -154,13 +164,16 @@ function TagRow({
         {tags.length > 0 ? (
           <>
             {visibleTags.map((tag, index) => (
-              <View
+                <View
                 key={`${tag.label}-${index}`}
                 className="rounded-lg px-2.5 py-1"
                 style={{ backgroundColor: "rgba(233, 240, 255, 0.68)" }}
               >
                 <PretendardFont
                   weight="bold"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
                   style={{ fontSize: 14, color: C.text }}
                 >
                   {tag.label}
@@ -184,8 +197,10 @@ function TagRow({
         ) : (
           <PretendardFont
             weight="semibold"
-            className="text-[13px]"
-            style={{ color: C.textSx }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.86}
+            style={{ fontSize: 13, color: C.textSx }}
           >
             켜진 기능 없음
           </PretendardFont>
@@ -224,15 +239,34 @@ function PanelMetric({
       <PretendardFont weight="bold" style={{ fontSize: 12, color: C.textSx }}>
         {title}
       </PretendardFont>
-      <PretendardFont
-        weight="bold"
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.82}
-        style={{ fontSize: 16, color: C.text }}
-      >
-        온도 {temperature}°Cㅤ습도 {humidity}%
-      </PretendardFont>
+      <View className="mt-0.5 flex-row items-center gap-1.5">
+        <View className="flex-row items-center gap-1">
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+            온도
+          </PretendardFont>
+          <View
+            className="rounded-lg px-1.5 py-0.5"
+            style={{ backgroundColor: "rgba(237, 119, 57, 0.11)" }}
+          >
+            <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartTemp }}>
+              {temperature}°C
+            </PretendardFont>
+          </View>
+        </View>
+        <View className="flex-row items-center gap-1">
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+            습도
+          </PretendardFont>
+          <View
+            className="rounded-lg px-1.5 py-0.5"
+            style={{ backgroundColor: "rgba(37, 99, 235, 0.09)" }}
+          >
+            <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartHumidity }}>
+              {humidity}%
+            </PretendardFont>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -247,9 +281,10 @@ function SensorPanel({
 }) {
   return (
     <View
-      className="flex-1 p-3 rounded-xl gap-2"
+      className="flex-1 p-4 rounded-xl gap-3"
       style={{
         backgroundColor: "rgba(255, 255, 255, 0.312)",
+        minHeight: 190,
       }}
     >
       <PanelMetric
@@ -278,9 +313,73 @@ function HiveHeroSlide({
   activeTags: ActiveTag[];
 }) {
   return (
-    <View className="h-full self-start px-3" style={{ width: "62%" }}>
+    <View className="h-full self-start px-3" style={{ width: "68%" }}>
       <HeroHeader hive={hive} />
       <SensorPanel hive={hive} activeTags={activeTags} />
+    </View>
+  );
+}
+
+function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
+  return (
+    <View className="mb-10">
+      <View
+        style={{ position: "relative", minHeight: 260 }}
+        className="overflow-hidden rounded-[24px] px-5 py-6"
+      >
+        <Image
+          source={HIVE_IMAGE}
+          style={{
+            position: "absolute",
+            bottom: -8,
+            right: -24,
+            width: 170,
+            height: 190,
+            opacity: 0.24,
+          }}
+          resizeMode="contain"
+        />
+
+        <View
+          className="rounded-2xl p-4"
+          style={{ backgroundColor: "rgba(255, 255, 255, 0.56)" }}
+        >
+          <View className="mb-2 flex-row items-center gap-2">
+            <View
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: C.primary }}
+            />
+            <PretendardFont weight="bold" style={{ fontSize: 13, color: C.primary }}>
+              첫 벌통 등록
+            </PretendardFont>
+          </View>
+
+          <PretendardFont
+            weight="bold"
+            style={{ fontSize: 20, lineHeight: 27, color: C.text }}
+          >
+            새 벌통을 등록해 주세요
+          </PretendardFont>
+          <PretendardFont
+            weight="semibold"
+            style={{ marginTop: 8, fontSize: 14, lineHeight: 21, color: C.sec }}
+          >
+            벌통을 등록하면 이곳에 내부·외부 온습도와 제어 상태가 표시돼요.
+          </PretendardFont>
+
+          {onAddHive ? (
+            <Pressable
+              onPress={onAddHive}
+              className="mt-5 self-start rounded-2xl px-5 py-3 active:opacity-75"
+              style={{ backgroundColor: C.primary }}
+            >
+              <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
+                벌통 추가하기
+              </PretendardFont>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
     </View>
   );
 }
@@ -294,10 +393,15 @@ export function HiveSliderSection({
   sliderRef,
   onHivePress,
   onSlideEnd,
+  onAddHive,
   onEditHive,
   onDeleteHive,
 }: HiveSliderSectionProps) {
   const pageWidth = itemWidth;
+
+  if (hives.length === 0) {
+    return <EmptyHiveSlide onAddHive={onAddHive} />;
+  }
 
   // 전체보기: 카드 스택
   if (allView) {
@@ -399,19 +503,16 @@ export function HiveSliderSection({
         </ScrollView>
       </View>
 
-      {/* 페이지 인디케이터 dot */}
-      <View className="flex-row items-center justify-center gap-1.5 ml-[-280]">
-        {hives.map((_, index) => (
-          <View
-            key={index}
-            style={{
-              height: 6,
-              borderRadius: 3,
-              width: index === selectedIndex ? 16 : 5,
-              backgroundColor: index === selectedIndex ? C.text : C.border,
-            }}
-          />
-        ))}
+      {/* 페이지 인디케이터 */}
+      <View className="mt-3 ml-[-280] items-center">
+        <View
+          className="rounded-full px-3 py-1"
+          style={{ backgroundColor: "rgba(25, 31, 40, 0.12)" }}
+        >
+          <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt }}>
+            {selectedIndex + 1}/{hives.length}
+          </PretendardFont>
+        </View>
       </View>
     </View>
   );

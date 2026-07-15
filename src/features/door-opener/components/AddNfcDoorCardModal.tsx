@@ -9,12 +9,15 @@ import {
 import { PretendardFont } from "@/components/PretendardFont";
 import { BottomSheet, useBottomSheetScroll } from "@/components/BottomSheet";
 import { C } from "@/constants/hive-colors";
-import type { NfcDoorFunction } from "./nfcDoorCards";
+import {
+  type NfcDoorFunction,
+} from "./nfcDoorCards";
 
 const FUNCTION_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
-  { value: "on", label: "ON 단일" },
-  { value: "off", label: "OFF 단일" },
-  { value: "cycle", label: "여닫기" },
+  { value: "open_at", label: "열기 예약" },
+  { value: "close_at", label: "닫기 예약" },
+  { value: "window", label: "여닫기" },
+  { value: "alternate_24h", label: "24시간 교대" },
 ];
 
 const HOURS_12 = Array.from({ length: 12 }, (_, index) => index + 1);
@@ -46,7 +49,7 @@ export function AddNfcDoorCardModal({
   }) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [functionType, setFunctionType] = useState<NfcDoorFunction>("on");
+  const [functionType, setFunctionType] = useState<NfcDoorFunction>("open_at");
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
   const [meridiem, setMeridiem] = useState<"오전" | "오후">("오전");
@@ -55,16 +58,19 @@ export function AddNfcDoorCardModal({
   const [repeat, setRepeat] = useState(false);
 
   const detail = useMemo(() => {
-    if (functionType === "cycle") {
+    if (functionType === "window") {
       if (startHour === endHour) return `${formatHour24(startHour)}부터 24시간 전체`;
       return `${formatHour24(startHour)} ~ ${formatHour24(endHour)}`;
     }
+    if (functionType === "alternate_24h") {
+      return repeat ? "24시간 닫기와 24시간 열기를 계속 반복" : "24시간 닫고 24시간 연 뒤 종료";
+    }
     return `${meridiem} ${hour}:${String(minute).padStart(2, "0")}`;
-  }, [endHour, functionType, hour, meridiem, minute, startHour]);
+  }, [endHour, functionType, hour, meridiem, minute, repeat, startHour]);
 
   const resetAndClose = () => {
     setTitle("");
-    setFunctionType("on");
+    setFunctionType("open_at");
     setHour(9);
     setMinute(0);
     setMeridiem("오전");
@@ -76,21 +82,24 @@ export function AddNfcDoorCardModal({
 
   const submit = () => {
     const selectedTime = toTimeString(hour, minute, meridiem);
+    const defaultTitle = "새 NFC 카드";
     onSubmit({
-      title: title.trim() || "새 NFC 카드",
+      title: title.trim() || defaultTitle,
       functionType,
       detail,
       repeat,
       start:
-        functionType === "off"
+        functionType === "close_at"
           ? ""
-          : functionType === "cycle"
+          : functionType === "window"
             ? toHourString(startHour)
+            : functionType === "alternate_24h"
+              ? "close_first"
             : selectedTime,
       end:
-        functionType === "on"
+        functionType === "open_at" || functionType === "alternate_24h"
           ? ""
-          : functionType === "cycle"
+          : functionType === "window"
             ? toHourString(endHour)
             : selectedTime,
     });
@@ -102,7 +111,7 @@ export function AddNfcDoorCardModal({
       visible={visible}
       onClose={resetAndClose}
       title="NFC 카드 추가"
-      contentScrollEnabled={false}
+      contentScrollEnabled
     >
       <SheetInfo>
         제목과 기능을 선택하면 개폐기 NFC 카드 목록에 추가돼요.
@@ -138,13 +147,19 @@ export function AddNfcDoorCardModal({
       </View>
 
       <SheetFieldLabel label="세부" />
-      {functionType === "cycle" ? (
+      {functionType === "window" ? (
         <RangeWheelPicker
           startHour={startHour}
           endHour={endHour}
           onStartChange={setStartHour}
           onEndChange={setEndHour}
         />
+      ) : functionType === "alternate_24h" ? (
+        <View className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.bgAlt }}>
+          <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.sec, lineHeight: 20 }}>
+            활성화하는 순간부터 24시간 닫고, 다음 24시간은 엽니다.
+          </PretendardFont>
+        </View>
       ) : (
         <SingleTimeWheel
           hour={hour}

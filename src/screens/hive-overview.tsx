@@ -137,6 +137,7 @@ export default function HiveOverviewScreen() {
           sliderRef={{ current: null }}
           onHivePress={() => {}}
           onSlideEnd={() => {}}
+          onAddHive={openAddHiveSheet}
           onEditHive={openEditHiveSheet}
           onDeleteHive={openDeleteHiveSheet}
         />

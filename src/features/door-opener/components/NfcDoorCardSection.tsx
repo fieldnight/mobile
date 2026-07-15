@@ -4,7 +4,8 @@
  * - 추가: AddNfcDoorCardModal (바텀시트)
  * - 삭제: ConfirmSheet (바텀시트) — Alert.alert 대체
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Animated,
   LayoutAnimation,
@@ -21,10 +22,43 @@ import {
   DEFAULT_NFC_DOOR_CARDS,
   createCustomDoorCard,
   type NfcDoorCardConfig,
+  type NfcDoorMode,
 } from "./nfcDoorCards";
 
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
+const NFC_DOOR_CARDS_STORAGE_KEY = "webee:nfc-door-cards:v1";
+const SUPPORTED_MODES = new Set<NfcDoorMode>([
+  "open_now",
+  "close_now",
+  "open_at",
+  "close_at",
+  "window",
+  "alternate_24h",
+  "lock_days",
+]);
+
+function isStoredCard(value: unknown): value is NfcDoorCardConfig {
+  if (!value || typeof value !== "object") return false;
+  const card = value as Partial<NfcDoorCardConfig>;
+  return (
+    typeof card.id === "string" &&
+    typeof card.title === "string" &&
+    typeof card.description === "string" &&
+    typeof card.mode === "string" &&
+    SUPPORTED_MODES.has(card.mode as NfcDoorMode)
+  );
+}
+
+function mergeCurrentDefaults(storedCards: NfcDoorCardConfig[]) {
+  const defaultsById = new Map(DEFAULT_NFC_DOOR_CARDS.map((card) => [card.id, card]));
+  const merged = storedCards.map((card) => defaultsById.get(card.id) ?? card);
+  const storedIds = new Set(merged.map((card) => card.id));
+  for (const card of DEFAULT_NFC_DOOR_CARDS) {
+    if (!storedIds.has(card.id)) merged.push(card);
+  }
+  return merged;
+}
 
 export function NfcDoorCardSection({
   cardWidth,
@@ -38,6 +72,7 @@ export function NfcDoorCardSection({
   const { show: showToast } = useAppToast();
 
   const [cards, setCards]               = useState<NfcDoorCardConfig[]>(DEFAULT_NFC_DOOR_CARDS);
+  const [cardsHydrated, setCardsHydrated] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [activeCard, setActiveCard]     = useState<NfcDoorCardConfig | null>(null);
   const [adding, setAdding]             = useState(false);
@@ -50,6 +85,40 @@ export function NfcDoorCardSection({
   const dragCurrentIndexRef  = useRef(0);
   const cardsRef             = useRef(cards);
   cardsRef.current = cards;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreCards = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(NFC_DOOR_CARDS_STORAGE_KEY);
+        if (!raw || cancelled) return;
+        const parsed = JSON.parse(raw) as { cards?: unknown };
+        if (!Array.isArray(parsed.cards)) return;
+        const restored = mergeCurrentDefaults(parsed.cards.filter(isStoredCard));
+        if (!cancelled) setCards(restored);
+      } catch (error) {
+        console.warn("[NFC Door Cards] 저장된 카드 복구 실패", error);
+      } finally {
+        if (!cancelled) setCardsHydrated(true);
+      }
+    };
+
+    restoreCards();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cardsHydrated) return;
+    AsyncStorage.setItem(
+      NFC_DOOR_CARDS_STORAGE_KEY,
+      JSON.stringify({ version: 1, cards }),
+    ).catch((error) => {
+      console.warn("[NFC Door Cards] 카드 저장 실패", error);
+    });
+  }, [cards, cardsHydrated]);
 
   const cell = useMemo(
     () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.58 + GRID_GAP }),

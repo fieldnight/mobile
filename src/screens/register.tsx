@@ -5,9 +5,16 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/Button';
+import { ConsentCheckRow } from '@/components/ConsentCheckRow';
+import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { PretendardFont } from '@/components/PretendardFont';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { PhoneVerification } from '@/components/PhoneVerification';
+import {
+  AGE_CONFIRM_DESCRIPTION,
+  REQUIRED_CONSENT_DESCRIPTION,
+  type LegalNoticeKey,
+} from '@/lib/complianceNotices';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -20,6 +27,9 @@ export default function RegisterScreen() {
     name: '',
     phoneNumber: '',
   });
+  const [isAgeConfirmed, setIsAgeConfirmed] = useState(false);
+  const [isRequiredConsentChecked, setIsRequiredConsentChecked] = useState(false);
+  const [legalNoticeType, setLegalNoticeType] = useState<LegalNoticeKey | null>(null);
 
   const handleRegister = async () => {
     if (!formData.username.trim()) {
@@ -44,6 +54,14 @@ export default function RegisterScreen() {
     }
     if (formData.password !== formData.passwordConfirm) {
       Alert.alert('알림', '비밀번호가 일치하지 않습니다');
+      return;
+    }
+    if (!isAgeConfirmed) {
+      Alert.alert('알림', '만 14세 이상 여부를 확인해주세요');
+      return;
+    }
+    if (!isRequiredConsentChecked) {
+      Alert.alert('알림', '서비스 이용약관 및 개인정보 처리방침에 동의해주세요');
       return;
     }
 
@@ -153,6 +171,51 @@ export default function RegisterScreen() {
             )}
           </View>
 
+          <View className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3.5">
+            <View className="flex-row items-center gap-2">
+              <Feather name="shield" size={16} color="#2563eb" />
+              <PretendardFont weight="bold" className="text-sm text-gray-900">
+                가입 전 확인
+              </PretendardFont>
+            </View>
+            <PretendardFont className="mt-2 text-xs text-gray-600 leading-5">
+              선택 권한은 기능을 사용할 때만 요청됩니다. 카메라/사진, 위치, 알림, NFC 권한은 설정에서 언제든 변경할 수 있어요.
+            </PretendardFont>
+            <Pressable onPress={() => setLegalNoticeType('permissions')} className="mt-2 self-start py-1 active:opacity-70">
+              <PretendardFont weight="semibold" className="text-xs text-blue-600">
+                앱 권한 안내 보기
+              </PretendardFont>
+            </Pressable>
+          </View>
+
+          <View className="gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+            <ConsentCheckRow
+              checked={isAgeConfirmed}
+              onPress={() => setIsAgeConfirmed((value) => !value)}
+              title="만 14세 이상입니다"
+              description={AGE_CONFIRM_DESCRIPTION}
+            />
+            <View className="h-px bg-gray-100" />
+            <ConsentCheckRow
+              checked={isRequiredConsentChecked}
+              onPress={() => setIsRequiredConsentChecked((value) => !value)}
+              title="서비스 이용약관 및 개인정보 처리방침에 동의합니다"
+              description={REQUIRED_CONSENT_DESCRIPTION}
+            />
+            <View className="flex-row gap-3 pl-9">
+              <Pressable onPress={() => setLegalNoticeType('terms')} className="py-1 active:opacity-70">
+                <PretendardFont weight="semibold" className="text-xs text-blue-600 underline">
+                  이용약관
+                </PretendardFont>
+              </Pressable>
+              <Pressable onPress={() => setLegalNoticeType('privacy')} className="py-1 active:opacity-70">
+                <PretendardFont weight="semibold" className="text-xs text-blue-600 underline">
+                  개인정보 처리방침
+                </PretendardFont>
+              </Pressable>
+            </View>
+          </View>
+
           <View className="flex-row justify-center items-center mt-2">
             <PretendardFont className="text-gray-600 text-base">이미 계정이 있으신가요? </PretendardFont>
             <Pressable onPress={() => router.back()}>
@@ -173,6 +236,10 @@ export default function RegisterScreen() {
           회원가입
         </Button>
       </View>
+      <LegalNoticeModal
+        type={legalNoticeType}
+        onClose={() => setLegalNoticeType(null)}
+      />
     </SafeAreaView>
   );
 }

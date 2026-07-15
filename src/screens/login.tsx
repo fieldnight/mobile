@@ -10,12 +10,30 @@ import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/Button';
+import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { PretendardFont } from '@/components/PretendardFont';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { type LegalNoticeKey } from '@/lib/complianceNotices';
 
 const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY;
 const NAVER_CLIENT_ID = process.env.EXPO_PUBLIC_NAVER_CLIENT_ID;
 const API_BASE = Constants.expoConfig?.extra?.apiUrl || 'https://webeelab.site';
+const TEST_ACCOUNT = {
+  username: process.env.EXPO_PUBLIC_TEST_USERNAME || 'minari02',
+  password: process.env.EXPO_PUBLIC_TEST_PASSWORD || 'qwe123!@#',
+};
+
+function getLoginErrorMessage(error: any, fallback: string) {
+  if (error?.code === 'ECONNABORTED' || String(error?.message ?? '').includes('timeout')) {
+    return '서버 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.';
+  }
+
+  if (!error?.response) {
+    return '서버에 연결하지 못했어요. 네트워크 상태나 서버 주소를 확인해주세요.';
+  }
+
+  return error.response?.data?.message || fallback;
+}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -71,10 +89,27 @@ export default function LoginScreen() {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [legalNoticeType, setLegalNoticeType] = useState<LegalNoticeKey | null>(null);
 
   const getLoginDestination = () => {
     if (redirect && redirect !== '/login') return redirect as any;
     return '/home';
+  };
+
+  const submitLogin = async (
+    credentials: { username: string; password: string },
+    fallbackMessage: string,
+  ) => {
+    try {
+      await login({
+        username: credentials.username.trim(),
+        password: credentials.password,
+      });
+      router.replace(getLoginDestination());
+    } catch (error: any) {
+      const message = getLoginErrorMessage(error, fallbackMessage);
+      Alert.alert('로그인 실패', message);
+    }
   };
 
   const handleSocialLogin = async (provider: 'KAKAO' | 'NAVER') => {
@@ -108,7 +143,7 @@ export default function LoginScreen() {
         router.replace(getLoginDestination());
       }
     } catch (error: any) {
-      const message = error.response?.data?.message || '소셜 로그인에 실패했습니다';
+      const message = getLoginErrorMessage(error, '소셜 로그인에 실패했습니다');
       Alert.alert('로그인 실패', message);
     }
   };
@@ -123,13 +158,12 @@ export default function LoginScreen() {
       return;
     }
 
-    try {
-      await login({ username: username.trim(), password });
-      router.replace(getLoginDestination());
-    } catch (error: any) {
-      const message = error.response?.data?.message || '로그인에 실패했습니다';
-      Alert.alert('로그인 실패', message);
-    }
+    await submitLogin({ username, password }, '로그인에 실패했습니다');
+  };
+
+  const handleTestLogin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await submitLogin(TEST_ACCOUNT, '테스트 계정 로그인에 실패했습니다');
   };
 
   const handleGoToRegister = () => {
@@ -274,6 +308,21 @@ export default function LoginScreen() {
             onPress={() => handleSocialLogin('NAVER')}
           />
 
+          <Pressable
+            onPress={handleTestLogin}
+            disabled={isLoading}
+            className="h-16 flex-row items-center justify-center gap-2.5 rounded-2xl active:opacity-80"
+            style={{
+              backgroundColor: '#111827',
+              opacity: isLoading ? 0.6 : 1,
+            }}
+          >
+            <Feather name="zap" size={21} color="#FFFFFF" />
+            <PretendardFont weight="bold" style={{ fontSize: 18, color: '#FFFFFF' }}>
+              테스트 계정으로 로그인
+            </PretendardFont>
+          </Pressable>
+
           <View className="flex-row items-center my-4">
             <View className="flex-1 h-px bg-gray-200" />
             <PretendardFont className="text-sm text-gray-600 mx-4">또는</PretendardFont>
@@ -299,14 +348,27 @@ export default function LoginScreen() {
           className="items-center px-8"
         >
           <PretendardFont className="text-sm text-gray-600 text-center leading-5">
-            계속 진행하면{' '}
-            <PretendardFont className="text-gray-600 underline">서비스 이용약관</PretendardFont>
-            {' '}및{'\n'}
-            <PretendardFont className="text-gray-600 underline">개인정보 처리방침</PretendardFont>
-            에 동의하게 됩니다.
+            계속 진행하면 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.
           </PretendardFont>
+          <View className="mt-2 flex-row items-center justify-center gap-3">
+            <Pressable onPress={() => setLegalNoticeType('terms')} className="py-1 active:opacity-70">
+              <PretendardFont className="text-sm text-gray-600 underline">
+                서비스 이용약관
+              </PretendardFont>
+            </Pressable>
+            <PretendardFont className="text-sm text-gray-400">|</PretendardFont>
+            <Pressable onPress={() => setLegalNoticeType('privacy')} className="py-1 active:opacity-70">
+              <PretendardFont className="text-sm text-gray-600 underline">
+                개인정보 처리방침
+              </PretendardFont>
+            </Pressable>
+          </View>
         </Animated.View>
       </View>
+      <LegalNoticeModal
+        type={legalNoticeType}
+        onClose={() => setLegalNoticeType(null)}
+      />
     </SafeAreaView>
   );
 }

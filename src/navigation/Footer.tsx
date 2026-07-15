@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { useRouter, useSegments } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomWhiteGradient } from "@/components/BottomWhiteGradient";
 import { Colors } from "../constants/theme";
@@ -32,6 +33,7 @@ const TABS: FooterTab[] = [
 export default function Footer() {
   const router = useRouter();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
   const currentRoute = segments[0] || "home";
   const onIot = ["iot-home", "hive-control", "hive-stats", "hive-setting", "hive-overview"].includes(currentRoute);
 
@@ -45,14 +47,14 @@ export default function Footer() {
               left: 0,
               right: 0,
               bottom: 0,
-              paddingBottom: 10,
+              paddingBottom: insets.bottom + 10,
               backgroundColor: "transparent",
             }
           : {
               backgroundColor: "#FFFFFF",
               borderTopWidth: 1,
               borderTopColor: "#E5E7EB",
-              marginBottom: 6,
+              paddingBottom: Math.max(insets.bottom, 6),
             }
       }
     >

@@ -1,3 +1,5 @@
+import { PUBLIC_CONFIG } from "@/lib/publicConfig";
+
 /**
  * 벌통 관련 기능 통합 상수
  * - Spacing        : 여백 단위 (xs~xl)
@@ -20,7 +22,7 @@ export const Spacing = {
 } as const;
 
 export const WEATHER_REGION_KEY = "webee_weather_region";
-export const KMA_API_KEY = process.env.EXPO_PUBLIC_KMA_API_KEY!;
+export const KMA_API_KEY = PUBLIC_CONFIG.kmaApiKey;
 export const PERIODS = ["일간", "주간", "월간"] as const; //날씨 확인
 
 export const DATA_INTERVALS = [

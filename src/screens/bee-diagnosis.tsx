@@ -600,6 +600,13 @@ export default function BeeDiagnosisScreen() {
               />
             </View>
 
+            <View className="mb-4 rounded-xl bg-blue-50 px-4 py-3">
+              <Text className="text-xs leading-5 text-blue-900">
+                AI 진단 결과는 참고용이에요. 방제나 폐기처럼 중요한 결정은 현장
+                상태와 전문가 확인을 함께 보고 판단해주세요.
+              </Text>
+            </View>
+
             <Button onPress={handleAiRequest} loading={aiMutation.isPending}>
               AI 진단 시작
             </Button>
