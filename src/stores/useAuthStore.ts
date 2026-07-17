@@ -7,6 +7,39 @@ import { queryClient } from '@/providers';
 import { unregisterCurrentDeviceFcmToken } from '@/features/notification/model/fcmTokenService';
 import type { User, LoginRequest, RegisterRequest, ApiResponse, SignInResponseData, OAuthSignInResponse } from '@/types';
 
+function getResponseHeader(headers: unknown, name: string): string | null {
+  if (!headers || typeof headers !== 'object') return null;
+
+  const getterValue = (headers as { get?: (headerName: string) => unknown }).get?.(name);
+  if (typeof getterValue === 'string') return getterValue;
+
+  const normalizedName = name.toLowerCase();
+  const entry = Object.entries(headers as Record<string, unknown>).find(
+    ([key]) => key.toLowerCase() === normalizedName,
+  );
+  const value = entry?.[1];
+
+  if (Array.isArray(value)) return value.join('; ');
+  return typeof value === 'string' ? value : null;
+}
+
+function getBearerToken(headers: unknown): string | null {
+  return getResponseHeader(headers, 'authorization')?.replace(/^Bearer\s+/i, '') || null;
+}
+
+function getRefreshTokenFromHeaders(headers: unknown): string | null {
+  const setCookieHeader = getResponseHeader(headers, 'set-cookie');
+  if (setCookieHeader) {
+    const match = setCookieHeader.match(/refreshToken=([^;]+)/);
+    if (match) return match[1];
+  }
+
+  return (
+    getResponseHeader(headers, 'x-refresh-token') ||
+    getResponseHeader(headers, 'refresh-token')
+  );
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -45,32 +78,16 @@ export const useAuthStore = create<AuthState>()(
           const { data } = response;
 
           if (data.code === '200' || data.code === 'OK') {
-            let accessTokenFromBody = data.data?.accessToken || null;
+            const accessToken =
+              getBearerToken(response.headers) || data.data?.accessToken || null;
+            const refreshToken =
+              data.data?.refreshToken ||
+              getRefreshTokenFromHeaders(response.headers) ||
+              null;
 
-            const authHeader =
-              response.headers['authorization'] ||
-              response.headers['Authorization'] ||
-              response.headers['AUTHORIZATION'];
-            const headerToken = authHeader?.replace(/^Bearer\s+/i, '') || accessTokenFromBody;
-
-            let refreshToken: string | null = data.data?.refreshToken || null;
-
-            if (!refreshToken) {
-              const setCookieHeader = response.headers['set-cookie'];
-              if (setCookieHeader) {
-                const cookieString = Array.isArray(setCookieHeader) ? setCookieHeader.join('; ') : setCookieHeader;
-                const match = cookieString.match(/refreshToken=([^;]+)/);
-                if (match) {
-                  refreshToken = match[1];
-                }
-              }
+            if (!accessToken) {
+              throw new Error('로그인 토큰을 받지 못했습니다. 서버 응답 헤더 설정을 확인해 주세요.');
             }
-
-            if (!refreshToken) {
-              refreshToken = response.headers['x-refresh-token'] || response.headers['refresh-token'] || null;
-            }
-
-            const accessToken = headerToken || null;
 
             // 로그인 성공 시 사용자 정보 및 토큰 설정
             const user: User = {
@@ -81,9 +98,7 @@ export const useAuthStore = create<AuthState>()(
             };
 
             // API 인스턴스에 토큰 설정
-            if (accessToken) {
-              api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            }
+            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
             set({ user, accessToken, refreshToken, isAuthenticated: true, isLoading: false });
           } else {
@@ -106,25 +121,14 @@ export const useAuthStore = create<AuthState>()(
           const { data } = response;
 
           if (data.code === '200' || data.code === 'OK') {
-            const authHeader =
-              response.headers['authorization'] ||
-              response.headers['Authorization'];
-            const accessToken = authHeader?.replace(/^Bearer\s+/i, '') || null;
+            const accessToken = getBearerToken(response.headers);
+            const refreshToken = getRefreshTokenFromHeaders(response.headers);
 
-            let refreshToken: string | null = null;
-            const setCookieHeader = response.headers['set-cookie'];
-            if (setCookieHeader) {
-              const cookieString = Array.isArray(setCookieHeader) ? setCookieHeader.join('; ') : setCookieHeader;
-              const match = cookieString.match(/refreshToken=([^;]+)/);
-              if (match) refreshToken = match[1];
-            }
-            if (!refreshToken) {
-              refreshToken = response.headers['x-refresh-token'] || response.headers['refresh-token'] || null;
+            if (!accessToken) {
+              throw new Error('로그인 토큰을 받지 못했습니다. 서버 응답 헤더 설정을 확인해 주세요.');
             }
 
-            if (accessToken) {
-              api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            }
+            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
             const user: User = {
               id: '',

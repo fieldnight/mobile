@@ -37,7 +37,7 @@ export function toHceCardPayload(card: NfcDoorCardConfig): HceCardPayload {
     mode: card.mode,
     start: card.start ?? "",
     end: card.end ?? "",
-    repeat: card.repeat ?? card.mode === "alternate_days",
+    repeat: card.repeat ?? false,
   };
 }
 

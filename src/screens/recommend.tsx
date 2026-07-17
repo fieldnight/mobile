@@ -490,7 +490,7 @@ export default function RecommendScreen() {
                                 <PretendardFont
                                   style={{ fontSize: 11.5, color: C.textAlt, marginTop: 1 }}
                                 >
-                                  이 농지 정보로 바로 분석해요
+                                  AI 생성 추천이며 현장 확인이 필요해요
                                 </PretendardFont>
                               </View>
                             </View>

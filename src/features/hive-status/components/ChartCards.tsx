@@ -27,6 +27,7 @@ const CHART_HEIGHT = 190;
 const CHART_PADDING_H = 24;
 const CHART_PADDING_V = 32;
 const HOUR_SLOT_WIDTH = 50;
+const COMBINED_SLOT_WIDTH = 58;
 const USABLE_HEIGHT = CHART_HEIGHT - CHART_PADDING_V;
 
 const CHART_CONFIGS: Array<{
@@ -36,6 +37,7 @@ const CHART_CONFIGS: Array<{
   unit: string;
   minVal: number;
   maxVal: number;
+  muted?: boolean;
 }> = [
   {
     key: "internalTemperature",
@@ -48,10 +50,11 @@ const CHART_CONFIGS: Array<{
   {
     key: "externalTemperature",
     label: "외부 온도",
-    color: "#F97316",
+    color: "#A78B7A",
     unit: "°C",
     minVal: -10,
     maxVal: 40,
+    muted: true,
   },
   {
     key: "internalHumidity",
@@ -64,24 +67,25 @@ const CHART_CONFIGS: Array<{
   {
     key: "externalHumidity",
     label: "외부 습도",
-    color: "#0EA5E9",
+    color: "#7C93A8",
     unit: "%",
     minVal: 20,
     maxVal: 100,
+    muted: true,
   },
   {
     key: "co2",
     label: "CO2",
-    color: C.ter,
+    color: C.success,
     unit: "ppm",
     minVal: 300,
     maxVal: 1000,
   },
 ];
 
-function chartWidthFor(data: DataPoint[]) {
+function chartWidthFor(data: DataPoint[], slotWidth = HOUR_SLOT_WIDTH) {
   const totalSlots = Math.max(data.length, 24);
-  return Math.max(VIEWPORT_CHART_WIDTH, totalSlots * HOUR_SLOT_WIDTH);
+  return Math.max(VIEWPORT_CHART_WIDTH, totalSlots * slotWidth);
 }
 
 function statLine(data: DataPoint[], key: HiveSensorDataKey) {
@@ -129,7 +133,7 @@ function hourLabel(label: string) {
 }
 
 function CombinedChart({ data }: { data: DataPoint[] }) {
-  const chartWidth = chartWidthFor(data);
+  const chartWidth = chartWidthFor(data, COMBINED_SLOT_WIDTH);
   const latest = [...data].reverse().find((point) => point.hasData !== false) ?? data[0];
 
   return (
@@ -137,9 +141,24 @@ function CombinedChart({ data }: { data: DataPoint[] }) {
       <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-2">
         {CHART_CONFIGS.map((config) => (
           <View key={config.key} className="flex-row items-center gap-2">
-            <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: config.color }} />
-            <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text }}>
-              {config.label} {latest ? `${latest[config.key]}${config.unit}` : "-"}
+            <View
+              className="h-2.5 w-2.5 rounded-full"
+              style={{
+                backgroundColor: config.color,
+                opacity: config.muted ? 0.65 : 1,
+              }}
+            />
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 13, color: config.muted ? C.textAlt : C.text }}
+            >
+              {config.label}
+            </PretendardFont>
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 13, color: config.color, opacity: config.muted ? 0.78 : 1 }}
+            >
+              {latest ? `${latest[config.key]}${config.unit}` : "-"}
             </PretendardFont>
           </View>
         ))}
@@ -185,19 +204,21 @@ function CombinedChart({ data }: { data: DataPoint[] }) {
                       d={buildPath(points)}
                       fill="none"
                       stroke={config.color}
-                      strokeWidth={2.2}
+                      strokeWidth={config.muted ? 1.5 : 2.4}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      opacity={config.muted ? 0.58 : 1}
                     />
                     {activePoints.map((point, index) => (
                       <Circle
                         key={`${config.key}-${index}`}
                         cx={point.x}
                         cy={point.y}
-                        r={3.4}
+                        r={config.muted ? 2.4 : 3.4}
                         fill={C.white}
                         stroke={config.color}
-                        strokeWidth={2}
+                        strokeWidth={config.muted ? 1.4 : 2}
+                        opacity={config.muted ? 0.62 : 1}
                       />
                     ))}
                   </Fragment>
@@ -208,10 +229,24 @@ function CombinedChart({ data }: { data: DataPoint[] }) {
 
           <View className="mt-2 flex-row" style={{ width: chartWidth }}>
             {data.map((point, index) => (
+              <CombinedValueBox
+                key={`${point.label}-values-${index}`}
+                point={point}
+              />
+            ))}
+          </View>
+
+          <View className="mt-2 flex-row" style={{ width: chartWidth }}>
+            {data.map((point, index) => (
               <PretendardFont
                 key={`${point.label}-${index}`}
                 weight="semibold"
-                style={{ width: HOUR_SLOT_WIDTH, fontSize: 12, color: C.sec, textAlign: "center" }}
+                style={{
+                  width: COMBINED_SLOT_WIDTH,
+                  fontSize: 12,
+                  color: C.sec,
+                  textAlign: "center",
+                }}
               >
                 {hourLabel(point.label)}
               </PretendardFont>
@@ -219,6 +254,41 @@ function CombinedChart({ data }: { data: DataPoint[] }) {
           </View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function CombinedValueBox({ point }: { point: DataPoint }) {
+  return (
+    <View
+      className="overflow-hidden rounded-md border bg-white"
+      style={{
+        width: COMBINED_SLOT_WIDTH,
+        borderColor: C.border,
+        opacity: point.hasData === false ? 0.45 : 1,
+      }}
+    >
+      {CHART_CONFIGS.map((config, index) => (
+        <View
+          key={`${point.label}-${config.key}`}
+          className="items-center justify-center px-1"
+          style={{
+            height: 16,
+            backgroundColor: index % 2 === 0 ? C.white : C.bgAlt,
+          }}
+        >
+          <PretendardFont
+            weight="bold"
+            style={{
+              fontSize: 10,
+              color: config.color,
+              opacity: config.muted ? 0.78 : 1,
+            }}
+          >
+            {point.hasData === false ? "-" : `${point[config.key]}${config.unit}`}
+          </PretendardFont>
+        </View>
+      ))}
     </View>
   );
 }

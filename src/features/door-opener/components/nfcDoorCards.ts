@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 
-export type NfcDoorFunction = "on" | "off" | "cycle";
+export type NfcDoorFunction = "open_at" | "close_at" | "window" | "alternate_24h";
 export type NfcDoorMode =
   | "open_now"
   | "close_now"
-  | "alternate_days"
+  | "open_at"
+  | "close_at"
+  | "alternate_24h"
   | "window"
   | "lock_days";
 
@@ -53,6 +55,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
     mode: "lock_days",
     start: "3",
     end: "",
+    repeat: false,
   },
   {
     id: "bloom-30",
@@ -64,6 +67,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
     mode: "window",
     start: "09:00",
     end: "14:00",
+    repeat: true,
   },
   {
     id: "bloom-30-60",
@@ -72,9 +76,10 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
     detail:
       "개화가 30~60%라면 매일 오전부터 오후 2시까지 열거나, 하루 열고 다음날 닫는 퐁당퐁당 운영을 많이 해요.",
     icon: "repeat",
-    mode: "alternate_days",
+    mode: "alternate_24h",
     start: "close_first",
     end: "",
+    repeat: true,
   },
   {
     id: "bloom-60",
@@ -86,6 +91,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
     mode: "window",
     start: "08:00",
     end: "18:00",
+    repeat: true,
   },
 ];
 
@@ -105,26 +111,27 @@ export function createCustomDoorCard({
   end: string;
 }): NfcDoorCardConfig {
   const functionLabel = {
-    on: "ON 단일",
-    off: "OFF 단일",
-    cycle: "시간대 운영",
+    open_at: "열기 예약",
+    close_at: "닫기 예약",
+    window: "시간대 운영",
+    alternate_24h: "24시간 교대",
   }[functionType];
 
   return {
     id: `custom-door-card-${Date.now()}`,
     title,
-    description: `${functionLabel} · ${detail}${repeat ? " · 반복" : ""}`,
-    icon: functionType === "on" ? "unlock" : functionType === "off" ? "lock" : "repeat",
+    description: `${functionLabel} · ${detail} · ${repeat ? "반복" : "한 번"}`,
+    icon:
+      functionType === "open_at"
+        ? "unlock"
+        : functionType === "close_at"
+          ? "lock"
+          : "repeat",
     removable: true,
     functionType,
-    mode:
-      functionType === "on"
-        ? "open_now"
-        : functionType === "off"
-          ? "close_now"
-          : "window",
-    start: functionType === "off" ? "" : start,
-    end: functionType === "on" ? "" : end,
+    mode: functionType,
+    start: functionType === "close_at" ? "" : start,
+    end: functionType === "open_at" || functionType === "alternate_24h" ? "" : end,
     detail,
     repeat,
   };

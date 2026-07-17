@@ -9,8 +9,10 @@ import { PretendardFont } from '@/components/PretendardFont';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import AppHeader from '@/components/AppHeader';
+import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { HEADER_HEIGHT } from '@/hooks';
 import InquiryModal from '@/screens/bee-chat-inquiry';
+import { type LegalNoticeKey } from '@/lib/complianceNotices';
 
 interface MenuItemProps {
   icon: keyof typeof Feather.glyphMap;
@@ -57,6 +59,7 @@ export default function Settings() {
   const [communityNotificationEnabled, setCommunityNotificationEnabled] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(true);
   const [inquiryVisible, setInquiryVisible] = useState(false);
+  const [legalNoticeType, setLegalNoticeType] = useState<LegalNoticeKey | null>(null);
   const insets = useSafeAreaInsets();
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -178,9 +181,11 @@ export default function Settings() {
             <View className="h-px bg-gray-100 ml-11" />
             <MenuItem icon="help-circle" label="문의하기" onPress={() => setInquiryVisible(true)} />
             <View className="h-px bg-gray-100 ml-11" />
-            <MenuItem icon="file-text" label="이용약관" onPress={() => {}} />
+            <MenuItem icon="file-text" label="이용약관" onPress={() => setLegalNoticeType('terms')} />
             <View className="h-px bg-gray-100 ml-11" />
-            <MenuItem icon="shield" label="개인정보처리방침" onPress={() => {}} />
+            <MenuItem icon="shield" label="개인정보처리방침" onPress={() => setLegalNoticeType('privacy')} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="lock" label="앱 권한 안내" onPress={() => setLegalNoticeType('permissions')} />
           </View>
         </View>
 
@@ -202,6 +207,10 @@ export default function Settings() {
         </View>
       </ScrollView>
       <InquiryModal visible={inquiryVisible} onClose={() => setInquiryVisible(false)} />
+      <LegalNoticeModal
+        type={legalNoticeType}
+        onClose={() => setLegalNoticeType(null)}
+      />
     </View>
   );
 }

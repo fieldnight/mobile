@@ -25,7 +25,6 @@ function uniqueBy<T>(arr: T[], keyFn: (item: T) => string): T[] {
   });
 }
 
-// 첫 조회 rows에 누락되기 쉬운 대표 작물은 빠른검색 후보로 보강합니다.
 export function getLargeOptions(rows: Row[]): Option[] {
   return uniqueBy(
     [
@@ -44,7 +43,7 @@ export function getLargeOptions(rows: Row[]): Option[] {
   );
 }
 
-export function getMiddleOptions(rows: Row[], largeCode: string): Option[] {
+export function getMiddleOptions(rows: Row[], largeCode = ""): Option[] {
   return uniqueBy(
     [
       ...rows
@@ -63,7 +62,7 @@ export function getMiddleOptions(rows: Row[], largeCode: string): Option[] {
 
 export function getSmallOptions(
   rows: Row[],
-  middleCode: string,
+  middleCode = "",
   middleName = "",
 ): Option[] {
   return uniqueBy(
@@ -81,8 +80,8 @@ export function getSmallOptions(
   );
 }
 
-export function getQuickMiddleName(code: string) {
-  return code.startsWith(QUICK_MIDDLE_PREFIX)
+export function getQuickMiddleName(code?: string | null) {
+  return typeof code === "string" && code.startsWith(QUICK_MIDDLE_PREFIX)
     ? code.replace(QUICK_MIDDLE_PREFIX, "")
     : "";
 }

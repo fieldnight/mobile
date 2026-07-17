@@ -10,8 +10,12 @@ web-build/
 
 # Native
 .kotlin/
+.android-sdk/
+commandlinetools-*.zip
 *.orig.*
 *.apk
+*.aab
+*.apks
 *.jks
 *.p8
 *.p12

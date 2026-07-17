@@ -12,6 +12,9 @@ import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class WeBeeHceService : HostApduService() {
   override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -49,10 +52,18 @@ class WeBeeHceService : HostApduService() {
     val end = prefs.getString(KEY_END, "") ?: ""
     val repeat = prefs.getBoolean(KEY_REPEAT, false)
     val repeatFlag = if (repeat) "1" else "0"
-    return "WBEE|" + sanitize(title) + "|" + mode + "|" + start + "|" + end + "|" + repeatFlag
+    val phoneTime = if (needsPhoneClock(mode)) {
+      SimpleDateFormat("HH:mm", Locale.US).format(Date())
+    } else {
+      ""
+    }
+    val wireTitle = sanitize(title).take(4).ifBlank { "WBEE" }
+    return "WBEE|" + wireTitle + "|" + mode + "|" + start + "|" + end + "|" + repeatFlag + "|" + phoneTime
   }
 
   private fun sanitize(value: String): String = value.replace("|", " ").trim()
+  private fun needsPhoneClock(mode: String): Boolean =
+    mode == "open_at" || mode == "close_at" || mode == "window"
 
   private fun broadcastResult(result: String) {
     sendBroadcast(
@@ -203,7 +214,13 @@ class WeBeeHceModule(
 
   private fun normalizeMode(mode: String): String =
     when (mode) {
-      "open_now", "close_now", "alternate_days", "window", "lock_days" -> mode
+      "open_now",
+      "close_now",
+      "open_at",
+      "close_at",
+      "window",
+      "alternate_24h",
+      "lock_days" -> mode
       else -> "window"
     }
 
