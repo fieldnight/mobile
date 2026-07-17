@@ -1,10 +1,6 @@
 /**
  * AI가 답변을 생성 중임을 보여주는 로딩 말풍선 컴포넌트입니다.
- *
- * 사용 기술/구조:
- * - React Native `ActivityIndicator`로 로딩 스피너를 표시합니다.
- * - `react-native-reanimated`의 `FadeIn`으로 타이핑 말풍선이 부드럽게 나타나게 합니다.
- * - NativeWind `className`으로 실제 AI 답변 말풍선과 같은 시각 구조를 유지합니다.
+ * - React Native `ActivityIndicator`로 로딩 스피너를 
  */
 import { ActivityIndicator, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";

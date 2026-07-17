@@ -1,10 +1,5 @@
 /**
  * 사용자 질문과 AI 답변을 채팅 말풍선 형태로 렌더링하는 컴포넌트입니다.
- *
- * 사용 기술/구조:
- * - `react-native-reanimated`의 `FadeInDown`으로 새 메시지 등장 애니메이션을 적용합니다.
- * - NativeWind 조건부 `className`으로 유저/AI 말풍선 방향, 색상, radius, padding을 분기합니다.
- * - 서버 응답의 `sources` 배열은 출처 칩으로 렌더링하며, 에러 메시지는 `isError`로 색상을 바꿉니다.
  */
 import { View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";

@@ -1,8 +1,5 @@
 /**
  * 저장된 챗봇 대화 목록을 바텀시트로 보여주는 컴포넌트입니다.
- *
- * 사용 기술/구조:
- * - 공용 `BottomSheet`를 사용하고, 내부 UI는 NativeWind `className`으로 구성합니다.
  * - 상단 `삭제`를 눌러 삭제 모드를 켠 경우에만 각 카드 우측 상단에 `x` 버튼을 표시합니다.
  * - 카드 padding, min-height, line-height를 NativeWind 클래스로 고정해 텍스트 겹침을 방지합니다.
  */

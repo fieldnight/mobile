@@ -1,10 +1,5 @@
 /**
  * 챗봇 예시 질문을 추천 칩 형태로 보여주는 컴포넌트입니다.
- *
- * 사용 기술/구조:
- * - `react-native-reanimated`의 `FadeInDown`으로 추천 질문 영역 진입 애니메이션을 적용합니다.
- * - NativeWind `className`으로 wrap 레이아웃, 칩 border, 배경, padding을 구성합니다.
- * - 질문 목록이 길어져도 첫 화면이 과밀해지지 않도록 최대 5개만 렌더링합니다.
  */
 import { Pressable, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";

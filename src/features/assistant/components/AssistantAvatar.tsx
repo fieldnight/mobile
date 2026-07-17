@@ -1,9 +1,5 @@
 /**
  * 채팅 말풍선 옆에 표시되는 사용자/AI 아바타 컴포넌트입니다.
- *
- * 사용 기술/구조:
- * - NativeWind `className`으로 크기, 원형 배경, 정렬, 여백을 구성합니다.
- * - 사용자 아바타는 Pretendard 텍스트, AI 아바타는 `assets/homeIcons/bee.png` 이미지를 사용합니다.
  */
 import { Image, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";

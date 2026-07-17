@@ -1,10 +1,5 @@
 /**
  * 챗봇 API와 로컬 대화 저장에 사용하는 데이터 타입 정의 파일입니다.
- *
- * 사용 기술/구조:
- * - TypeScript `type`과 `interface`로 API DTO와 화면 모델을 명확히 분리합니다.
- * - 서버 응답의 sources는 문자열 배열이지만, 화면에서는 확장 가능하도록 `AssistantSource` 객체 배열로 변환해 사용합니다.
- *
  * 주요 타입:
  * - AssistantMode: 현재 API 요청 mode 값입니다. 지금은 `"RAG"`만 사용합니다.
  * - ChatRole: 메시지 작성자가 사용자와 AI 중 누구인지 구분합니다.

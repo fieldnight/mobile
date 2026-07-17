@@ -25,7 +25,12 @@ export async function loadAssistantConversations(): Promise<
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed;
+    return parsed.filter(
+      (item): item is AssistantConversation =>
+        !!item &&
+        typeof item.id === "string" &&
+        Array.isArray(item.messages),
+    );
   } catch (error) {
     console.log("[Assistant Storage] 대화 목록 불러오기 실패", error);
     return [];
