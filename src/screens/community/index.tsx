@@ -47,8 +47,10 @@ import type { PostListItem, CategoryTab, SortKey } from "@/types/community";
 import AppHeader from "@/components/AppHeader";
 
 // ── 리스트 헤더 — memo로 분리해야 FlatList가 재마운트하지 않음
-// useMemo로 JSX를 만들면 참조가 바뀔 때마다 ListHeaderComponent가 unmount→mount되어
-// 내부 훅(useTrendingCategories, useActiveUsers)이 API를 중복 호출함
+// ListHeaderComponent에는 엘리먼트를 직접 넘겨야 함(콜백으로 감싸면 매 렌더마다
+// 새 함수 참조가 생겨 컴포넌트 타입이 바뀐 것으로 간주되어 리마운트됨).
+// 엘리먼트 자체는 category/sort가 바뀔 때마다 새로 생성되지만 type(ListHeader)이
+// 동일하므로 내부 훅(useTrendingCategories, useActiveUsers)의 중복 호출은 막힘
 const ListHeader = memo(function ListHeader({
   category,
   sort,
@@ -118,20 +120,6 @@ export default function CommunityScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // ListHeaderComponent는 컴포넌트 참조를 받아야 재마운트를 막을 수 있음
-  // useCallback으로 감싸 category/sort가 바뀌어도 함수 참조를 안정화
-  const renderListHeader = useCallback(
-    () => (
-      <ListHeader
-        category={category}
-        sort={sort}
-        onCategoryChange={setCategory}
-        onSortChange={setSort}
-      />
-    ),
-    [category, sort],
-  );
-
   return (
     <SafeAreaView
       className="flex-1"
@@ -156,7 +144,14 @@ export default function CommunityScreen() {
               <PostCard post={item as PostListItem} onPress={handlePostPress} />
             )
           }
-          ListHeaderComponent={renderListHeader}
+          ListHeaderComponent={
+            <ListHeader
+              category={category}
+              sort={sort}
+              onCategoryChange={setCategory}
+              onSortChange={setSort}
+            />
+          }
           ListEmptyComponent={!isLoading ? <EmptyState onWritePress={handleWritePress} /> : null}
           ListFooterComponent={<LoadMoreFooter loading={isFetchingNextPage} />}
           onEndReached={handleLoadMore}

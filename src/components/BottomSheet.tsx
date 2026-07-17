@@ -30,6 +30,7 @@ interface BottomSheetProps {
   children: React.ReactNode;
   snapHeight?: number;
   contentScrollEnabled?: boolean;
+  stickyHeaderIndices?: number[];
 }
 
 export function BottomSheet({
@@ -39,6 +40,7 @@ export function BottomSheet({
   children,
   snapHeight = 0.9,
   contentScrollEnabled = true,
+  stickyHeaderIndices,
 }: BottomSheetProps) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   // 내부 wheel 스크롤 중에는 외부 ScrollView 스크롤 차단
@@ -127,12 +129,15 @@ export function BottomSheet({
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                     scrollEnabled={outerScrollEnabled}
+                    stickyHeaderIndices={stickyHeaderIndices}
                     contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
                   >
                     {children}
                   </ScrollView>
                 ) : (
-                  <View className="px-5 pb-10 pt-5">{children}</View>
+                  <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 }}>
+                    {children}
+                  </View>
                 )}
               </BottomSheetScrollContext.Provider>
             </Animated.View>
