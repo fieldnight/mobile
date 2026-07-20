@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   ImageBackground,
@@ -14,22 +14,7 @@ import { HiveAddSheet } from "@/components/HiveAddSheet";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
-import {
-  AUTO_CONTROL_TYPE_BY_ID,
-  MANUAL_CONTROL_TYPE_BY_KEY,
-  HIVE_CONTROL_QUERY_KEYS,
-  HiveControlSection,
-  applyControlResult,
-  buildOptimisticAutoState,
-  buildOptimisticManualState,
-  mergeControlSettings,
-  useHiveControlSettings,
-  useHiveControlSse,
-  useRequestAutoControl,
-  useRequestManualControl,
-  type HiveControlType,
-  type QuickControlKey,
-} from "@/features/hive-control";
+import { HiveControlSection } from "@/features/hive-control";
 import { useSyncHiveList, useHiveConnectionStatuses } from "@/features/hive";
 import { HIVE_REPLACEMENT_QUERY_KEYS, HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
@@ -51,7 +36,7 @@ function setHiveControlState(hiveId: string, nextState: HiveControlState) {
 /**
  * 스마트벌통 제어 화면
  * - 상단 슬라이더에서 벌통을 고르고, 하단에서 자동/수동 제어를 변경합니다.
- * - 제어 요청은 낙관적 UI로 먼저 반영하고, 실패하거나 SSE 결과가 오면 다시 동기화합니다.
+ * - 제어 설정은 현재 화면에서 로컬 상태로만 반영합니다.
  */
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
@@ -80,18 +65,6 @@ export default function HiveControlScreen() {
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [addHiveVisible, setAddHiveVisible] = useState(false);
   const hiveSliderRef = useRef<ScrollView>(null);
-  // 복합키 `${hiveId}:${type}` 로 관리 → 벌통 간 pending 상태 오염 방지
-  const pendingAutoTypesRef = useRef(new Set<string>());
-  const pendingManualTypesRef = useRef(new Set<string>());
-  const pendingControlSeqRef = useRef(0);
-  const pendingControlTokensRef = useRef(new Map<string, number>());
-
-  const makePendingKey = (hiveId: string, type: HiveControlType) =>
-    `${hiveId}:${type}` as const;
-
-  const autoControlMutation = useRequestAutoControl();
-  const manualControlMutation = useRequestManualControl();
-  const controlSettingsQuery = useHiveControlSettings(controlHive);
 
   const windowWidth = Dimensions.get("window").width;
   const itemWidth = windowWidth - 32;
@@ -100,23 +73,6 @@ export default function HiveControlScreen() {
     hiveControls[controlHive] ?? hiveControls[hives[0]?.id ?? ""];
   const currentHive = hives.find((hive) => hive.id === controlHive);
   const hasHives = hives.length > 0;
-
-  const queueControlPendingRelease = useCallback(
-    (hiveId: string, type: HiveControlType, delayMs: number) => {
-      const key = makePendingKey(hiveId, type);
-      const token = pendingControlTokensRef.current.get(key);
-      setTimeout(() => {
-        if (pendingControlTokensRef.current.get(key) !== token) return;
-        pendingControlTokensRef.current.delete(key);
-        pendingAutoTypesRef.current.delete(key);
-        pendingManualTypesRef.current.delete(key);
-        queryClient.invalidateQueries({
-          queryKey: HIVE_CONTROL_QUERY_KEYS.settings(hiveId),
-        });
-      }, delayMs);
-    },
-    [queryClient],
-  );
 
   useEffect(() => {
     if (!hives.length) return;
@@ -129,86 +85,9 @@ export default function HiveControlScreen() {
     }
   }, [hives, controlHive, selectedIndex]);
 
-  /**
-   * 서버 설정 조회 결과를 기존 Zustand 상태와 병합합니다.
-   * 화면 곳곳이 아직 Zustand를 직접 바라보므로 React Query와 store 사이에 bridge를 둡니다.
-   */
-  useEffect(() => {
-    if (!controlSettingsQuery.data || !controlHive) return;
-
-    useHiveStore.setState((prev) => {
-      const prevControl = prev.hiveControls[controlHive];
-      if (!prevControl) return prev;
-
-      const pendingAuto = new Set(
-        [...pendingAutoTypesRef.current]
-          .filter((k) => k.startsWith(`${controlHive}:`))
-          .map((k) => k.split(":")[1] as HiveControlType),
-      );
-      const pendingManual = new Set(
-        [...pendingManualTypesRef.current]
-          .filter((k) => k.startsWith(`${controlHive}:`))
-          .map((k) => k.split(":")[1] as HiveControlType),
-      );
-
-      return {
-        hiveControls: {
-          ...prev.hiveControls,
-          [controlHive]: mergeControlSettings(
-            prevControl,
-            controlSettingsQuery.data,
-            pendingAuto,
-            pendingManual,
-          ),
-        },
-      };
-    });
-  }, [controlHive, controlSettingsQuery.data]);
-
-  /** SSE는 화면 단위 전역 구독이라 선택 벌통이 바뀌어도 재구독하지 않습니다. */
-  const handleSseResult = useCallback(
-    (event: Parameters<typeof applyControlResult>[1]) => {
-      const hiveId = String(event.hiveId);
-
-      if (!event.success) {
-        const failKey = makePendingKey(hiveId, event.type);
-        pendingControlTokensRef.current.delete(failKey);
-        pendingAutoTypesRef.current.delete(failKey);
-        pendingManualTypesRef.current.delete(failKey);
-        console.error("[Hive Control SSE] 제어 처리 실패", event);
-        queryClient.invalidateQueries({
-          queryKey: HIVE_CONTROL_QUERY_KEYS.settings(hiveId),
-        });
-        return;
-      }
-
-      useHiveStore.setState((prev) => {
-        const prevControl = prev.hiveControls[hiveId];
-        if (!prevControl) return prev;
-
-        return {
-          hiveControls: {
-            ...prev.hiveControls,
-            [hiveId]: applyControlResult(prevControl, event),
-          },
-        };
-      });
-
-      console.log("[Hive Control SSE] 제어 처리 성공", event);
-      queueControlPendingRelease(hiveId, event.type, 2000);
-    },
-    [queryClient, queueControlPendingRelease],
-  );
-
-  useHiveControlSse({
-    enabled: true,
-    onResult: handleSseResult,
-  });
-
   const handleRefresh = async () => {
     await Promise.all([
       hiveListQuery.refetch(),
-      controlSettingsQuery.refetch(),
       queryClient.invalidateQueries({
         queryKey: HIVE_REPLACEMENT_QUERY_KEYS.listPrefix(controlHive),
       }),
@@ -218,130 +97,42 @@ export default function HiveControlScreen() {
     ]);
   };
 
-  /**
-   * 자동 제어 토글
-   * - UI는 즉시 바꾸고, POST 실패 시 이전 상태로 되돌립니다.
-   * - 실제 MCU 처리 성공 여부는 SSE로 다시 들어옵니다.
-   */
-  const handleToggleControl = (id: string) => {
+  const updateCurrentControl = (updater: (prevState: HiveControlState) => HiveControlState) => {
     const store = useHiveStore.getState();
     const prevState =
       store.hiveControls[controlHive] ??
       store.hiveControls[store.hives[0]?.id ?? ""];
-    const serverType = AUTO_CONTROL_TYPE_BY_ID[id];
-    if (!prevState || !serverType) return;
+    if (!prevState || !controlHive) return;
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    const nextState = buildOptimisticAutoState(prevState, id);
-    const nextEnabled =
-      nextState.controls.find((control) => control.id === id)?.enabled ?? false;
-
-    const autoKey = makePendingKey(controlHive, serverType);
-    pendingAutoTypesRef.current.add(autoKey);
-    pendingControlSeqRef.current += 1;
-    pendingControlTokensRef.current.set(autoKey, pendingControlSeqRef.current);
-    setHiveControlState(controlHive, nextState);
-    console.log("[Hive Control UI] 자동 제어 낙관적 반영", {
-      hiveId: controlHive,
-      type: serverType,
-      enabled: nextEnabled,
-    });
-
-    autoControlMutation.mutate(
-      {
-        hiveId: controlHive,
-        body: { type: serverType, enabled: nextEnabled },
-      },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: HIVE_CONTROL_QUERY_KEYS.settings(controlHive),
-          });
-          queueControlPendingRelease(controlHive, serverType, 8000);
-        },
-        onError: (error) => {
-          pendingControlTokensRef.current.delete(autoKey);
-          pendingAutoTypesRef.current.delete(autoKey);
-          setHiveControlState(controlHive, prevState);
-          console.error("[Hive Control UI] 자동 제어 롤백", {
-            hiveId: controlHive,
-            type: serverType,
-            error,
-          });
-        },
-      },
-    );
+    setHiveControlState(controlHive, updater(prevState));
   };
 
-  /**
-   * 수동 빠른 제어 토글
-   * - 현재 백엔드 명세에 없는 쿨러/순환은 기존 로컬 UI만 유지하고 경고 로그를 남깁니다.
-   * - 서버 타입이 있는 히터/환기는 자동 제어와 동일하게 낙관적 UI로 처리합니다.
-   */
-  const toggleQuickControl = (key: QuickControlKey) => {
-    const store = useHiveStore.getState();
-    const prevState =
-      store.hiveControls[controlHive] ??
-      store.hiveControls[store.hives[0]?.id ?? ""];
-    if (!prevState) return;
-
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    const nextState = buildOptimisticManualState(prevState, key);
-    setHiveControlState(controlHive, nextState);
-
-    const serverType = MANUAL_CONTROL_TYPE_BY_KEY[key];
-    if (!serverType) {
-      console.warn("[Hive Control UI] 서버 수동 제어 타입 미정, 로컬만 반영", {
-        hiveId: controlHive,
-        key,
-      });
-      return;
-    }
-
-    const manualKey = makePendingKey(controlHive, serverType);
-    pendingManualTypesRef.current.add(manualKey);
-    pendingControlSeqRef.current += 1;
-    pendingControlTokensRef.current.set(manualKey, pendingControlSeqRef.current);
-    console.log("[Hive Control UI] 수동 제어 낙관적 반영", {
-      hiveId: controlHive,
-      type: serverType,
-      isOn: nextState[key],
+  const toggleTemperature = () => {
+    updateCurrentControl((prevState) => {
+      const nextOn = !(prevState.heaterOn || prevState.coolerOn);
+      return { ...prevState, heaterOn: nextOn, coolerOn: false };
     });
+  };
 
-    manualControlMutation.mutate(
-      {
-        hiveId: controlHive,
-        body: {
-          type: serverType,
-          enabled: nextState[key],
-          isOn: nextState[key],
-        },
-      },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: HIVE_CONTROL_QUERY_KEYS.settings(controlHive),
-          });
-          queueControlPendingRelease(controlHive, serverType, 8000);
-        },
-        onError: (error) => {
-          pendingControlTokensRef.current.delete(manualKey);
-          pendingManualTypesRef.current.delete(manualKey);
-          setHiveControlState(controlHive, prevState);
-          console.error("[Hive Control UI] 수동 제어 롤백", {
-            hiveId: controlHive,
-            type: serverType,
-            error,
-          });
-        },
-      },
-    );
+  const toggleVentilation = () => {
+    updateCurrentControl((prevState) => ({
+      ...prevState,
+      ventOn: !prevState.ventOn,
+      circOn: false,
+    }));
+  };
+
+  const toggleAutoControl = (id: "heating" | "ventilation") => {
+    updateCurrentControl((prevState) => ({
+      ...prevState,
+      controls: prevState.controls.map((control) =>
+        control.id === id ? { ...control, enabled: !control.enabled } : control,
+      ),
+    }));
   };
 
   /** 벌통 선택 시 드롭다운과 상단 슬라이더 위치를 같이 맞춥니다. */
@@ -365,9 +156,9 @@ export default function HiveControlScreen() {
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
-          paddingTop: Spacing.sm,
+          paddingTop: Spacing.xs,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.lg,
+          gap: Spacing.sm,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -402,8 +193,10 @@ export default function HiveControlScreen() {
               hives={hives}
               current={current}
               controlHive={controlHive}
-              onToggleControl={handleToggleControl}
-              onToggleQuickControl={toggleQuickControl}
+              onToggleTemperature={toggleTemperature}
+              onToggleVentilation={toggleVentilation}
+              onToggleTemperatureAuto={() => toggleAutoControl("heating")}
+              onToggleVentilationAuto={() => toggleAutoControl("ventilation")}
               onSelectHive={handleSelectHive}
             />
 

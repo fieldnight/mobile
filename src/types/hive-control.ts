@@ -69,32 +69,37 @@ export function getDisabledState(controls: ControlSetting[]) {
 }
 
 const TAG_MAP: Record<string, string> = {
-  heating: "온도유지",
+  heating: "온도조절",
   humidity: "습도조절",
-  ventilation: "자동환기",
+  ventilation: "환기",
 };
 
 export function buildActiveTags(hiveControl: HiveControlState): ActiveTag[] {
   const disabled = getDisabledState(hiveControl.controls);
   const tags: ActiveTag[] = [];
+  const pushTag = (label: string) => {
+    if (!tags.some((tag) => tag.label === label)) {
+      tags.push({ label, color: C.primary, bg: C.primarySoft });
+    }
+  };
 
   hiveControl.controls.forEach((control) => {
     if (control.enabled && TAG_MAP[control.id]) {
-      tags.push({ label: TAG_MAP[control.id], color: C.primary, bg: C.primarySoft });
+      pushTag(TAG_MAP[control.id]);
     }
   });
 
   if (hiveControl.heaterOn && !disabled.heaterDisabled) {
-    tags.push({ label: "히터", color: C.primary, bg: C.primarySoft });
+    pushTag("온도조절");
   }
   if (hiveControl.coolerOn && !disabled.coolerDisabled) {
-    tags.push({ label: "쿨러", color: C.primary, bg: C.primarySoft });
+    pushTag("온도조절");
   }
   if (hiveControl.ventOn && !disabled.ventDisabled) {
-    tags.push({ label: "환기팬", color: C.primary, bg: C.primarySoft });
+    pushTag("환기");
   }
   if (hiveControl.circOn && !disabled.circDisabled) {
-    tags.push({ label: "순환", color: C.primary, bg: C.primarySoft });
+    pushTag("환기");
   }
 
   return tags;
@@ -103,8 +108,8 @@ export function buildActiveTags(hiveControl: HiveControlState): ActiveTag[] {
 export const initialControls: ControlSetting[] = [
   {
     id: "heating",
-    name: "온도 유지",
-    description: "적정 온도(34~35°C) 자동 유지",
+    name: "온도조절",
+    description: "수정벌 활동 적정 온도(24~27°C) 자동 유지",
     icon: "thermometer",
     enabled: true,
   },
@@ -117,8 +122,8 @@ export const initialControls: ControlSetting[] = [
   },
   {
     id: "ventilation",
-    name: "환기 시스템",
-    description: "벌통 내부 환기 자동 조절",
+    name: "환기",
+    description: "벌통 내부 공기 흐름 자동 조절",
     icon: "wind",
     enabled: true,
   },
