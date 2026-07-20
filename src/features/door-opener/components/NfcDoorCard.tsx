@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { Animated, Pressable, View, type GestureResponderHandlers } from "react-native";
+import {
+  Animated,
+  Pressable,
+  View,
+  type GestureResponderHandlers,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -10,6 +15,8 @@ export function NfcDoorCard({
   size,
   editable,
   dragging,
+  active,
+  runtimeLabel,
   panHandlers,
   dragOffset,
   onPress,
@@ -20,15 +27,18 @@ export function NfcDoorCard({
   size: number;
   editable: boolean;
   dragging?: boolean;
+  active?: boolean;
+  runtimeLabel?: string | null;
   panHandlers?: GestureResponderHandlers;
   dragOffset?: Animated.ValueXY;
   onPress: () => void;
   onLongPress?: () => void;
   onDelete?: () => void;
 }) {
-  const transform = dragging && dragOffset
-    ? [...dragOffset.getTranslateTransform(), { scale: 1.06 }]
-    : undefined;
+  const transform =
+    dragging && dragOffset
+      ? [...dragOffset.getTranslateTransform(), { scale: 1.06 }]
+      : undefined;
 
   return (
     <Animated.View
@@ -48,9 +58,23 @@ export function NfcDoorCard({
         delayLongPress={260}
         className="active:opacity-80"
       >
-        <CardShell size={size} dragging={dragging}>
+        <CardShell size={size} dragging={dragging} active={active}>
+          {active && runtimeLabel ? (
+            <View
+              className="mb-2 self-start rounded-full px-2.5 py-1"
+              style={{ backgroundColor: "rgba(248,209,92,0.96)" }}
+            >
+              <PretendardFont
+                weight="bold"
+                numberOfLines={1}
+                style={{ fontSize: 12.5, color: C.text }}
+              >
+                실행중 · {runtimeLabel}
+              </PretendardFont>
+            </View>
+          ) : null}
           <View className="flex-row items-start justify-between">
-            <Feather name={card.icon} size={27} color={C.white} />
+            <Feather name={card.icon} size={20} color={C.white} />
 
             {editable && card.removable && onDelete && (
               <Pressable
@@ -66,7 +90,10 @@ export function NfcDoorCard({
                   backgroundColor: "rgba(255,255,255,0.22)",
                 }}
               >
-                <PretendardFont weight="bold" style={{ fontSize: 18, color: C.white }}>
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 20, color: C.white }}
+                >
                   -
                 </PretendardFont>
               </Pressable>
@@ -76,16 +103,15 @@ export function NfcDoorCard({
           <View style={{ gap: 3 }}>
             <PretendardFont
               weight="bold"
-              numberOfLines={1}
-              style={{ fontSize: 15, color: C.white }}
+              style={{ fontSize: 16, lineHeight: 21, color: C.white }}
             >
               {card.title}
             </PretendardFont>
             <PretendardFont
               weight="medium"
               style={{
-                fontSize: 12,
-                lineHeight: 16,
+                fontSize: 13.5,
+                lineHeight: 18,
                 color: "rgba(255,255,255,0.8)",
               }}
             >
@@ -106,13 +132,17 @@ export function AddNfcDoorCardButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} className="active:opacity-70" style={{ width: size }}>
+    <Pressable
+      onPress={onPress}
+      className="active:opacity-70"
+      style={{ width: size }}
+    >
       <CardShell size={size} dashed>
         <View className="flex-1 items-center justify-center">
           <Feather name="plus" size={26} color={C.white} />
           <PretendardFont
             weight="semibold"
-            style={{ fontSize: 13, color: C.white, marginTop: 6 }}
+            style={{ fontSize: 14.5, color: C.white, marginTop: 6 }}
           >
             추가하기
           </PretendardFont>
@@ -125,11 +155,13 @@ export function AddNfcDoorCardButton({
 function CardShell({
   size,
   dragging,
+  active,
   dashed,
   children,
 }: {
   size: number;
   dragging?: boolean;
+  active?: boolean;
   dashed?: boolean;
   children: ReactNode;
 }) {
@@ -137,17 +169,21 @@ function CardShell({
     <View
       className={dashed ? "items-center justify-center" : "justify-between"}
       style={{
-        minHeight: size * 0.58,
+        minHeight: size * 0.66,
         borderRadius: 14,
         padding: 14,
-        backgroundColor: "rgba(255,255,255,0.16)",
-        borderWidth: dragging ? 2 : dashed ? 1.5 : 1,
+        backgroundColor: active
+          ? "rgba(255,255,255,0.22)"
+          : "rgba(255,255,255,0.16)",
+        borderWidth: active || dragging ? 2 : dashed ? 1.5 : 1,
         borderStyle: dashed ? "dashed" : "solid",
-        borderColor: dragging
-          ? C.cardBorderDragging
-          : dashed
-            ? "rgba(255,255,255,0.55)"
-            : C.cardBorder,
+        borderColor: active
+          ? "#F8D15C"
+          : dragging
+            ? C.cardBorderDragging
+            : dashed
+              ? "rgba(255,255,255,0.55)"
+              : C.cardBorder,
         opacity: dragging ? 0.92 : 1,
       }}
     >

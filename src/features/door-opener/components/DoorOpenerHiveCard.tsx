@@ -103,14 +103,14 @@ export function DoorOpenerHiveCard({
             <PretendardFont
               weight="bold"
               numberOfLines={1}
-              style={{ fontSize: 15, color: C.white }}
+              style={{ fontSize: 17, color: C.white }}
             >
               {hive.name}
             </PretendardFont>
             <PretendardFont
               weight="medium"
               style={{
-                fontSize: 12.5,
+                fontSize: 14,
                 color: "rgba(255,255,255,0.8)",
                 marginTop: 3,
               }}

@@ -31,6 +31,8 @@ interface BottomSheetProps {
   snapHeight?: number;
   contentScrollEnabled?: boolean;
   stickyHeaderIndices?: number[];
+  headerAccessory?: React.ReactNode;
+  dragCloseEnabled?: boolean;
 }
 
 export function BottomSheet({
@@ -41,6 +43,8 @@ export function BottomSheet({
   snapHeight = 0.9,
   contentScrollEnabled = true,
   stickyHeaderIndices,
+  headerAccessory,
+  dragCloseEnabled = true,
 }: BottomSheetProps) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   // 내부 wheel 스크롤 중에는 외부 ScrollView 스크롤 차단
@@ -70,11 +74,13 @@ export function BottomSheet({
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 6,
+      onMoveShouldSetPanResponder: (_, g) => dragCloseEnabled && g.dy > 6,
       onPanResponderMove: (_, g) => {
+        if (!dragCloseEnabled) return;
         if (g.dy > 0) translateY.setValue(g.dy);
       },
       onPanResponderRelease: (_, g) => {
+        if (!dragCloseEnabled) return;
         if (g.dy > DRAG_CLOSE_THRESHOLD || g.vy > DRAG_VEL_THRESHOLD) {
           close(onClose);
         } else {
@@ -111,10 +117,13 @@ export function BottomSheet({
               </View>
 
               {/* 헤더 */}
-              <View className="flex-row items-center justify-between px-5 pb-4 pt-3">
-                <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                  {title}
-                </PretendardFont>
+              <View className="flex-row items-center justify-between gap-3 px-5 pb-4 pt-3">
+                <View className="min-w-0 flex-1">
+                  <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                    {title}
+                  </PretendardFont>
+                </View>
+                {headerAccessory}
                 <Pressable onPress={handleClose} hitSlop={12} className="active:opacity-60">
                   <Feather name="x" size={20} color={C.ter} />
                 </Pressable>

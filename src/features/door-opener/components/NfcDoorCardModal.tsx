@@ -31,10 +31,12 @@ export function NfcDoorCardModal({
   card,
   visible,
   onClose,
+  onActivated,
 }: {
   card: NfcDoorCardConfig | null;
   visible: boolean;
   onClose: () => void;
+  onActivated?: (card: NfcDoorCardConfig) => void;
 }) {
   const { show: showToast } = useAppToast();
   const translateY = useRef(new Animated.Value(0)).current;
@@ -99,6 +101,24 @@ export function NfcDoorCardModal({
 
     let hceSubscription: ReturnType<typeof subscribeHceResult> | null = null;
 
+    hceSubscription = subscribeHceResult((event) => {
+      setHceResult(event);
+      if (event.status === "ok" || event.status === "error") {
+        stopRipple();
+
+        if (!resultToastShownRef.current) {
+          resultToastShownRef.current = true;
+          if (event.status === "ok") {
+            showToast(`${card.title} 카드가 개폐기에 반영됐어요.`, "success");
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            showToast("NFC 카드 적용에 실패했어요.", "error");
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          }
+        }
+      }
+    });
+
     const activate = async () => {
       // ripple·진동은 HCE 결과와 무관하게 모달이 열리면 바로 시작
       startRipple();
@@ -106,32 +126,17 @@ export function NfcDoorCardModal({
       const ok = await setActiveHceCard(card);
 
       if (!ok) {
+        stopRipple();
         setHceActivateError("이 기기에서는 HCE NFC를 사용할 수 없어요.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         console.warn("[NFC Door Card Modal] HCE 카드 활성화 실패");
         return;
       }
 
+      onActivated?.(card);
+
       console.log("[NFC Door Card Modal] HCE 카드 활성화 완료", toHceCardPayload(card));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      hceSubscription = subscribeHceResult((event) => {
-        setHceResult(event);
-        if (event.status === "ok" || event.status === "error") {
-          stopRipple();
-
-          if (!resultToastShownRef.current) {
-            resultToastShownRef.current = true;
-            if (event.status === "ok") {
-              showToast(`${card.title} 카드가 개폐기에 적용됐어요.`, "success");
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } else {
-              showToast("NFC 카드 적용에 실패했어요.", "error");
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            }
-          }
-        }
-      });
     };
 
     activate();
@@ -141,7 +146,7 @@ export function NfcDoorCardModal({
       hceSubscription?.remove();
       console.log("[NFC Door Card Modal] HCE 결과 구독 해제");
     };
-  }, [card, showToast, visible]);
+  }, [card, onActivated, showToast, visible]);
 
   const hceStatus = useMemo(
     () => getHceStatus(hceResult, hceActivateError),
@@ -263,7 +268,7 @@ export function NfcDoorCardModal({
               >
                 <PretendardFont
                   weight="bold"
-                  style={{ fontSize: 13, color: C.textAlt }}
+                  style={{ fontSize: 14.5, color: C.textAlt }}
                 >
                   NFC 활성화
                 </PretendardFont>
@@ -280,8 +285,8 @@ export function NfcDoorCardModal({
               <PretendardFont
                 weight="semibold"
                 style={{
-                  fontSize: 15,
-                  lineHeight: 22,
+                  fontSize: 16,
+                  lineHeight: 23,
                   color: C.textAlt,
                   marginTop: 3,
                 }}
@@ -297,8 +302,8 @@ export function NfcDoorCardModal({
                   <PretendardFont
                     weight="semibold"
                     style={{
-                      fontSize: 13,
-                      lineHeight: 20,
+                      fontSize: 14.5,
+                      lineHeight: 21,
                       color: C.textAlt,
                     }}
                   >
@@ -312,16 +317,16 @@ export function NfcDoorCardModal({
           <View style={{ marginTop: 28, alignItems: "center", paddingHorizontal: 24, gap: 8 }}>
             <PretendardFont
               weight="bold"
-              style={{ fontSize: 17, color: C.white, textAlign: "center" }}
+              style={{ fontSize: 19, color: C.white, textAlign: "center" }}
             >
               개폐기 NFC 리더기에{"\n"}휴대폰을 가까이 대주세요
             </PretendardFont>
             <PretendardFont
               weight="semibold"
               style={{
-                fontSize: 13,
+                fontSize: 14.5,
                 color: hceStatus.color,
-                lineHeight: 19,
+                lineHeight: 21,
                 textAlign: "center",
               }}
             >
@@ -348,7 +353,7 @@ function getHceStatus(result: HceResultEvent | null, activateError: string | nul
 
   if (result.status === "ok") {
     return {
-      message: "개폐기에 적용됐어요",
+      message: "개폐기에 반영됐어요",
       color: "#DDFBEA",
     };
   }

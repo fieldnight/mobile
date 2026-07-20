@@ -1,6 +1,20 @@
 import { Feather } from "@expo/vector-icons";
 
-export type NfcDoorFunction = "open_at" | "close_at" | "window" | "alternate_24h";
+export type BeeTrafficCounterKey =
+  | "entrance_in"
+  | "entrance_out"
+  | "exit_in"
+  | "exit_out";
+export type BeeCountLimitFunction =
+  | "activity_boost"
+  | "overpollination_guard"
+  | "return_limit";
+export type NfcDoorFunction =
+  | "open_at"
+  | "close_at"
+  | "window"
+  | "alternate_24h"
+  | BeeCountLimitFunction;
 export type NfcDoorMode =
   | "open_now"
   | "close_now"
@@ -8,7 +22,24 @@ export type NfcDoorMode =
   | "close_at"
   | "alternate_24h"
   | "window"
-  | "lock_days";
+  | "lock_days"
+  | "count_status"
+  | BeeCountLimitFunction;
+
+export const COUNT_TARGET_BY_LIMIT_FUNCTION: Record<
+  BeeCountLimitFunction,
+  BeeTrafficCounterKey
+> = {
+  activity_boost: "exit_out",
+  overpollination_guard: "exit_out",
+  return_limit: "entrance_in",
+};
+
+export function isBeeCountLimitFunction(
+  value: NfcDoorFunction,
+): value is BeeCountLimitFunction {
+  return value in COUNT_TARGET_BY_LIMIT_FUNCTION;
+}
 
 export interface NfcDoorCardConfig {
   id: string;
@@ -22,6 +53,9 @@ export interface NfcDoorCardConfig {
   end?: string;
   detail?: string;
   repeat?: boolean;
+  threshold?: number;
+  countTarget?: BeeTrafficCounterKey;
+  serverActionId?: number;
 }
 
 export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
@@ -44,6 +78,17 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
     mode: "close_now",
     start: "",
     end: "",
+  },
+  {
+    id: "bee-count-status",
+    title: "COUNT",
+    description: "벌 출입 카운트를 확인해요.",
+    detail: "일반 카드도 카운트를 함께 받아오지만, 이 카드는 설정 변경 없이 출입 카운트만 확인해요.",
+    icon: "bar-chart-2",
+    mode: "count_status",
+    start: "",
+    end: "",
+    repeat: false,
   },
   {
     id: "pesticide",
@@ -102,6 +147,7 @@ export function createCustomDoorCard({
   repeat,
   start,
   end,
+  threshold,
 }: {
   title: string;
   functionType: NfcDoorFunction;
@@ -109,7 +155,43 @@ export function createCustomDoorCard({
   repeat: boolean;
   start: string;
   end: string;
+  threshold?: number;
 }): NfcDoorCardConfig {
+  if (isBeeCountLimitFunction(functionType)) {
+    const countTarget = COUNT_TARGET_BY_LIMIT_FUNCTION[functionType];
+    const safeThreshold = Math.max(1, Math.floor(threshold ?? 50));
+    const functionLabel = {
+      activity_boost: "활동량 강제증가",
+      overpollination_guard: "과수정 방지",
+      return_limit: "귀소량 제한",
+    }[functionType];
+
+    return {
+      id: `custom-door-card-${Date.now()}`,
+      title,
+      description: `${functionLabel} · ${safeThreshold}마리 기준`,
+      icon: "sliders",
+      removable: true,
+      functionType,
+      mode: functionType,
+      start: countTarget,
+      end: String(safeThreshold),
+      detail,
+      repeat: false,
+      threshold: safeThreshold,
+      countTarget,
+    };
+  }
+
+  const normalizedStart =
+    functionType === "close_at"
+      ? ""
+      : functionType === "alternate_24h"
+        ? "close_first"
+        : start;
+  const normalizedEnd =
+    functionType === "open_at" || functionType === "alternate_24h" ? "" : end;
+
   const functionLabel = {
     open_at: "열기 예약",
     close_at: "닫기 예약",
@@ -130,8 +212,8 @@ export function createCustomDoorCard({
     removable: true,
     functionType,
     mode: functionType,
-    start: functionType === "close_at" ? "" : start,
-    end: functionType === "open_at" || functionType === "alternate_24h" ? "" : end,
+    start: normalizedStart,
+    end: normalizedEnd,
     detail,
     repeat,
   };

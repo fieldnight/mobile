@@ -18,36 +18,38 @@ export function DoorOpenerSectionHeader({
   return (
     <View className="mb-3 ml-1 flex-row items-center justify-between">
       <View className="flex-row items-center" style={{ gap: 6 }}>
-        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+        <PretendardFont weight="bold" style={{ fontSize: 17, color: C.white }}>
           {title}
         </PretendardFont>
         {count != null && (
           <PretendardFont
             weight="semibold"
-            style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}
+            style={{ fontSize: 14.5, color: "rgba(255,255,255,0.7)" }}
           >
             {count}
           </PretendardFont>
         )}
       </View>
 
-      {actionLabel && onActionPress && (
-        <Pressable
-          onPress={onActionPress}
-          hitSlop={10}
-          className="mr-2 active:opacity-70"
-        >
-          <PretendardFont
-            weight="semibold"
-            style={{
-              fontSize: 13,
-              color: actionActive ? C.white : "rgba(255,255,255,0.8)",
-            }}
+      <View className="mr-2 flex-row items-center" style={{ gap: 14 }}>
+        {actionLabel && onActionPress && (
+          <Pressable
+            onPress={onActionPress}
+            hitSlop={10}
+            className="active:opacity-70"
           >
-            {actionLabel}
-          </PretendardFont>
-        </Pressable>
-      )}
+            <PretendardFont
+              weight="semibold"
+              style={{
+                fontSize: 14.5,
+                color: actionActive ? C.white : "rgba(255,255,255,0.8)",
+              }}
+            >
+              {actionLabel}
+            </PretendardFont>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
