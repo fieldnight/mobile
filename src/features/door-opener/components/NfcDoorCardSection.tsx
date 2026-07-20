@@ -4,8 +4,8 @@
  * - 추가: AddNfcDoorCardModal (바텀시트)
  * - 삭제: ConfirmSheet (바텀시트) — Alert.alert 대체
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Animated,
   LayoutAnimation,
@@ -22,52 +22,56 @@ import {
   DEFAULT_NFC_DOOR_CARDS,
   createCustomDoorCard,
   type NfcDoorCardConfig,
-  type NfcDoorMode,
 } from "./nfcDoorCards";
+import {
+  getDoorOpenerRuntimeText,
+  isDoorOpenerRuntimeActive,
+  type DoorOpenerRuntimeState,
+} from "../model/doorOpenerRuntime";
+import {
+  enqueueGateActionCreate,
+  enqueueGateActionDelete,
+  loadStoredNfcDoorCards,
+  saveStoredNfcDoorCards,
+  syncGateActionsWithServer,
+} from "../model/gateActionSync";
+import {
+  getGateActionErrorMessage,
+  hasGateActionServerResponse,
+} from "../api";
 
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
-const NFC_DOOR_CARDS_STORAGE_KEY = "webee:nfc-door-cards:v1";
-const SUPPORTED_MODES = new Set<NfcDoorMode>([
-  "open_now",
-  "close_now",
-  "open_at",
-  "close_at",
-  "window",
-  "alternate_24h",
-  "lock_days",
-]);
+const SYNC_THROTTLE_MS = 10000;
 
-function isStoredCard(value: unknown): value is NfcDoorCardConfig {
-  if (!value || typeof value !== "object") return false;
-  const card = value as Partial<NfcDoorCardConfig>;
-  return (
-    typeof card.id === "string" &&
-    typeof card.title === "string" &&
-    typeof card.description === "string" &&
-    typeof card.mode === "string" &&
-    SUPPORTED_MODES.has(card.mode as NfcDoorMode)
-  );
-}
-
-function mergeCurrentDefaults(storedCards: NfcDoorCardConfig[]) {
-  const defaultsById = new Map(DEFAULT_NFC_DOOR_CARDS.map((card) => [card.id, card]));
-  const merged = storedCards.map((card) => defaultsById.get(card.id) ?? card);
-  const storedIds = new Set(merged.map((card) => card.id));
-  for (const card of DEFAULT_NFC_DOOR_CARDS) {
-    if (!storedIds.has(card.id)) merged.push(card);
-  }
-  return merged;
-}
+export type GateActionAppConnectionStatus =
+  | "idle"
+  | "syncing"
+  | "online"
+  | "offline";
 
 export function NfcDoorCardSection({
   cardWidth,
   deleting,
   onToggleDeleting,
+  onHceCardActivated,
+  runtimeState,
+  runtimeText,
+  hiveId,
+  onSyncStatusChange,
+  refreshKey = 0,
+  onRefreshEnd,
 }: {
   cardWidth: number;
   deleting: boolean;
   onToggleDeleting: () => void;
+  onHceCardActivated?: (card: NfcDoorCardConfig) => void;
+  runtimeState?: DoorOpenerRuntimeState | null;
+  runtimeText?: string | null;
+  hiveId?: string | number;
+  onSyncStatusChange?: (status: GateActionAppConnectionStatus) => void;
+  refreshKey?: number;
+  onRefreshEnd?: () => void;
 }) {
   const { show: showToast } = useAppToast();
 
@@ -84,6 +88,8 @@ export function NfcDoorCardSection({
   const dragStartIndexRef    = useRef(0);
   const dragCurrentIndexRef  = useRef(0);
   const cardsRef             = useRef(cards);
+  const syncingRef = useRef(false);
+  const lastSyncAtRef = useRef(0);
   cardsRef.current = cards;
 
   useEffect(() => {
@@ -91,11 +97,7 @@ export function NfcDoorCardSection({
 
     const restoreCards = async () => {
       try {
-        const raw = await AsyncStorage.getItem(NFC_DOOR_CARDS_STORAGE_KEY);
-        if (!raw || cancelled) return;
-        const parsed = JSON.parse(raw) as { cards?: unknown };
-        if (!Array.isArray(parsed.cards)) return;
-        const restored = mergeCurrentDefaults(parsed.cards.filter(isStoredCard));
+        const restored = await loadStoredNfcDoorCards();
         if (!cancelled) setCards(restored);
       } catch (error) {
         console.warn("[NFC Door Cards] 저장된 카드 복구 실패", error);
@@ -112,16 +114,56 @@ export function NfcDoorCardSection({
 
   useEffect(() => {
     if (!cardsHydrated) return;
-    AsyncStorage.setItem(
-      NFC_DOOR_CARDS_STORAGE_KEY,
-      JSON.stringify({ version: 1, cards }),
-    ).catch((error) => {
+    saveStoredNfcDoorCards(cards).catch((error) => {
       console.warn("[NFC Door Cards] 카드 저장 실패", error);
     });
   }, [cards, cardsHydrated]);
 
+  const syncWithServer = useCallback(async (force = false) => {
+    if (!hiveId || !cardsHydrated || syncingRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastSyncAtRef.current < SYNC_THROTTLE_MS) return;
+
+    syncingRef.current = true;
+    lastSyncAtRef.current = now;
+    onSyncStatusChange?.("syncing");
+
+    try {
+      const result = await syncGateActionsWithServer({
+        hiveId,
+        cards: cardsRef.current,
+      });
+      cardsRef.current = result.cards;
+      setCards(result.cards);
+      onSyncStatusChange?.(result.synced ? "online" : "offline");
+    } catch (error) {
+      onSyncStatusChange?.("offline");
+      if (hasGateActionServerResponse(error)) {
+        showToast(getGateActionErrorMessage(error), "error");
+      }
+      console.warn("[NFC Door Cards] 서버 동기화 실패", error);
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [cardsHydrated, hiveId, onSyncStatusChange, showToast]);
+
+  useEffect(() => {
+    syncWithServer(true);
+  }, [cardsHydrated, hiveId, syncWithServer]);
+
+  useFocusEffect(
+    useCallback(() => {
+      syncWithServer(true);
+    }, [syncWithServer]),
+  );
+
+  useEffect(() => {
+    if (refreshKey <= 0) return;
+    syncWithServer(true).finally(onRefreshEnd);
+  }, [onRefreshEnd, refreshKey, syncWithServer]);
+
   const cell = useMemo(
-    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.58 + GRID_GAP }),
+    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.66 + GRID_GAP }),
     [cardWidth],
   );
   const cellRef = useRef(cell);
@@ -187,21 +229,55 @@ export function NfcDoorCardSection({
     }),
   ).current;
 
-  const addCard = (cardInput: Parameters<typeof createCustomDoorCard>[0]) => {
-    setCards((prev) => [...prev, createCustomDoorCard(cardInput)]);
-    showToast(`${cardInput.title} 카드를 추가했어요.`, "success");
+  const addCard = async (cardInput: Parameters<typeof createCustomDoorCard>[0]) => {
+    const card = createCustomDoorCard(cardInput);
+    const nextCards = [...cardsRef.current, card];
+
+    cardsRef.current = nextCards;
+    setCards(nextCards);
+
+    try {
+      await saveStoredNfcDoorCards(nextCards);
+      await enqueueGateActionCreate(hiveId, card);
+      showToast(`${cardInput.title} 카드를 추가했어요.`, "success");
+      syncWithServer(true);
+    } catch (error) {
+      console.warn("[NFC Door Cards] 카드 추가 저장 실패", error);
+      showToast("카드 정보를 저장하지 못했어요.", "error");
+    }
   };
 
   /** 삭제 요청 — ConfirmSheet 열기 */
   const requestDelete = (card: NfcDoorCardConfig) => {
+    const isAppliedCard =
+      isDoorOpenerRuntimeActive(runtimeState ?? null) &&
+      runtimeState?.cardId === card.id;
+    if (isAppliedCard) {
+      showToast("현재 개폐기에 적용 중인 카드는 삭제할 수 없어요. 새 카드를 추가해 적용해 주세요.", "error");
+      return;
+    }
     setPendingDelete(card);
   };
 
   /** 삭제 확정 */
-  const confirmDelete = () => {
-    if (!pendingDelete) return;
-    setCards((prev) => prev.filter((item) => item.id !== pendingDelete.id));
-    showToast(`${pendingDelete.title} 카드를 삭제했어요.`, "error");
+  const confirmDelete = async () => {
+    const targetCard = pendingDelete;
+    if (!targetCard) return;
+
+    const nextCards = cardsRef.current.filter((item) => item.id !== targetCard.id);
+    cardsRef.current = nextCards;
+    setCards(nextCards);
+    setPendingDelete(null);
+
+    try {
+      await saveStoredNfcDoorCards(nextCards);
+      await enqueueGateActionDelete(hiveId, targetCard);
+      showToast(`${targetCard.title} 카드를 삭제했어요.`, "success");
+      syncWithServer(true);
+    } catch (error) {
+      console.warn("[NFC Door Cards] 카드 삭제 저장 실패", error);
+      showToast("카드 삭제 정보를 저장하지 못했어요.", "error");
+    }
   };
 
   const startDrag = (card: NfcDoorCardConfig) => {
@@ -238,15 +314,23 @@ export function NfcDoorCardSection({
       />
 
       <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
-        {cards.map((card) => {
+        {cards.filter((card) => card.mode !== "count_status").map((card) => {
           const dragging = draggingCardId === card.id;
+          const active =
+            isDoorOpenerRuntimeActive(runtimeState ?? null) &&
+            runtimeState?.cardId === card.id;
+          const cardRuntimeText = active
+            ? runtimeText ?? getDoorOpenerRuntimeText(runtimeState ?? null)
+            : null;
           return (
             <NfcDoorCard
               key={card.id}
               card={card}
               size={cardWidth}
-              editable={deleting}
+              editable={deleting && !active}
               dragging={dragging}
+              active={active}
+              runtimeLabel={cardRuntimeText}
               dragOffset={dragging ? dragOffset : undefined}
               panHandlers={panResponder.panHandlers}
               onPress={() => handleCardPress(card)}
@@ -260,7 +344,12 @@ export function NfcDoorCardSection({
       </View>
 
       {/* 카드 활성화 모달 (NFC 태깅 뷰) */}
-      <NfcDoorCardModal card={activeCard} visible={activeCard != null} onClose={() => setActiveCard(null)} />
+      <NfcDoorCardModal
+        card={activeCard}
+        visible={activeCard != null}
+        onClose={() => setActiveCard(null)}
+        onActivated={onHceCardActivated}
+      />
 
       {/* 카드 추가 — 바텀시트 */}
       <AddNfcDoorCardModal visible={adding} onClose={() => setAdding(false)} onSubmit={addCard} />

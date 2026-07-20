@@ -30,7 +30,7 @@ export function AddHiveCard({
         <Feather name="plus" size={26} color={C.white} />
         <PretendardFont
           weight="semibold"
-          style={{ fontSize: 13, color: C.white, marginTop: 6 }}
+          style={{ fontSize: 14.5, color: C.white, marginTop: 6 }}
         >
           벌통 추가하기
         </PretendardFont>

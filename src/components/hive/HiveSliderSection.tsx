@@ -322,7 +322,7 @@ function HiveHeroSlide({
 
 function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
   return (
-    <View className="mb-10">
+    <View className="mb-5">
       <View
         style={{ position: "relative", minHeight: 260 }}
         className="overflow-hidden rounded-[24px] px-5 py-6"
@@ -433,7 +433,7 @@ export function HiveSliderSection({
   const SLIDER_HEIGHT = 280;
 
   return (
-    <View className="mb-10">
+    <View className="mb-5">
       <View
         style={{ position: "relative", height: SLIDER_HEIGHT }}
         className="mb-[-20]"

@@ -10,6 +10,7 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { BottomSheet, useBottomSheetScroll } from "@/components/BottomSheet";
 import { C } from "@/constants/hive-colors";
 import {
+  isBeeCountLimitFunction,
   type NfcDoorFunction,
 } from "./nfcDoorCards";
 
@@ -20,15 +21,40 @@ const FUNCTION_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
   { value: "alternate_24h", label: "24시간 교대" },
 ];
 
+type ControlMode = "time" | "count";
+
+const COUNT_LIMIT_OPTIONS: Array<{
+  value: NfcDoorFunction;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "activity_boost",
+    label: "활동량 강제증가",
+    description: "기준 마릿수 이상 나가기 전까지 들어오는 입구를 닫아요.",
+  },
+  {
+    value: "overpollination_guard",
+    label: "과수정 방지",
+    description: "기준 마릿수 이상 나가면 밖으로 나가는 출구를 닫아요.",
+  },
+  {
+    value: "return_limit",
+    label: "귀소량 제한",
+    description: "기준 마릿수 이상 들어오면 들어오는 입구를 닫아요.",
+  },
+];
+
 const HOURS_12 = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 60 }, (_, index) => index);
 const HOURS_24 = Array.from({ length: 24 }, (_, index) => index);
-const WHEEL_ITEM_H = 38;
+const WHEEL_ITEM_H = 42;
+const WHEEL_DRAG_STEP = 24;
 const MOMENTUM_FIRST_STEP_MS = 16;
-const MOMENTUM_MAX_STEP_MS = 96;
-const MOMENTUM_DECAY = 1.14;
-const MOMENTUM_MIN_VELOCITY = 0.18;
-const MAX_MOMENTUM_STEPS = 30;
+const MOMENTUM_MAX_STEP_MS = 74;
+const MOMENTUM_DECAY = 1.08;
+const MOMENTUM_MIN_VELOCITY = 0.08;
+const MAX_MOMENTUM_STEPS = 44;
 const FORM_PANEL_BG = "#EEF2F6";
 const INFO_PANEL_BG = "#EAF4FF";
 
@@ -46,9 +72,11 @@ export function AddNfcDoorCardModal({
     repeat: boolean;
     start: string;
     end: string;
+    threshold?: number;
   }) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [controlMode, setControlMode] = useState<ControlMode>("time");
   const [functionType, setFunctionType] = useState<NfcDoorFunction>("open_at");
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
@@ -56,8 +84,20 @@ export function AddNfcDoorCardModal({
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(14);
   const [repeat, setRepeat] = useState(false);
+  const [threshold, setThreshold] = useState("50");
+  const isCountLimit = isBeeCountLimitFunction(functionType);
+
+  const changeControlMode = (nextMode: ControlMode) => {
+    setControlMode(nextMode);
+    setFunctionType(nextMode === "time" ? "open_at" : "activity_boost");
+    setRepeat(false);
+  };
 
   const detail = useMemo(() => {
+    if (isCountLimit) {
+      const selected = COUNT_LIMIT_OPTIONS.find((option) => option.value === functionType);
+      return `${selected?.label ?? "벌 마릿수 제한"} · ${getThresholdValue(threshold)}마리 기준`;
+    }
     if (functionType === "window") {
       if (startHour === endHour) return `${formatHour24(startHour)}부터 24시간 전체`;
       return `${formatHour24(startHour)} ~ ${formatHour24(endHour)}`;
@@ -66,10 +106,11 @@ export function AddNfcDoorCardModal({
       return repeat ? "24시간 닫기와 24시간 열기를 계속 반복" : "24시간 닫고 24시간 연 뒤 종료";
     }
     return `${meridiem} ${hour}:${String(minute).padStart(2, "0")}`;
-  }, [endHour, functionType, hour, meridiem, minute, repeat, startHour]);
+  }, [endHour, functionType, hour, isCountLimit, meridiem, minute, repeat, startHour, threshold]);
 
   const resetAndClose = () => {
     setTitle("");
+    setControlMode("time");
     setFunctionType("open_at");
     setHour(9);
     setMinute(0);
@@ -77,6 +118,7 @@ export function AddNfcDoorCardModal({
     setStartHour(9);
     setEndHour(14);
     setRepeat(false);
+    setThreshold("50");
     onClose();
   };
 
@@ -87,9 +129,11 @@ export function AddNfcDoorCardModal({
       title: title.trim() || defaultTitle,
       functionType,
       detail,
-      repeat,
+      repeat: isCountLimit ? false : repeat,
       start:
-        functionType === "close_at"
+        isCountLimit
+          ? ""
+          : functionType === "close_at"
           ? ""
           : functionType === "window"
             ? toHourString(startHour)
@@ -97,11 +141,12 @@ export function AddNfcDoorCardModal({
               ? "close_first"
             : selectedTime,
       end:
-        functionType === "open_at" || functionType === "alternate_24h"
+        isCountLimit || functionType === "open_at" || functionType === "alternate_24h"
           ? ""
           : functionType === "window"
             ? toHourString(endHour)
             : selectedTime,
+      threshold: isCountLimit ? getThresholdValue(threshold) : undefined,
     });
     resetAndClose();
   };
@@ -111,10 +156,17 @@ export function AddNfcDoorCardModal({
       visible={visible}
       onClose={resetAndClose}
       title="NFC 카드 추가"
+      snapHeight={0.78}
       contentScrollEnabled
+      dragCloseEnabled={false}
+      headerAccessory={
+        <ControlModeSegment value={controlMode} onChange={changeControlMode} />
+      }
     >
       <SheetInfo>
-        제목과 기능을 선택하면 개폐기 NFC 카드 목록에 추가돼요.
+        {controlMode === "time"
+          ? "시간 기준으로 개폐기를 여닫는 카드를 추가해요."
+          : "벌 출입 마릿수 기준으로 개폐기를 제어하는 카드를 추가해요."}
       </SheetInfo>
 
       <SheetFieldLabel label="제목" />
@@ -124,30 +176,85 @@ export function AddNfcDoorCardModal({
         placeholder="예: 새벽 환기 카드"
       />
 
-      <SheetFieldLabel label="기능" />
-      <View className="flex-row gap-2">
-        {FUNCTION_OPTIONS.map((option) => {
-          const selected = option.value === functionType;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => setFunctionType(option.value)}
-              className="flex-1 items-center rounded-2xl py-3 active:opacity-70"
-              style={{ backgroundColor: selected ? C.primary : FORM_PANEL_BG }}
-            >
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 13, color: selected ? C.white : C.text }}
+      <SheetFieldLabel label={controlMode === "time" ? "시간 제어 기능" : "벌 마릿수 제어 기능"} />
+      {controlMode === "time" ? (
+        <View className="flex-row flex-wrap gap-2">
+          {FUNCTION_OPTIONS.map((option) => {
+            const selected = option.value === functionType;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setFunctionType(option.value)}
+                className="items-center rounded-2xl px-4 py-3 active:opacity-70"
+                style={{
+                  minWidth: "47%",
+                  backgroundColor: selected ? C.primary : FORM_PANEL_BG,
+                }}
               >
-                {option.label}
-              </PretendardFont>
-            </Pressable>
-          );
-        })}
-      </View>
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 16.5, color: selected ? C.white : C.text }}
+                >
+                  {option.label}
+                </PretendardFont>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <View className="gap-2.5">
+          {COUNT_LIMIT_OPTIONS.map((option) => {
+            const selected = option.value === functionType;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setFunctionType(option.value)}
+                className="rounded-2xl px-4 py-3.5 active:opacity-70"
+                style={{ backgroundColor: selected ? C.primary : FORM_PANEL_BG }}
+              >
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 17, color: selected ? C.white : C.text }}
+                >
+                  {option.label}
+                </PretendardFont>
+                <PretendardFont
+                  weight="medium"
+                  style={{
+                    marginTop: 4,
+                    fontSize: 15,
+                    lineHeight: 21,
+                    color: selected ? "rgba(255,255,255,0.86)" : C.textAlt,
+                  }}
+                >
+                  {option.description}
+                </PretendardFont>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
-      <SheetFieldLabel label="세부" />
-      {functionType === "window" ? (
+      <SheetFieldLabel label={controlMode === "time" ? "시간 설정" : "기준 마릿수"} />
+
+      {isCountLimit ? (
+        <View className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.bgAlt }}>
+          <TextInput
+            value={threshold}
+            onChangeText={(value) => setThreshold(value.replace(/[^0-9]/g, ""))}
+            keyboardType="number-pad"
+            placeholder="50"
+            placeholderTextColor={C.ter}
+            className="h-14 rounded-2xl px-4"
+            style={{
+              backgroundColor: FORM_PANEL_BG,
+              color: C.text,
+              fontFamily: "Pretendard-Bold",
+              fontSize: 23,
+            }}
+          />
+        </View>
+      ) : functionType === "window" ? (
         <RangeWheelPicker
           startHour={startHour}
           endHour={endHour}
@@ -156,7 +263,7 @@ export function AddNfcDoorCardModal({
         />
       ) : functionType === "alternate_24h" ? (
         <View className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.bgAlt }}>
-          <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.sec, lineHeight: 20 }}>
+          <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.sec, lineHeight: 23 }}>
             활성화하는 순간부터 24시간 닫고, 다음 24시간은 엽니다.
           </PretendardFont>
         </View>
@@ -171,20 +278,22 @@ export function AddNfcDoorCardModal({
         />
       )}
 
-      <View
-        className="mt-5 flex-row items-center justify-between rounded-2xl px-4 py-3"
-        style={{ backgroundColor: FORM_PANEL_BG }}
-      >
-        <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.text }}>
-          반복 활성화
-        </PretendardFont>
-        <Switch
-          value={repeat}
-          onValueChange={setRepeat}
-          trackColor={{ false: C.border, true: C.primary }}
-          thumbColor={C.white}
-        />
-      </View>
+      {!isCountLimit ? (
+        <View
+          className="mt-5 flex-row items-center justify-between rounded-2xl px-4 py-3"
+          style={{ backgroundColor: FORM_PANEL_BG }}
+        >
+          <PretendardFont weight="semibold" style={{ fontSize: 17, color: C.text }}>
+            반복 활성화
+          </PretendardFont>
+          <Switch
+            value={repeat}
+            onValueChange={setRepeat}
+            trackColor={{ false: C.border, true: C.primary }}
+            thumbColor={C.white}
+          />
+        </View>
+      ) : null}
 
       <View className="mt-6 flex-row gap-2.5">
         <Pressable
@@ -192,7 +301,7 @@ export function AddNfcDoorCardModal({
           className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
           style={{ backgroundColor: FORM_PANEL_BG }}
         >
-          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.textAlt }}>
+          <PretendardFont weight="bold" style={{ fontSize: 17, color: C.textAlt }}>
             취소
           </PretendardFont>
         </Pressable>
@@ -201,12 +310,47 @@ export function AddNfcDoorCardModal({
           className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
           style={{ backgroundColor: C.primary }}
         >
-          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
+          <PretendardFont weight="bold" style={{ fontSize: 17, color: C.white }}>
             추가
           </PretendardFont>
         </Pressable>
       </View>
     </BottomSheet>
+  );
+}
+
+function ControlModeSegment({
+  value,
+  onChange,
+}: {
+  value: ControlMode;
+  onChange: (value: ControlMode) => void;
+}) {
+  return (
+    <View className="flex-row rounded-2xl p-1" style={{ backgroundColor: FORM_PANEL_BG }}>
+      {[
+        { value: "time" as const, label: "시간 제어" },
+        { value: "count" as const, label: "벌 마릿수" },
+      ].map((option) => {
+        const selected = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            className="rounded-xl px-3 py-2 active:opacity-70"
+            style={{ backgroundColor: selected ? C.primary : "transparent" }}
+          >
+            <PretendardFont
+              weight="bold"
+              numberOfLines={1}
+              style={{ fontSize: 14, color: selected ? C.white : C.textAlt }}
+            >
+              {option.label}
+            </PretendardFont>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -216,7 +360,7 @@ function SheetInfo({ children }: { children: string }) {
     <View className="mb-2 rounded-2xl p-4" style={{ backgroundColor: INFO_PANEL_BG }}>
       <PretendardFont
         weight="semibold"
-        style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
+        style={{ fontSize: 16, color: C.primary, lineHeight: 23 }}
       >
         {children}
       </PretendardFont>
@@ -228,7 +372,7 @@ function SheetInfo({ children }: { children: string }) {
 function SheetFieldLabel({ label }: { label: string }) {
   return (
     <View className="mb-2 mt-5 flex-row items-center">
-      <PretendardFont weight="bold" style={{ fontSize: 13, color: C.text }}>
+      <PretendardFont weight="bold" style={{ fontSize: 16.5, color: C.text }}>
         {label}
       </PretendardFont>
     </View>
@@ -256,7 +400,7 @@ function SheetTextInput({
         backgroundColor: FORM_PANEL_BG,
         color: C.text,
         fontFamily: "Pretendard-Medium",
-        fontSize: 14,
+        fontSize: 17,
       }}
     />
   );
@@ -281,7 +425,7 @@ function SingleTimeWheel({
     <View className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.bgAlt }}>
       <View className="flex-row items-center justify-between">
         <WheelColumn values={HOURS_12} value={hour} formatter={String} onChange={onHourChange} />
-        <PretendardFont weight="bold" style={{ fontSize: 20, color: C.sec }}>
+        <PretendardFont weight="bold" style={{ fontSize: 22, color: C.sec }}>
           :
         </PretendardFont>
         <WheelColumn
@@ -316,13 +460,13 @@ function RangeWheelPicker({
 
   return (
     <View className="rounded-2xl px-3 py-4" style={{ backgroundColor: C.bgAlt }}>
-      <PretendardFont style={{ fontSize: 12, color: C.sec, marginBottom: 12 }}>
+      <PretendardFont style={{ fontSize: 15, color: C.sec, marginBottom: 12 }}>
         시작과 종료 시간을 각각 굴려서 하루 중 한 구간을 정해요
       </PretendardFont>
 
       <View className="flex-row items-center justify-between">
         <View className="items-center">
-          <PretendardFont weight="bold" style={{ fontSize: 12, color: C.primary, marginBottom: 4 }}>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.primary, marginBottom: 4 }}>
             시작
           </PretendardFont>
           <WheelColumn
@@ -334,7 +478,7 @@ function RangeWheelPicker({
         </View>
         <View className="w-4" />
         <View className="items-center">
-          <PretendardFont weight="bold" style={{ fontSize: 12, color: C.primary, marginBottom: 4 }}>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.primary, marginBottom: 4 }}>
             종료
           </PretendardFont>
           <WheelColumn
@@ -362,7 +506,7 @@ function RangeWheelPicker({
         </View>
       </View>
 
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginTop: 12 }}>
+      <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text, marginTop: 12 }}>
         {formatHour24(startHour)} ~ {formatHour24(endHour)} · {span}시간
       </PretendardFont>
     </View>
@@ -418,7 +562,7 @@ function WheelColumn<T extends string | number>({
 
     const totalSteps = Math.min(
       MAX_MOMENTUM_STEPS,
-      Math.max(2, Math.round(speed * speed * 5 + speed * 8)),
+      Math.max(3, Math.round(speed * speed * 8 + speed * 12)),
     );
     let moved = 0;
     let stepDelay = MOMENTUM_FIRST_STEP_MS;
@@ -443,13 +587,14 @@ function WheelColumn<T extends string | number>({
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 2,
+    onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 2,
     onPanResponderGrant: () => {
       stopMomentum();
       startIndexRef.current = lastIndexRef.current;
       setOuterScroll?.(false);
     },
     onPanResponderMove: (_, gesture) => {
-      moveToIndex(startIndexRef.current + Math.round(-gesture.dy / WHEEL_ITEM_H));
+      moveToIndex(startIndexRef.current + Math.round(-gesture.dy / WHEEL_DRAG_STEP));
     },
     onPanResponderRelease: (_, gesture) => {
       startMomentum(gesture.vy);
@@ -477,7 +622,7 @@ function WheelColumn<T extends string | number>({
     <View
       {...panResponder.panHandlers}
       className="items-center overflow-hidden"
-      style={{ width: 76, height: WHEEL_ITEM_H * 3 }}
+      style={{ width: 86, height: WHEEL_ITEM_H * 3 }}
     >
       <View
         pointerEvents="none"
@@ -508,7 +653,7 @@ function WheelColumn<T extends string | number>({
           >
             <PretendardFont
               weight="bold"
-              style={{ fontSize: selected ? 19 : 17, color: selected ? C.text : C.ter }}
+              style={{ fontSize: selected ? 23 : 19.5, color: selected ? C.text : C.ter }}
             >
               {formatter(item)}
             </PretendardFont>
@@ -534,6 +679,11 @@ function isHourInRange(hour: number, start: number, end: number) {
 function getRangeSpan(start: number, end: number) {
   if (start === end) return 24;
   return end > start ? end - start : 24 - start + end;
+}
+
+function getThresholdValue(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 50;
 }
 
 function toHourString(hour: number) {

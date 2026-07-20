@@ -29,6 +29,17 @@ class WeBeeHceService : HostApduService() {
         Log.d(TAG, "SELECT AID matched, responding payload=$payload")
         payload.toByteArray(Charsets.UTF_8) + SUCCESS_RESPONSE
       }
+      isTimeRequestCommand(commandApdu) -> {
+        val phoneTime = currentPhoneTimeText()
+        Log.d(TAG, "ESP32 phone time requested=$phoneTime")
+        phoneTime.toByteArray(Charsets.UTF_8) + SUCCESS_RESPONSE
+      }
+      isStatsReportCommand(commandApdu) -> {
+        val stats = parseStatsReport(commandApdu)
+        Log.d(TAG, "ESP32 stats received=$stats")
+        broadcastStats(stats)
+        SUCCESS_RESPONSE
+      }
       isResultReportCommand(commandApdu) -> {
         val result = parseResultReport(commandApdu)
         Log.d(TAG, "ESP32 result received=$result")
@@ -52,24 +63,26 @@ class WeBeeHceService : HostApduService() {
     val end = prefs.getString(KEY_END, "") ?: ""
     val repeat = prefs.getBoolean(KEY_REPEAT, false)
     val repeatFlag = if (repeat) "1" else "0"
-    val phoneTime = if (needsPhoneClock(mode)) {
-      SimpleDateFormat("HH:mm", Locale.US).format(Date())
-    } else {
-      ""
-    }
+    val phoneTime = ""
     val wireTitle = sanitize(title).take(4).ifBlank { "WBEE" }
     return "WBEE|" + wireTitle + "|" + mode + "|" + start + "|" + end + "|" + repeatFlag + "|" + phoneTime
   }
 
   private fun sanitize(value: String): String = value.replace("|", " ").trim()
-  private fun needsPhoneClock(mode: String): Boolean =
-    mode == "open_at" || mode == "close_at" || mode == "window"
 
   private fun broadcastResult(result: String) {
     sendBroadcast(
       Intent(ACTION_HCE_RESULT)
         .setPackage(packageName)
         .putExtra(EXTRA_RESULT, result)
+    )
+  }
+
+  private fun broadcastStats(stats: String) {
+    sendBroadcast(
+      Intent(ACTION_HCE_STATS)
+        .setPackage(packageName)
+        .putExtra(EXTRA_STATS, stats)
     )
   }
 
@@ -83,8 +96,12 @@ class WeBeeHceService : HostApduService() {
     private const val KEY_REPEAT = "repeat"
     const val ACTION_HCE_RESULT = "${packageName}.WEBEE_HCE_RESULT"
     const val EXTRA_RESULT = "result"
+    const val ACTION_HCE_STATS = "${packageName}.WEBEE_HCE_STATS"
+    const val EXTRA_STATS = "stats"
     private const val RESULT_CLA = 0x80.toByte()
     private const val RESULT_INS = 0x52.toByte()
+    private const val STATS_INS = 0x53.toByte()
+    private const val TIME_INS = 0x54.toByte()
 
     private val SELECT_AID_COMMAND = byteArrayOf(
       0x00.toByte(),
@@ -102,18 +119,42 @@ class WeBeeHceService : HostApduService() {
     private val UNKNOWN_COMMAND_RESPONSE = byteArrayOf(0x6D.toByte(), 0x00.toByte())
 
     private fun isSelectAidCommand(command: ByteArray): Boolean {
-      if (command.size < SELECT_AID_COMMAND.size) return false
+      return matchesSelectAidCommand(command, 0) ||
+        (command.isNotEmpty() &&
+          (command[0] == 0x02.toByte() || command[0] == 0x03.toByte()) &&
+          matchesSelectAidCommand(command, 1))
+    }
+
+    private fun matchesSelectAidCommand(command: ByteArray, offset: Int): Boolean {
+      if (command.size < offset + SELECT_AID_COMMAND.size) return false
       return SELECT_AID_COMMAND.indices.all { index ->
-        command[index] == SELECT_AID_COMMAND[index]
+        command[offset + index] == SELECT_AID_COMMAND[index]
       }
     }
 
     private fun isResultReportCommand(command: ByteArray): Boolean =
-      command.size >= 5 && command[0] == RESULT_CLA && command[1] == RESULT_INS
+      resultApduOffset(command) >= 0
 
-    private fun parseResultReport(command: ByteArray): String {
-      val lc = command[4].toInt() and 0xFF
-      val payloadStart = 5
+    private fun isStatsReportCommand(command: ByteArray): Boolean =
+      statsApduOffset(command) >= 0
+
+    private fun isTimeRequestCommand(command: ByteArray): Boolean =
+      timeApduOffset(command) >= 0
+
+    private fun currentPhoneTimeText(): String =
+      SimpleDateFormat("yyyy-MM-dd-HH:mm", Locale.US).format(Date())
+
+    private fun parseResultReport(command: ByteArray): String =
+      parseTextReport(command, resultApduOffset(command))
+
+    private fun parseStatsReport(command: ByteArray): String =
+      parseTextReport(command, statsApduOffset(command))
+
+    private fun parseTextReport(command: ByteArray, apduOffset: Int): String {
+      if (apduOffset < 0) return ""
+
+      val lc = command[apduOffset + 4].toInt() and 0xFF
+      val payloadStart = apduOffset + 5
       val available = command.size - payloadStart
       val payloadLength = minOf(lc, available)
 
@@ -124,6 +165,36 @@ class WeBeeHceService : HostApduService() {
         .toString(Charsets.UTF_8)
         .trim()
     }
+
+    private fun resultApduOffset(command: ByteArray): Int =
+      when {
+        command.size >= 5 && command[0] == RESULT_CLA && command[1] == RESULT_INS -> 0
+        command.size >= 6 &&
+          (command[0] == 0x02.toByte() || command[0] == 0x03.toByte()) &&
+          command[1] == RESULT_CLA &&
+          command[2] == RESULT_INS -> 1
+        else -> -1
+      }
+
+    private fun statsApduOffset(command: ByteArray): Int =
+      when {
+        command.size >= 5 && command[0] == RESULT_CLA && command[1] == STATS_INS -> 0
+        command.size >= 6 &&
+          (command[0] == 0x02.toByte() || command[0] == 0x03.toByte()) &&
+          command[1] == RESULT_CLA &&
+          command[2] == STATS_INS -> 1
+        else -> -1
+      }
+
+    private fun timeApduOffset(command: ByteArray): Int =
+      when {
+        command.size >= 5 && command[0] == RESULT_CLA && command[1] == TIME_INS -> 0
+        command.size >= 6 &&
+          (command[0] == 0x02.toByte() || command[0] == 0x03.toByte()) &&
+          command[1] == RESULT_CLA &&
+          command[2] == TIME_INS -> 1
+        else -> -1
+      }
 
     private fun toHexString(command: ByteArray): String =
       command.joinToString(" ") { "%02X".format(it) }
@@ -152,11 +223,20 @@ class WeBeeHceModule(
 ) : ReactContextBaseJavaModule(reactContext) {
   private var listenerCount = 0
   private var receiverRegistered = false
-  private val resultReceiver = object : BroadcastReceiver() {
+  private val hceReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
-      val result = intent?.getStringExtra(WeBeeHceService.EXTRA_RESULT).orEmpty()
-      Log.d(TAG, "Broadcast HCE result received=$result")
-      emitResult(result)
+      when (intent?.action) {
+        WeBeeHceService.ACTION_HCE_RESULT -> {
+          val result = intent.getStringExtra(WeBeeHceService.EXTRA_RESULT).orEmpty()
+          Log.d(TAG, "Broadcast HCE result received=$result")
+          emitResult(result)
+        }
+        WeBeeHceService.ACTION_HCE_STATS -> {
+          val stats = intent.getStringExtra(WeBeeHceService.EXTRA_STATS).orEmpty()
+          Log.d(TAG, "Broadcast HCE stats received=$stats")
+          emitStats(stats)
+        }
+      }
     }
   }
 
@@ -192,8 +272,8 @@ class WeBeeHceModule(
   @ReactMethod
   fun addListener(eventName: String) {
     listenerCount += 1
-    if (eventName == RESULT_EVENT_NAME) {
-      registerResultReceiver()
+    if (eventName == RESULT_EVENT_NAME || eventName == STATS_EVENT_NAME) {
+      registerHceReceiver()
     }
   }
 
@@ -201,12 +281,12 @@ class WeBeeHceModule(
   fun removeListeners(count: Int) {
     listenerCount = (listenerCount - count).coerceAtLeast(0)
     if (listenerCount == 0) {
-      unregisterResultReceiver()
+      unregisterHceReceiver()
     }
   }
 
   override fun invalidate() {
-    unregisterResultReceiver()
+    unregisterHceReceiver()
     super.invalidate()
   }
 
@@ -220,31 +300,38 @@ class WeBeeHceModule(
       "close_at",
       "window",
       "alternate_24h",
-      "lock_days" -> mode
+      "lock_days",
+      "count_status",
+      "activity_boost",
+      "overpollination_guard",
+      "return_limit" -> mode
       else -> "window"
     }
 
-  private fun registerResultReceiver() {
+  private fun registerHceReceiver() {
     if (receiverRegistered) return
 
-    val filter = IntentFilter(WeBeeHceService.ACTION_HCE_RESULT)
+    val filter = IntentFilter().apply {
+      addAction(WeBeeHceService.ACTION_HCE_RESULT)
+      addAction(WeBeeHceService.ACTION_HCE_STATS)
+    }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      reactContext.registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+      reactContext.registerReceiver(hceReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     } else {
-      reactContext.registerReceiver(resultReceiver, filter)
+      reactContext.registerReceiver(hceReceiver, filter)
     }
     receiverRegistered = true
-    Log.d(TAG, "HCE result receiver registered")
+    Log.d(TAG, "HCE receiver registered")
   }
 
-  private fun unregisterResultReceiver() {
+  private fun unregisterHceReceiver() {
     if (!receiverRegistered) return
 
     try {
-      reactContext.unregisterReceiver(resultReceiver)
-      Log.d(TAG, "HCE result receiver unregistered")
+      reactContext.unregisterReceiver(hceReceiver)
+      Log.d(TAG, "HCE receiver unregistered")
     } catch (error: IllegalArgumentException) {
-      Log.w(TAG, "HCE result receiver was already unregistered", error)
+      Log.w(TAG, "HCE receiver was already unregistered", error)
     } finally {
       receiverRegistered = false
     }
@@ -260,6 +347,16 @@ class WeBeeHceModule(
       .emit(RESULT_EVENT_NAME, params)
   }
 
+  private fun emitStats(stats: String) {
+    val params = Arguments.createMap().apply {
+      putString("stats", stats)
+    }
+
+    reactContext
+      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit(STATS_EVENT_NAME, params)
+  }
+
   private fun ReadableMap.getStringOrDefault(key: String, fallback: String): String =
     if (hasKey(key) && !isNull(key)) getString(key) ?: fallback else fallback
 
@@ -270,6 +367,7 @@ class WeBeeHceModule(
     private const val TAG = "WeBeeHceModule"
     private const val PREFS_NAME = "webee_hce"
     private const val RESULT_EVENT_NAME = "WeBeeHceResult"
+    private const val STATS_EVENT_NAME = "WeBeeHceStats"
     private const val KEY_TITLE = "title"
     private const val KEY_MODE = "mode"
     private const val KEY_START = "start"
