@@ -425,6 +425,23 @@ function addUsesFeature(androidManifest) {
   androidManifest.manifest["uses-feature"] = usesFeature;
 }
 
+function addNfcPermission(androidManifest) {
+  const usesPermission = androidManifest.manifest["uses-permission"] || [];
+  const hasNfcPermission = usesPermission.some((permission) => {
+    return permission.$?.["android:name"] === "android.permission.NFC";
+  });
+
+  if (!hasNfcPermission) {
+    usesPermission.push({
+      $: {
+        "android:name": "android.permission.NFC",
+      },
+    });
+  }
+
+  androidManifest.manifest["uses-permission"] = usesPermission;
+}
+
 function addHceService(androidManifest) {
   const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
   const services = application.service || [];
@@ -468,6 +485,7 @@ function addHceService(androidManifest) {
 module.exports = function withWeBeeHce(config) {
   config = withAndroidManifest(config, (config) => {
     addUsesFeature(config.modResults);
+    addNfcPermission(config.modResults);
     addHceService(config.modResults);
     return config;
   });

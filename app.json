@@ -2,7 +2,7 @@
   "expo": {
     "name": "webee-mo",
     "slug": "webee-mo",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "webee",
     "orientation": "portrait",
     "icon": "./assets/branding/webee_logo.png",
@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.webee.mo",
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",
