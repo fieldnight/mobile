@@ -44,3 +44,63 @@ export interface SendAssistantMessageResponse {
   conversationId: string;
   sources: string[];
 }
+
+export type DoorActivityReportStatus = "GOOD" | "NORMAL" | "CAUTION";
+export type DoorActivityGateState = "OPEN" | "CLOSED" | "UNKNOWN";
+
+export interface DoorActivityTrafficSummary {
+  entered: number;
+  exited: number;
+}
+
+export interface DoorActivityHourlyStat {
+  time: string;
+  entered: number;
+  exited: number;
+  gateState: DoorActivityGateState;
+  temperatureC: number | null;
+  humidityPercent: number | null;
+}
+
+export interface DoorActivityClimateSample {
+  time: string;
+  temperatureC: number;
+  humidityPercent: number;
+}
+
+export interface DoorActivityReportRequest {
+  deviceId: string;
+  analysisDate: string;
+  timezone: "Asia/Seoul";
+  trafficSummary: DoorActivityTrafficSummary;
+  latestGateState: DoorActivityGateState;
+  hourlyStats: DoorActivityHourlyStat[];
+  climateSamples: DoorActivityClimateSample[];
+}
+
+export interface DoorActivityMetricRow {
+  label: string;
+  value: string;
+  note: string;
+  status?: DoorActivityReportStatus;
+}
+
+export interface DoorActivitySolution {
+  title: string;
+  description: string;
+}
+
+export interface DoorActivityReportResponse {
+  status: DoorActivityReportStatus;
+  summary: string;
+  observations: string[];
+  details: {
+    overview: DoorActivityMetricRow[];
+    activityAnalysis: DoorActivityMetricRow[];
+    climateAnalysis: DoorActivityMetricRow[];
+    hourlyAnalysis: string;
+    solutionGuide: DoorActivitySolution[];
+  };
+  sources: string[];
+  generatedAt: string;
+}

@@ -1,6 +1,6 @@
 /**
  * AI가 답변을 생성 중임을 보여주는 로딩 말풍선 컴포넌트입니다.
- * - React Native `ActivityIndicator`로 로딩 스피너를 
+ * - React Native `ActivityIndicator`로 로딩 스피너를
  */
 import { ActivityIndicator, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";

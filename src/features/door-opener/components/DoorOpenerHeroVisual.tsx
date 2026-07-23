@@ -2,7 +2,7 @@ import { Image, useWindowDimensions, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { DoorOpenerRuntimeState } from "../model/doorOpenerRuntime";
-import type { BeeTrafficCounts } from "../model/webeeHce";
+import type { BeeTrafficCounts, HceClimateSample } from "../model/webeeHce";
 import type { GateActionAppConnectionStatus } from "./NfcDoorCardSection";
 
 const DOOR_OPENER_IMAGE = require("../../../../assets/images/door-opener-3d.png");
@@ -16,14 +16,12 @@ export const EMPTY_BEE_TRAFFIC_COUNTS: BeeTrafficCounts = {
 
 export function DoorOpenerHeroVisual({
   counts = EMPTY_BEE_TRAFFIC_COUNTS,
-  runtimeState,
-  runtimeText,
+  latestClimate,
   appConnectionStatus = "idle",
   gateConnected = false,
 }: {
   counts?: BeeTrafficCounts;
-  runtimeState?: DoorOpenerRuntimeState | null;
-  runtimeText?: string | null;
+  latestClimate?: HceClimateSample;
   appConnectionStatus?: GateActionAppConnectionStatus;
   gateConnected?: boolean;
 }) {
@@ -74,8 +72,42 @@ export function DoorOpenerHeroVisual({
           <TrafficCountLine label="출구 OUT" count={counts.exitOut} />
         </View>
 
-        <RuntimeSummary state={runtimeState} runtimeText={runtimeText} />
+        <ClimateSummary sample={latestClimate} />
+
       </View>
+    </View>
+  );
+}
+
+function ClimateSummary({ sample }: { sample?: HceClimateSample }) {
+  return (
+    <View
+      className="mt-3 flex-row items-center justify-between rounded-2xl px-3 py-2"
+      style={{ backgroundColor: "rgba(255,255,255,0.14)" }}
+    >
+      <PretendardFont
+        weight="semibold"
+        style={{ fontSize: 12.5, color: "rgba(255,255,255,0.74)" }}
+      >
+        온습도
+      </PretendardFont>
+      {sample ? (
+        <View className="flex-row items-center" style={{ gap: 10 }}>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+            {sample.temperatureC.toFixed(1)}°C
+          </PretendardFont>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: "#DDFBEA" }}>
+            {sample.humidityPercent.toFixed(0)}%
+          </PretendardFont>
+        </View>
+      ) : (
+        <PretendardFont
+          weight="semibold"
+          style={{ fontSize: 12.5, color: "rgba(255,255,255,0.62)" }}
+        >
+          카드로 수신 대기
+        </PretendardFont>
+      )}
     </View>
   );
 }

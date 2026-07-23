@@ -51,6 +51,7 @@ export interface HceClimateSample {
 }
 
 export type HceStatsEvent =
+  | { raw: string; type: "begin"; deviceId?: string }
   | { raw: string; type: "boot"; deviceId?: string; counts: BeeTrafficCounts }
   | ({ raw: string; type: "bucket" } & HceStatsBucket)
   | ({ raw: string; type: "climate" } & HceClimateSample)
@@ -188,6 +189,10 @@ export function parseHceStats(stats: string): HceStatsEvent {
     const deviceId = parseDeviceId(rest);
     const counts = parseCountsCsv(rest.find((part) => !part.startsWith("D=")));
     return counts ? { raw: stats, type: "boot", deviceId, counts } : { raw: stats, type: "unknown" };
+  }
+
+  if (kind === "BEGIN") {
+    return { raw: stats, type: "begin", deviceId: parseDeviceId(rest) };
   }
 
   if (kind === "B") {

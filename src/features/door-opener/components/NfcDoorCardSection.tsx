@@ -80,6 +80,7 @@ export function NfcDoorCardSection({
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [activeCard, setActiveCard]     = useState<NfcDoorCardConfig | null>(null);
   const [adding, setAdding]             = useState(false);
+  const [pendingReplacement, setPendingReplacement] = useState<NfcDoorCardConfig | null>(null);
   /** 삭제 확인 중인 카드 */
   const [pendingDelete, setPendingDelete] = useState<NfcDoorCardConfig | null>(null);
 
@@ -291,6 +292,12 @@ export function NfcDoorCardSection({
 
   const handleCardPress = (card: NfcDoorCardConfig) => {
     if (deleting || draggingCardIdRef.current) return;
+    const currentCardId = runtimeState?.cardId;
+    const hasRunningCard = isDoorOpenerRuntimeActive(runtimeState ?? null) && currentCardId;
+    if (hasRunningCard && currentCardId !== card.id && card.mode !== "count_status") {
+      setPendingReplacement(card);
+      return;
+    }
     setActiveCard(card);
   };
 
@@ -364,6 +371,19 @@ export function NfcDoorCardSection({
         cancelLabel="취소"
         destructive
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmSheet
+        visible={pendingReplacement != null}
+        onClose={() => setPendingReplacement(null)}
+        title="진행 중인 설정을 바꿀까요?"
+        message={`${runtimeText ?? "현재 설정"}을 멈추고 ${pendingReplacement?.title ?? "새 카드"}로 바꿉니다. 새 카드가 개폐기에 적용되면 이전 시간 설정은 해제돼요.`}
+        confirmLabel="새 카드로 바꾸기"
+        cancelLabel="유지하기"
+        onConfirm={() => {
+          setActiveCard(pendingReplacement);
+          setPendingReplacement(null);
+        }}
       />
     </View>
   );
