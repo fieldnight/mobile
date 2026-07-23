@@ -62,6 +62,12 @@ module.exports = () => {
         "https://api.nongsaro.go.kr/service/insectAgchApplc",
       ).replace(/^http:\/\//, "https://"),
       nongsaroApiKey: envValue("EXPO_PUBLIC_NONGSARO_API_KEY"),
+      kakaoMapApiKey: envValue("EXPO_PUBLIC_KAKAO_MAP_API_KEY"),
+      kakaoRestApiKey: envValue("EXPO_PUBLIC_KAKAO_REST_API_KEY"),
+      kakaoMapBaseUrl: envValue(
+        "EXPO_PUBLIC_KAKAO_MAP_WEB_BASE_URL",
+        "https://webeelab.site",
+      ),
     },
     android: {
       ...expo.android,
