@@ -6,6 +6,8 @@
  */
 import { api } from "@/lib/api";
 import type {
+  DoorActivityReportRequest,
+  DoorActivityReportResponse,
   SendAssistantMessageRequest,
   SendAssistantMessageResponse,
 } from "../model";
@@ -48,6 +50,34 @@ export async function getAssistantSampleQuestions(): Promise<string[]> {
     return response.data.data ?? [];
   } catch (error) {
     console.log("[Assistant API] 예시 질문 조회 실패", error);
+    throw error;
+  }
+}
+
+export async function createDoorActivityReport(
+  request: DoorActivityReportRequest,
+): Promise<DoorActivityReportResponse> {
+  try {
+    console.log("[Assistant API] 벌 활동 리포트 요청", {
+      deviceId: request.deviceId,
+      analysisDate: request.analysisDate,
+      hourlyCount: request.hourlyStats.length,
+      climateCount: request.climateSamples.length,
+    });
+
+    const response = await api.post<ApiResponse<DoorActivityReportResponse>>(
+      "/api/v1/assistants/door-reports",
+      request,
+    );
+
+    console.log("[Assistant API] 벌 활동 리포트 생성 성공", {
+      deviceId: request.deviceId,
+      status: response.data.data?.status,
+    });
+
+    return response.data.data;
+  } catch (error) {
+    console.log("[Assistant API] 벌 활동 리포트 생성 실패", error);
     throw error;
   }
 }

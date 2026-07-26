@@ -55,23 +55,23 @@ const PesticideChip = memo(function PesticideChip({
         borderRadius: 22,
         borderWidth: 1,
         borderColor: C.border,
-        paddingLeft: 12,
-        paddingRight: 8,
-        paddingVertical: 7,
+        paddingLeft: 14,
+        paddingRight: 10,
+        paddingVertical: 10,
         marginRight: 10,
         gap: 5,
       }}
     >
-      <Feather name="star" size={14} color={C.primary} />
+      <Feather name="star" size={16} color={C.primary} />
       <PretendardFont
         weight="semibold"
         numberOfLines={1}
-        style={{ fontSize: 15, color: C.text, maxWidth: 130 }}
+        style={{ fontSize: 17, color: C.text, maxWidth: 150 }}
       >
         {item.brandName}
       </PretendardFont>
       {item.cropName ? (
-        <PretendardFont weight="regular" style={{ fontSize: 13, color: C.ter }}>
+        <PretendardFont weight="regular" style={{ fontSize: 15, color: C.ter }}>
           · {item.cropName}
         </PretendardFont>
       ) : null}
@@ -80,7 +80,7 @@ const PesticideChip = memo(function PesticideChip({
         hitSlop={8}
         className="active:opacity-50 ml-1"
       >
-        <Feather name="x" size={16} color={C.ter} />
+        <Feather name="x" size={18} color={C.ter} />
       </Pressable>
     </Pressable>
   );
@@ -102,10 +102,10 @@ function EmptyHint() {
     >
       <Feather name="star" size={20} color={C.ter} />
       <View style={{ flex: 1 }}>
-        <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.sec }}>
+        <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.sec }}>
           관심 농약이 없어요
         </PretendardFont>
-        <PretendardFont weight="regular" style={{ fontSize: 13, color: C.ter, marginTop: 4 }}>
+        <PretendardFont weight="regular" style={{ fontSize: 16, color: C.ter, marginTop: 6, lineHeight: 23 }}>
           아래 검색 결과 행을 탭하면 저장할 수 있어요
         </PretendardFont>
       </View>
@@ -157,7 +157,7 @@ export function InterestPesticideList() {
           관심 농약
         </PretendardFont>
         {list?.length ? (
-          <PretendardFont weight="regular" style={{ fontSize: 13, color: C.ter }}>
+          <PretendardFont weight="regular" style={{ fontSize: 15, color: C.ter }}>
             {list.length}개
           </PretendardFont>
         ) : null}

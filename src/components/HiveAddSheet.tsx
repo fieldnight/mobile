@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { useCreateHive, useUpdateHive } from "@/features/hive";
+import { HiveWifiSetupSheet } from "@/features/hive-wifi";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { C } from "@/constants/hive-colors";
 import type { HiveData, HiveFormInput } from "@/types/hive-control";
@@ -87,9 +89,13 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   const updateHiveMutation = useUpdateHive();
   const { show: showToast } = useAppToast();
   const [form, setForm] = useState<HiveFormInput>(EMPTY_FORM);
+  const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
+  const [provisionedDeviceId, setProvisionedDeviceId] = useState("");
 
   useEffect(() => {
     if (!visible) return;
+    setWifiSetupVisible(false);
+    setProvisionedDeviceId("");
     // 수정 모드에서는 기존 벌통 정보를 폼에 채워 사용자가 필요한 값만 바꾸게 합니다.
     setForm(
       hive
@@ -121,7 +127,15 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 
   const resetAndClose = () => {
     setForm(EMPTY_FORM);
+    setWifiSetupVisible(false);
+    setProvisionedDeviceId("");
     onClose();
+  };
+
+  const handleWifiProvisioned = (deviceId: string) => {
+    setProvisionedDeviceId(deviceId);
+    updateField("macAddress", deviceId);
+    showToast(`${deviceId} Wi-Fi 설정을 전달했어요`, "success");
   };
 
   const handleSubmit = () => {
@@ -218,15 +232,22 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
         >
           {editing
             ? "등록된 벌통의 이름, 지역, 위치, 메모를 수정할 수 있어요."
-            : "맥주소와 기본 정보를 입력하면 벌통 목록에 등록돼요."}
+            : "처음 설치라면 벌통 Wi-Fi를 연결한 뒤 기본 정보를 입력해주세요."}
         </PretendardFont>
       </View>
 
-      <FieldLabel label="맥주소" required hint={editing ? "수정 불가" : undefined} />
+      {!editing && (
+        <WifiSetupCard
+          configuredDeviceId={provisionedDeviceId}
+          onPress={() => setWifiSetupVisible(true)}
+        />
+      )}
+
+      <FieldLabel label="벌통 번호" required hint={editing ? "수정 불가" : undefined} />
       <FormInput
         value={form.macAddress}
         onChangeText={(value) => updateField("macAddress", value)}
-        placeholder="AA:BB:CC:DD:EE:FF"
+        placeholder="test-01"
         editable={!editing}
       />
 
@@ -280,7 +301,59 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
           </PretendardFont>
         </Pressable>
       </View>
+
+      <HiveWifiSetupSheet
+        visible={wifiSetupVisible}
+        onClose={() => setWifiSetupVisible(false)}
+        initialDeviceId={form.macAddress || "test-01"}
+        onProvisioned={handleWifiProvisioned}
+      />
     </BottomSheet>
+  );
+}
+
+function WifiSetupCard({
+  configuredDeviceId,
+  onPress,
+}: {
+  configuredDeviceId: string;
+  onPress: () => void;
+}) {
+  const configured = configuredDeviceId !== "";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="mt-4 flex-row items-center gap-3 rounded-2xl p-4 active:opacity-80"
+      style={{
+        backgroundColor: configured ? "#E8F8F0" : C.bgAlt,
+        borderWidth: 1,
+        borderColor: configured ? "#B7E4CD" : C.border,
+      }}
+    >
+      <View
+        className="h-10 w-10 items-center justify-center rounded-full bg-white"
+      >
+        <Feather
+          name={configured ? "check" : "wifi"}
+          size={19}
+          color={configured ? C.success : C.primary}
+        />
+      </View>
+      <View className="flex-1">
+        <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
+          {configured ? `${configuredDeviceId} 연결 정보 전달 완료` : "벌통 Wi-Fi 연결"}
+        </PretendardFont>
+        <PretendardFont
+          style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: C.sec }}
+        >
+          {configured
+            ? "아래 기본 정보를 입력해 벌통 등록을 마무리해주세요."
+            : "처음 설치하는 스마트벌통이라면 먼저 진행해주세요."}
+        </PretendardFont>
+      </View>
+      <Feather name="chevron-right" size={18} color={C.sec} />
+    </Pressable>
   );
 }
 

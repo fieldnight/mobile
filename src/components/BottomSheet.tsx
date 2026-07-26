@@ -33,6 +33,7 @@ interface BottomSheetProps {
   stickyHeaderIndices?: number[];
   headerAccessory?: React.ReactNode;
   dragCloseEnabled?: boolean;
+  tone?: "light" | "dark";
 }
 
 export function BottomSheet({
@@ -45,7 +46,9 @@ export function BottomSheet({
   stickyHeaderIndices,
   headerAccessory,
   dragCloseEnabled = true,
+  tone = "light",
 }: BottomSheetProps) {
+  const dark = tone === "dark";
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   // 내부 wheel 스크롤 중에는 외부 ScrollView 스크롤 차단
   const [outerScrollEnabled, setOuterScrollEnabled] = useState(true);
@@ -104,7 +107,7 @@ export function BottomSheet({
             <Animated.View
               style={{
                 maxHeight: SCREEN_H * snapHeight,
-                backgroundColor: C.white,
+                backgroundColor: dark ? "#111A29" : C.white,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
                 transform: [{ translateY }],
@@ -113,19 +116,25 @@ export function BottomSheet({
             >
               {/* 드래그 핸들 */}
               <View {...panResponder.panHandlers} className="items-center pb-1 pt-3">
-                <View className="h-1 w-10 rounded-full" style={{ backgroundColor: C.border }} />
+                <View
+                  className="h-1 w-10 rounded-full"
+                  style={{ backgroundColor: dark ? "#33445C" : C.border }}
+                />
               </View>
 
               {/* 헤더 */}
               <View className="flex-row items-center justify-between gap-3 px-5 pb-4 pt-3">
                 <View className="min-w-0 flex-1">
-                  <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                  <PretendardFont
+                    weight="bold"
+                    style={{ fontSize: 20, color: dark ? "#F4F7FB" : C.text }}
+                  >
                     {title}
                   </PretendardFont>
                 </View>
                 {headerAccessory}
                 <Pressable onPress={handleClose} hitSlop={12} className="active:opacity-60">
-                  <Feather name="x" size={20} color={C.ter} />
+                  <Feather name="x" size={20} color={dark ? "#91A0B5" : C.ter} />
                 </Pressable>
               </View>
 
@@ -216,7 +225,7 @@ export function ConfirmSheet({
       contentScrollEnabled={false}
     >
       {message && (
-        <PretendardFont style={{ fontSize: 14, color: C.sec, marginBottom: 24, lineHeight: 22 }}>
+        <PretendardFont style={{ fontSize: 16.5, color: C.sec, marginBottom: 24, lineHeight: 25 }}>
           {message}
         </PretendardFont>
       )}
@@ -231,7 +240,7 @@ export function ConfirmSheet({
             opacity: confirmDisabled ? 0.5 : 1,
           }}
         >
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+          <PretendardFont weight="bold" style={{ fontSize: 18, color: C.white }}>
             {confirmLabel}
           </PretendardFont>
         </Pressable>
@@ -240,7 +249,7 @@ export function ConfirmSheet({
           className="items-center rounded-2xl py-4 active:opacity-70"
           style={{ backgroundColor: C.bgAlt }}
         >
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.textAlt }}>
+          <PretendardFont weight="bold" style={{ fontSize: 18, color: C.textAlt }}>
             {cancelLabel}
           </PretendardFont>
         </Pressable>

@@ -33,4 +33,17 @@ export const PUBLIC_CONFIG = {
     "nongsaroApiKey",
     "EXPO_PUBLIC_NONGSARO_API_KEY",
   ),
+  kakaoMapApiKey: getConfigValue(
+    "kakaoMapApiKey",
+    "EXPO_PUBLIC_KAKAO_MAP_API_KEY",
+  ),
+  kakaoRestApiKey: getConfigValue(
+    "kakaoRestApiKey",
+    "EXPO_PUBLIC_KAKAO_REST_API_KEY",
+  ),
+  kakaoMapBaseUrl:
+    getConfigValue(
+      "kakaoMapBaseUrl",
+      "EXPO_PUBLIC_KAKAO_MAP_WEB_BASE_URL",
+    ) || "https://webeelab.site",
 };

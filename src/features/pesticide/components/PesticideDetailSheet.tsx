@@ -29,18 +29,18 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <View
-      className="flex-row py-3"
+      className="flex-row py-4"
       style={{ borderBottomWidth: 1, borderColor: C.bg }}
     >
       <PretendardFont
         weight="semibold"
-        style={{ width: 90, fontSize: 13, color: C.sec }}
+        style={{ width: 108, fontSize: 16, color: C.sec }}
       >
         {label}
       </PretendardFont>
       <PretendardFont
         weight="regular"
-        style={{ flex: 1, fontSize: 13, color: C.text, lineHeight: 20 }}
+        style={{ flex: 1, fontSize: 16, color: C.text, lineHeight: 24 }}
       >
         {value}
       </PretendardFont>
@@ -129,20 +129,20 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
           >
             <View style={{ flex: 1 }}>
               <View className="flex-row items-center gap-2">
-                <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 17, color: C.text }}>
+                <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 20, color: C.text }}>
                   {item?.brandNm}
                 </PretendardFont>
                 {/* 이미 저장된 항목 표시 */}
                 {alreadySaved ? (
-                  <Feather name="star" size={14} color={C.primary} />
+                  <Feather name="star" size={16} color={C.primary} />
                 ) : null}
               </View>
-              <PretendardFont weight="regular" style={{ fontSize: 13, color: C.sec, marginTop: 2 }}>
+              <PretendardFont weight="regular" style={{ fontSize: 16, color: C.sec, marginTop: 4 }}>
                 {item?.prdlstNm}
               </PretendardFont>
             </View>
             <Pressable onPress={onClose} hitSlop={12} className="active:opacity-60 ml-3">
-              <Feather name="x" size={20} color={C.sec} />
+              <Feather name="x" size={24} color={C.sec} />
             </Pressable>
           </View>
 
@@ -174,10 +174,10 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
               // 이미 저장된 항목 → 닫기 버튼
               <Pressable
                 onPress={onClose}
-                className="h-[52px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
+                className="h-[58px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
                 style={{ backgroundColor: C.primary }}
               >
-                <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.white }}>
+                <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.white }}>
                   닫기
                 </PretendardFont>
               </Pressable>
@@ -186,15 +186,15 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
               <Pressable
                 onPress={handleSave}
                 disabled={isPending}
-                className="h-[52px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
+                className="h-[58px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
                 style={{ backgroundColor: isPending ? C.border : C.primary }}
               >
                 {isPending ? (
                   <ActivityIndicator size="small" color={C.white} />
                 ) : (
                   <>
-                    <Feather name="star" size={18} color={C.white} />
-                    <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.white }}>
+                    <Feather name="star" size={20} color={C.white} />
+                    <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.white }}>
                       관심 농약 저장
                     </PretendardFont>
                   </>

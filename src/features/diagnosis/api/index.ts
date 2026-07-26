@@ -1,11 +1,13 @@
-import { api } from '@/lib/api';
+import { Platform } from "react-native";
+import { api } from "@/lib/api";
 import type {
   BeeDiagnosisAnalyzeResponse,
   BeeDiagnosisAiRequest,
   BeeDiagnosisAiResponse,
   BeeDiagnosisListItem,
   BeeDiagnosisDetailResponse,
-} from '@/types/bee-diagnosis';
+  SaveDiagnosisParams,
+} from "../model";
 
 interface ApiResponse<T> {
   code: string;
@@ -13,105 +15,152 @@ interface ApiResponse<T> {
   data: T;
 }
 
-// 이미지 분석 API
 export async function analyzeBeeImage(imageUri: string): Promise<BeeDiagnosisAnalyzeResponse> {
-  const formDataBody = new FormData();
-  const filename = imageUri.split('/').pop() || 'image.jpg';
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : 'image/jpeg';
+  try {
+    const formData = new FormData();
+    formData.append("beeImage", createImagePart(imageUri));
 
-  formDataBody.append('beeImage', {
-    uri: imageUri,
-    name: filename,
-    type,
-  } as any);
-
-  const response = await api.post<ApiResponse<BeeDiagnosisAnalyzeResponse>>(
-    '/api/v1/bee/diagnosis',
-    formDataBody,
-    {
-      headers: {
-        'Content-Type': undefined,
-      },
-    }
-  );
-  return response.data.data;
+    console.log("[Diagnosis API] 이미지 분석 요청");
+    const response = await api.post<ApiResponse<BeeDiagnosisAnalyzeResponse>>(
+      "/api/v1/bee/diagnosis",
+      formData,
+      getMultipartRequestConfig(),
+    );
+    console.log("[Diagnosis API] 이미지 분석 성공", {
+      disease: response.data.data?.name,
+    });
+    return response.data.data;
+  } catch (error) {
+    console.warn("[Diagnosis API] 이미지 분석 실패", getDiagnosisErrorLog(error));
+    throw error;
+  }
 }
 
-// AI 대처 방안 요청
 export async function getAiDiagnosis(
-  request: BeeDiagnosisAiRequest
+  request: BeeDiagnosisAiRequest,
 ): Promise<BeeDiagnosisAiResponse> {
-  const response = await api.post<ApiResponse<BeeDiagnosisAiResponse>>(
-    '/api/v1/bee/diagnosis/ai',
-    request
-  );
-  return response.data.data;
-}
-
-// 진단 결과 저장
-export interface SaveDiagnosisParams {
-  imageUri: string;
-  request: {
-    diseaseType: string;
-    confidence: number;
-    cropName: string;
-    cultivationType: string;
-    cultivationAddress?: string;
-    additionalInfo?: string;
-    description: string;
-    symptoms: string;
-    cause: string;
-    severity: string;
-    solutions: string;
-  };
+  try {
+    console.log("[Diagnosis API] 맞춤 대처 방안 요청", {
+      disease: request.disease,
+      cultivationType: request.cultivationType,
+    });
+    const response = await api.post<ApiResponse<BeeDiagnosisAiResponse>>(
+      "/api/v1/bee/diagnosis/ai",
+      request,
+    );
+    console.log("[Diagnosis API] 맞춤 대처 방안 성공", {
+      solutionCount: response.data.data?.solutions?.length ?? 0,
+    });
+    return response.data.data;
+  } catch (error) {
+    console.warn("[Diagnosis API] 맞춤 대처 방안 실패", getDiagnosisErrorLog(error));
+    throw error;
+  }
 }
 
 export async function saveDiagnosis(params: SaveDiagnosisParams): Promise<{ beeDiagnosisId: number }> {
-  const formDataBody = new FormData();
-  formDataBody.append('request', JSON.stringify(params.request));
+  try {
+    const formData = new FormData();
+    formData.append("request", JSON.stringify(params.request));
+    formData.append("beeImage", createImagePart(params.imageUri));
 
-  if (params.imageUri) {
-    const filename = params.imageUri.split('/').pop() || 'image.jpg';
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    console.log("[Diagnosis API] 진단 결과 저장 요청", {
+      disease: params.request.diseaseType,
+    });
+    const response = await api.post<ApiResponse<{ beeDiagnosisId: number }>>(
+      "/api/v1/bee/diagnosis/save",
+      formData,
+      getMultipartRequestConfig(),
+    );
+    console.log("[Diagnosis API] 진단 결과 저장 성공", {
+      beeDiagnosisId: response.data.data?.beeDiagnosisId,
+    });
+    return response.data.data;
+  } catch (error) {
+    console.warn("[Diagnosis API] 진단 결과 저장 실패", getDiagnosisErrorLog(error));
+    throw error;
+  }
+}
 
-    formDataBody.append('beeImage', {
-      uri: params.imageUri,
-      name: filename,
-      type,
-    } as any);
+export async function getDiagnosisList(): Promise<BeeDiagnosisListItem[]> {
+  try {
+    const response = await api.get<ApiResponse<BeeDiagnosisListItem[]>>(
+      "/api/v1/bee/diagnosis",
+    );
+    const list = response.data.data ?? [];
+    console.log("[Diagnosis API] 진단 기록 조회 성공", { count: list.length });
+    return [...list].sort(compareDiagnosisCreatedAt);
+  } catch (error) {
+    console.warn("[Diagnosis API] 진단 기록 조회 실패", getDiagnosisErrorLog(error));
+    throw error;
+  }
+}
+
+export async function getDiagnosisDetail(id: string | number): Promise<BeeDiagnosisDetailResponse> {
+  try {
+    const response = await api.get<ApiResponse<BeeDiagnosisDetailResponse>>(
+      `/api/v1/bee/diagnosis/${id}`,
+    );
+    console.log("[Diagnosis API] 진단 상세 조회 성공", { beeDiagnosisId: id });
+    return response.data.data;
+  } catch (error) {
+    console.warn("[Diagnosis API] 진단 상세 조회 실패", {
+      beeDiagnosisId: id,
+      ...getDiagnosisErrorLog(error),
+    });
+    throw error;
+  }
+}
+
+export function getDiagnosisErrorMessage(error: unknown, fallback: string) {
+  const value = error as {
+    code?: unknown;
+    response?: { data?: { code?: unknown; message?: unknown } };
+  };
+  if (value.response?.data?.code === "BEE_001") {
+    return "사진에서 벌을 찾지 못했어요. 벌 한 마리가 크게 보이는 사진으로 다시 시도해주세요.";
+  }
+  if (value.code === "ERR_NETWORK") {
+    return "사진을 서버로 보내지 못했어요. 네트워크를 확인하고 다시 시도해주세요.";
   }
 
-  const response = await api.post<ApiResponse<{ beeDiagnosisId: number }>>(
-    '/api/v1/bee/diagnosis/save',
-    formDataBody,
-    {
-      headers: {
-        'Content-Type': undefined,
-      },
-    }
-  );
-  return response.data.data;
+  const serverMessage = value.response?.data?.message;
+  return typeof serverMessage === "string" && serverMessage.trim()
+    ? serverMessage.trim()
+    : fallback;
 }
 
-// 진단 목록 조회
-export async function getDiagnosisList(): Promise<BeeDiagnosisListItem[]> {
-  const response = await api.get<ApiResponse<BeeDiagnosisListItem[]>>('/api/v1/bee/diagnosis');
-  const list = response.data.data || [];
-  // 최신순 정렬
-  return list.sort((a, b) => {
-    if (a.createdAt && b.createdAt) {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    return b.beeDiagnosisId - a.beeDiagnosisId;
-  });
+function createImagePart(imageUri: string) {
+  const filename = imageUri.split("/").pop() || "bee.jpg";
+  const extension = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase();
+  const type = extension === "png" ? "image/png" : "image/jpeg";
+  return { uri: imageUri, name: filename, type } as unknown as Blob;
 }
 
-// 진단 상세 조회
-export async function getDiagnosisDetail(id: string | number): Promise<BeeDiagnosisDetailResponse> {
-  const response = await api.get<ApiResponse<BeeDiagnosisDetailResponse>>(
-    `/api/v1/bee/diagnosis/${id}`
-  );
-  return response.data.data;
+function getMultipartRequestConfig() {
+  return {
+    headers: {
+      "Content-Type": Platform.OS === "web" ? undefined : "multipart/form-data",
+    },
+    transformRequest: (data: unknown) => data,
+  };
+}
+
+function compareDiagnosisCreatedAt(a: BeeDiagnosisListItem, b: BeeDiagnosisListItem) {
+  const aTime = Date.parse(a.createdAt);
+  const bTime = Date.parse(b.createdAt);
+  if (Number.isFinite(aTime) && Number.isFinite(bTime)) return bTime - aTime;
+  return b.beeDiagnosisId - a.beeDiagnosisId;
+}
+
+function getDiagnosisErrorLog(error: unknown) {
+  const value = error as {
+    message?: unknown;
+    response?: { status?: unknown; data?: { code?: unknown; message?: unknown } };
+  };
+  return {
+    status: value.response?.status,
+    code: value.response?.data?.code,
+    message: value.response?.data?.message ?? value.message,
+  };
 }

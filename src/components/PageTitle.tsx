@@ -16,6 +16,7 @@ interface PageTitleProps {
   right?: React.ReactNode;
   size?: "large" | "medium";
   titleStyle?: TextStyle;
+  subtitleStyle?: TextStyle;
 }
 
 export function PageTitle({
@@ -24,6 +25,7 @@ export function PageTitle({
   right,
   size = "large",
   titleStyle,
+  subtitleStyle,
 }: PageTitleProps) {
   const fontSize = size === "large" ? 22 : 18;
   const lineHeight = size === "large" ? 30 : 26;
@@ -45,7 +47,7 @@ export function PageTitle({
         {right && <View style={{ marginTop: 4 }}>{right}</View>}
       </View>
       {subtitle && (
-        <PretendardFont style={{ fontSize: 14, color: C.sec, marginTop: 2 }}>
+        <PretendardFont style={[{ fontSize: 14, color: C.sec, marginTop: 2 }, subtitleStyle]}>
           {subtitle}
         </PretendardFont>
       )}
