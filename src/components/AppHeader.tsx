@@ -35,17 +35,20 @@ interface AppHeaderProps {
     testId?: string;
   };
   isScrolled?: boolean;
+  tone?: "light" | "dark";
 }
 
 function IconButton({
   icon,
   onPress,
   color = "#191F28",
+  rippleColor = "#E5E8EB",
   testId,
 }: {
   icon: FeatherIconName;
   onPress: () => void;
   color?: string;
+  rippleColor?: string;
   testId?: string;
 }) {
   const handlePress = () => {
@@ -57,7 +60,7 @@ function IconButton({
     <Pressable
       onPress={handlePress}
       hitSlop={{ top: 32, bottom: 32, left: 32, right: 32 }}
-      android_ripple={{ color: "#E5E8EB", radius: 32, borderless: true }}
+      android_ripple={{ color: rippleColor, radius: 32, borderless: true }}
       className="w-14 h-14 items-center justify-center rounded-full"
       style={({ pressed }) => ({ opacity: pressed ? 0.2 : 1 })}
       data-testid={testId}
@@ -72,7 +75,10 @@ export default function AppHeader({
   onBack,
   rightAction,
   isScrolled = false,
+  tone = "light",
 }: AppHeaderProps) {
+  const dark = tone === "dark";
+  const foreground = dark ? "#F8FAFC" : "#191F28";
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -112,12 +118,16 @@ export default function AppHeader({
     >
       {/* 기본 흰 배경 — 스크롤하면 페이드아웃 */}
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: "white" }, solidStyle]}
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: dark ? "#0B1220" : "white" },
+          solidStyle,
+        ]}
       />
       {/* frosted glass — intensity를 직접 애니메이션해야 iOS에서 실제 blur 작동 */}
       <AnimatedBlurView
         animatedProps={blurProps}
-        tint="light"
+        tint={dark ? "dark" : "light"}
         style={StyleSheet.absoluteFillObject}
       />
       {/* 스크롤 시 나타나는 하단 구분선 */}
@@ -129,7 +139,7 @@ export default function AppHeader({
             left: 0,
             right: 0,
             height: StyleSheet.hairlineWidth,
-            backgroundColor: "#000",
+            backgroundColor: dark ? "#94A3B8" : "#000",
           },
           borderStyle,
         ]}
@@ -137,7 +147,13 @@ export default function AppHeader({
       {/* 헤더 콘텐츠 */}
       <View className="h-14 flex-row items-center justify-between px-1">
         {onBack ? (
-          <IconButton icon="chevron-left" onPress={onBack} testId="button-header-back" />
+          <IconButton
+            icon="chevron-left"
+            onPress={onBack}
+            color={foreground}
+            rippleColor={dark ? "#243248" : "#E5E8EB"}
+            testId="button-header-back"
+          />
         ) : (
           <View className="w-14" />
         )}
@@ -145,7 +161,7 @@ export default function AppHeader({
         <Animated.View style={[{ flex: 1 }, titleStyle]}>
           <PretendardFont
             weight="semibold"
-            style={{ fontSize: 17, color: "#191F28", textAlign: "center" }}
+            style={{ fontSize: 17, color: foreground, textAlign: "center" }}
           >
             {title}
           </PretendardFont>
@@ -155,7 +171,8 @@ export default function AppHeader({
           <IconButton
             icon={rightAction.icon}
             onPress={rightAction.onPress}
-            color={rightAction.color ?? "#191F28"}
+            color={rightAction.color ?? foreground}
+            rippleColor={dark ? "#243248" : "#E5E8EB"}
             testId={rightAction.testId}
           />
         ) : (

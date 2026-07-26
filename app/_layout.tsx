@@ -66,6 +66,8 @@ const HIDE_FOOTER_ROUTES = [
   "index",
   "add-farm",
   "bee-chat",
+  "report",
+  "report-result",
   "oauth-register",
 ];
 
