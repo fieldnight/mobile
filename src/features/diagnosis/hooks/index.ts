@@ -1,53 +1,53 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   analyzeBeeImage,
   getAiDiagnosis,
   saveDiagnosis,
   getDiagnosisList,
   getDiagnosisDetail,
-  type SaveDiagnosisParams,
-} from '../api';
-import type { BeeDiagnosisAiRequest } from '@/types/bee-diagnosis';
+} from "../api";
+import type { BeeDiagnosisAiRequest, SaveDiagnosisParams } from "../model";
 
-// 이미지 분석 mutation
 export function useAnalyzeBeeImage() {
   return useMutation({
     mutationFn: (imageUri: string) => analyzeBeeImage(imageUri),
   });
 }
 
-// AI 진단 mutation
 export function useAiDiagnosis() {
   return useMutation({
     mutationFn: (request: BeeDiagnosisAiRequest) => getAiDiagnosis(request),
   });
 }
 
-// 진단 저장 mutation
 export function useSaveDiagnosis() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (params: SaveDiagnosisParams) => saveDiagnosis(params),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bee-diagnoses'] });
+      queryClient.invalidateQueries({ queryKey: diagnosisQueryKeys.all });
     },
   });
 }
 
-// 진단 목록 조회
 export function useDiagnosisList() {
   return useQuery({
-    queryKey: ['bee-diagnoses'],
+    queryKey: diagnosisQueryKeys.all,
     queryFn: getDiagnosisList,
   });
 }
 
-// 진단 상세 조회
 export function useDiagnosisDetail(id: string | number | undefined) {
   return useQuery({
-    queryKey: ['bee-diagnosis-detail', id],
+    queryKey: diagnosisQueryKeys.detail(id),
     queryFn: () => getDiagnosisDetail(id!),
     enabled: !!id,
   });
 }
+
+const diagnosisQueryKeys = {
+  all: ["bee-diagnoses"] as const,
+  detail: (id: string | number | undefined) =>
+    [...diagnosisQueryKeys.all, "detail", id] as const,
+};

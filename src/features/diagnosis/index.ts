@@ -1,18 +1,39 @@
-// API functions
 export {
   analyzeBeeImage,
+  getDiagnosisErrorMessage,
   getAiDiagnosis,
   saveDiagnosis,
   getDiagnosisList,
   getDiagnosisDetail,
-  type SaveDiagnosisParams,
-} from './api';
+} from "./api";
 
-// Hooks
 export {
   useAnalyzeBeeImage,
   useAiDiagnosis,
   useSaveDiagnosis,
   useDiagnosisList,
   useDiagnosisDetail,
-} from './hooks';
+} from "./hooks";
+
+export {
+  parseDiagnosisConfidence,
+  splitDiagnosisLines,
+} from "./model";
+export type {
+  BeeDiagnosisAiRequest,
+  BeeDiagnosisAiResponse,
+  BeeDiagnosisAnalyzeResponse,
+  BeeDiagnosisDetailResponse,
+  BeeDiagnosisListItem,
+  BeeDiagnosisResult,
+  BeeDiagnosisSaveRequest,
+  BeeDiagnosisStatus,
+  SaveDiagnosisParams,
+} from "./model";
+
+export {
+  DiagnosisContextStep,
+  DiagnosisResultStep,
+  DiagnosisUploadStep,
+} from "./components";
+export type { BeeDiagnosisContextForm } from "./components";
