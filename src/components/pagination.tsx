@@ -16,11 +16,14 @@ interface PaginationProps {
   totalPages: number;
   onPage: (p: number) => void;
   groupSize?: number;
+  size?: "default" | "large";
 }
 
 const Pagination = memo(
-  ({ page, totalPages, onPage, groupSize = 5 }: PaginationProps) => {
+  ({ page, totalPages, onPage, groupSize = 5, size = "default" }: PaginationProps) => {
     if (totalPages <= 1) return null;
+    const isLarge = size === "large";
+    const buttonClassName = `${isLarge ? "h-11 w-11" : "h-9 w-9"} items-center justify-center rounded-lg`;
 
     const group = Math.floor((page - 1) / groupSize);
     const start = group * groupSize + 1;
@@ -32,13 +35,13 @@ const Pagination = memo(
         <Pressable
           onPress={() => page > 1 && onPage(page - 1)}
           disabled={page <= 1}
-          className={`h-9 w-9 items-center justify-center rounded-lg ${
+          className={`${buttonClassName} ${
             page <= 1 ? "opacity-40" : ""
           }`}
         >
           <Feather
             name="chevron-left"
-            size={20}
+            size={isLarge ? 24 : 20}
             color={page <= 1 ? C.ter : C.text}
           />
         </Pressable>
@@ -46,9 +49,9 @@ const Pagination = memo(
         {start > 1 && (
           <Pressable
             onPress={() => onPage(start - 1)}
-            className="h-9 w-9 items-center justify-center rounded-lg"
+            className={buttonClassName}
           >
-            <PretendardFont weight="medium" style={{ fontSize: 14, color: C.sec }}>
+            <PretendardFont weight="medium" style={{ fontSize: isLarge ? 17 : 14, color: C.sec }}>
               ···
             </PretendardFont>
           </Pressable>
@@ -58,12 +61,12 @@ const Pagination = memo(
           <Pressable
             key={p}
             onPress={() => onPage(p)}
-            className="h-9 w-9 items-center justify-center rounded-lg"
+            className={buttonClassName}
             style={{ backgroundColor: p === page ? C.primary : "transparent" }}
           >
             <PretendardFont
               weight={p === page ? "bold" : "medium"}
-              style={{ fontSize: 14, color: p === page ? C.white : C.sec }}
+              style={{ fontSize: isLarge ? 17 : 14, color: p === page ? C.white : C.sec }}
             >
               {p}
             </PretendardFont>
@@ -73,9 +76,9 @@ const Pagination = memo(
         {end < totalPages && (
           <Pressable
             onPress={() => onPage(end + 1)}
-            className="h-9 w-9 items-center justify-center rounded-lg"
+            className={buttonClassName}
           >
-            <PretendardFont weight="medium" style={{ fontSize: 14, color: C.sec }}>
+            <PretendardFont weight="medium" style={{ fontSize: isLarge ? 17 : 14, color: C.sec }}>
               ···
             </PretendardFont>
           </Pressable>
@@ -84,13 +87,13 @@ const Pagination = memo(
         <Pressable
           onPress={() => page < totalPages && onPage(page + 1)}
           disabled={page >= totalPages}
-          className={`h-9 w-9 items-center justify-center rounded-lg ${
+          className={`${buttonClassName} ${
             page >= totalPages ? "opacity-40" : ""
           }`}
         >
           <Feather
             name="chevron-right"
-            size={20}
+            size={isLarge ? 24 : 20}
             color={page >= totalPages ? C.ter : C.text}
           />
         </Pressable>

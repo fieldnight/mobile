@@ -41,6 +41,7 @@ export function FilterDropdown({
   allOption = false,
   allLabel = "전체",
   style,
+  size = "default",
 }: {
   /** 시트 헤더 타이틀 & (placeholder 미지정 시) 트리거 기본 텍스트 */
   label: string;
@@ -57,12 +58,14 @@ export function FilterDropdown({
   allLabel?: string;
   /** 트리거 컨테이너 추가 스타일 (예: flex:1) */
   style?: ViewStyle;
+  size?: "default" | "large";
 }) {
   const [open, setOpen] = useState(false);
   const opts = normalize(options);
   const selected = opts.find((o) => o.value === value);
   const hasValue = !!value && !disabled;
   const triggerText = selected ? selected.label : placeholder || label;
+  const isLarge = size === "large";
 
   const listOptions: DropdownOption[] = allOption
     ? [{ label: allLabel, value: "" }, ...opts]
@@ -75,8 +78,8 @@ export function FilterDropdown({
         disabled={disabled}
         className="flex-row items-center justify-between active:opacity-70"
         style={{
-          height: 44,
-          paddingHorizontal: 12,
+          height: isLarge ? 52 : 44,
+          paddingHorizontal: isLarge ? 14 : 12,
           backgroundColor: C.bg,
           borderWidth: 1,
           borderColor: C.border,
@@ -89,14 +92,14 @@ export function FilterDropdown({
           weight={hasValue ? "semibold" : "regular"}
           numberOfLines={1}
           style={{
-            fontSize: 13,
+            fontSize: isLarge ? 16 : 13,
             color: hasValue ? C.text : C.ter,
             flex: 1,
           }}
         >
           {triggerText}
         </PretendardFont>
-        <Feather name="chevron-down" size={14} color={C.ter} />
+        <Feather name="chevron-down" size={isLarge ? 17 : 14} color={C.ter} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="slide">
@@ -131,7 +134,7 @@ export function FilterDropdown({
             >
               <PretendardFont
                 weight="bold"
-                style={{ fontSize: 16, color: C.text }}
+                style={{ fontSize: isLarge ? 20 : 16, color: C.text }}
               >
                 {label}
               </PretendardFont>
@@ -155,7 +158,7 @@ export function FilterDropdown({
                       alignItems: "center",
                       justifyContent: "space-between",
                       paddingHorizontal: 20,
-                      paddingVertical: 14,
+                      paddingVertical: isLarge ? 17 : 14,
                       borderBottomWidth: 1,
                       borderBottomColor: C.bg,
                       backgroundColor: isSelected ? C.primarySoft : "transparent",
@@ -168,7 +171,7 @@ export function FilterDropdown({
                     <PretendardFont
                       weight={isSelected ? "semibold" : "regular"}
                       style={{
-                        fontSize: 14,
+                        fontSize: isLarge ? 17 : 14,
                         color: isAll
                           ? C.ter
                           : isSelected
@@ -180,12 +183,12 @@ export function FilterDropdown({
                       {o.label}
                     </PretendardFont>
                     {o.hint && !isSelected && (
-                      <PretendardFont style={{ fontSize: 12, color: C.ter }}>
+                      <PretendardFont style={{ fontSize: isLarge ? 14 : 12, color: C.ter }}>
                         {o.hint}
                       </PretendardFont>
                     )}
                     {isSelected && (
-                      <Feather name="check" size={16} color={C.primary} />
+                      <Feather name="check" size={isLarge ? 18 : 16} color={C.primary} />
                     )}
                   </Pressable>
                 );
