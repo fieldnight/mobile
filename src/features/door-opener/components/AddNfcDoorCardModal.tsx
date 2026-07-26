@@ -156,8 +156,8 @@ export function AddNfcDoorCardModal({
       visible={visible}
       onClose={resetAndClose}
       title="NFC 카드 추가"
-      snapHeight={0.78}
-      contentScrollEnabled
+      snapHeight={0.94}
+      contentScrollEnabled={false}
       dragCloseEnabled={false}
       headerAccessory={
         <ControlModeSegment value={controlMode} onChange={changeControlMode} />
@@ -526,10 +526,16 @@ function WheelColumn<T extends string | number>({
 }) {
   const setOuterScroll = useBottomSheetScroll();
   const selectedIndex = Math.max(0, values.findIndex((item) => item === value));
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(formatter(value));
   const startIndexRef = useRef(selectedIndex);
   const lastIndexRef = useRef(selectedIndex);
   const momentumRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   lastIndexRef.current = selectedIndex;
+
+  useEffect(() => {
+    if (!editing) setDraft(formatter(value));
+  }, [editing, formatter, value]);
 
   const clampIndex = (index: number) => Math.max(0, Math.min(values.length - 1, index));
 
@@ -585,7 +591,7 @@ function WheelColumn<T extends string | number>({
   };
 
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 2,
     onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 2,
     onPanResponderGrant: () => {
@@ -616,6 +622,21 @@ function WheelColumn<T extends string | number>({
     stopMomentum();
     moveToIndex(selectedIndex + direction);
     setOuterScroll?.(true);
+  };
+
+  const commitNumber = () => {
+    setEditing(false);
+    if (typeof value !== "number") return;
+    const requested = Number(draft.replace(/\D/g, ""));
+    if (!Number.isFinite(requested)) return;
+    const closestIndex = values.reduce(
+      (best, item, index) =>
+        Math.abs(Number(item) - requested) < Math.abs(Number(values[best]) - requested)
+          ? index
+          : best,
+      0,
+    );
+    moveToIndex(closestIndex);
   };
 
   return (
@@ -651,12 +672,32 @@ function WheelColumn<T extends string | number>({
             className="items-center justify-center"
             style={{ height: WHEEL_ITEM_H }}
           >
-            <PretendardFont
-              weight="bold"
-              style={{ fontSize: selected ? 23 : 19.5, color: selected ? C.text : C.ter }}
-            >
-              {formatter(item)}
-            </PretendardFont>
+            {selected && typeof item === "number" ? (
+              <TextInput
+                value={editing ? draft : formatter(item)}
+                onFocus={() => setEditing(true)}
+                onChangeText={setDraft}
+                onBlur={commitNumber}
+                onSubmitEditing={commitNumber}
+                keyboardType="number-pad"
+                selectTextOnFocus
+                textAlign="center"
+                style={{
+                  width: 76,
+                  height: WHEEL_ITEM_H,
+                  fontFamily: "Pretendard-Bold",
+                  fontSize: 23,
+                  color: C.text,
+                }}
+              />
+            ) : (
+              <PretendardFont
+                weight="bold"
+                style={{ fontSize: selected ? 23 : 19.5, color: selected ? C.text : C.ter }}
+              >
+                {formatter(item)}
+              </PretendardFont>
+            )}
           </Pressable>
         );
       })}

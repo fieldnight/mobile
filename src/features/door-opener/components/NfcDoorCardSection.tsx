@@ -377,7 +377,7 @@ export function NfcDoorCardSection({
         visible={pendingReplacement != null}
         onClose={() => setPendingReplacement(null)}
         title="진행 중인 설정을 바꿀까요?"
-        message={`${runtimeText ?? "현재 설정"}을 멈추고 ${pendingReplacement?.title ?? "새 카드"}로 바꿉니다. 새 카드가 개폐기에 적용되면 이전 시간 설정은 해제돼요.`}
+        message={`${runtimeText ?? "현재 설정"}을/를 멈추고 ${pendingReplacement?.title ?? "새 카드"}로 바꿉니다. 새 카드가 개폐기에 적용되면 이전 시간 설정은 해제돼요.`}
         confirmLabel="새 카드로 바꾸기"
         cancelLabel="유지하기"
         onConfirm={() => {

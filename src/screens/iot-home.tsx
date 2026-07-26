@@ -868,8 +868,17 @@ function DoorAiReportCard({
   const [loading, setLoading] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const exampleDevice = useMemo(() => createMockDoorDeviceStats(new Date()), []);
-  const reportDevice = device ?? exampleDevice;
-  const isExampleReport = !device;
+  const hasReceivedStats = Boolean(
+    device && (device.buckets.length > 0 || device.climateSamples.length > 0),
+  );
+  const hasCompleteHourlyStats = Boolean(
+    device && device.buckets.length > 0 && device.climateSamples.length >= 6,
+  );
+  /* One closed/active hourly bucket plus six 10-minute climate samples is the
+   * smallest real report. Partial reception stays useful, but uses examples
+   * instead of a misleading incomplete AI report. */
+  const isExampleReport = hasReceivedStats && !hasCompleteHourlyStats;
+  const reportDevice = hasCompleteHourlyStats ? device! : exampleDevice;
   const counts = reportDevice.bootCounts ??
     (reportDevice ? sumBucketTrafficCounts(reportDevice.buckets) : fallbackCounts);
   const latestClimate = reportDevice.climateSamples.length
@@ -879,12 +888,7 @@ function DoorAiReportCard({
     reportDevice.buckets,
     reportDevice.climateSamples,
   );
-  const hasData =
-    isExampleReport ||
-    !!reportDevice.bootCounts ||
-    !!reportDevice.buckets.length ||
-    !!reportDevice.climateSamples.length ||
-    Object.values(fallbackCounts).some((value) => value > 0);
+  const hasData = hasCompleteHourlyStats || isExampleReport;
 
   useEffect(() => {
     setReport(null);
@@ -905,7 +909,13 @@ function DoorAiReportCard({
         hourlyStats,
       });
       const response = await createDoorActivityReport(reportRequest);
-      setReport(toDoorAiReport(response));
+      setReport(
+        ensureDoorAiReportSolutions(
+          toDoorAiReport(response),
+          latestClimate,
+          counts,
+        ),
+      );
     } catch (reportError) {
       console.warn(
         "[DoorOpener] 전용 벌 활동 리포트 API 실패, 챗봇 메시지 API로 재시도",
@@ -924,7 +934,13 @@ function DoorAiReportCard({
           mode: "RAG",
         });
 
-        setReport(parseDoorAiReport(response.answer, response.sources));
+        setReport(
+          ensureDoorAiReportSolutions(
+            parseDoorAiReport(response.answer, response.sources),
+            latestClimate,
+            counts,
+          ),
+        );
       } catch (fallbackError) {
         console.warn("[DoorOpener] 벌 활동 리포트 fallback 실패", fallbackError);
         setError("AI 리포트를 불러오지 못했어요. 카드를 다시 눌러 주세요.");
@@ -1407,20 +1423,37 @@ function buildDoorActivityReportRequest({
 }
 
 function toDoorAiReport(response: DoorActivityReportResponse): DoorAiReport {
-  const generatedAt = new Date(response.generatedAt).getTime();
+  const runtimeResponse: unknown = response;
+  if (typeof runtimeResponse === "string") {
+    return parseDoorAiReport(runtimeResponse, []);
+  }
+
+  const value = runtimeResponse as Record<string, unknown>;
+  const details =
+    value.details && typeof value.details === "object"
+      ? (value.details as Record<string, unknown>)
+      : {};
+  const rawStatus = getDoorReportText(value.status).toUpperCase();
+  const status: DoorAiReportStatus =
+    rawStatus === "GOOD" || rawStatus === "CAUTION" ? rawStatus : "NORMAL";
+  const generatedAt = new Date(getDoorReportText(value.generatedAt)).getTime();
 
   return {
-    status: response.status,
-    summary: response.summary,
-    observations: response.observations ?? [],
+    status,
+    summary: getDoorReportText(value.summary) || "수집된 개폐기 데이터를 분석했어요.",
+    observations: getDoorReportTextList(value.observations),
     details: {
-      overview: response.details?.overview ?? [],
-      activityAnalysis: response.details?.activityAnalysis ?? [],
-      climateAnalysis: response.details?.climateAnalysis ?? [],
-      hourlyAnalysis: response.details?.hourlyAnalysis ?? "",
-      solutionGuide: response.details?.solutionGuide ?? [],
+      overview: getDoorReportMetricRows(details.overview, "종합 분석"),
+      activityAnalysis: getDoorReportMetricRows(details.activityAnalysis, "활동 분석"),
+      climateAnalysis: getDoorReportMetricRows(details.climateAnalysis, "온습도 분석"),
+      hourlyAnalysis: getDoorReportText(details.hourlyAnalysis),
+      solutionGuide: getDoorReportSolutionList(
+        details.solutionGuide ?? value.solutionGuide,
+        value.recommendation,
+        details.actionItems ?? value.actionItems,
+      ),
     },
-    sources: response.sources ?? [],
+    sources: getDoorReportTextList(value.sources),
     generatedAt: Number.isFinite(generatedAt) ? generatedAt : Date.now(),
   };
 }
@@ -1558,12 +1591,9 @@ function buildDoorAiReportPrompt({
 
 function parseDoorAiReport(answer: string, sources: string[]): DoorAiReport {
   const trimmed = answer.trim();
-  const jsonStart = trimmed.indexOf("{");
-  const jsonEnd = trimmed.lastIndexOf("}");
 
   try {
-    if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON not found");
-    const value = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1)) as Record<string, unknown>;
+    const value = parseDoorReportJsonObject(trimmed);
     const details =
       value.details && typeof value.details === "object"
         ? (value.details as Record<string, unknown>)
@@ -1582,35 +1612,78 @@ function parseDoorAiReport(answer: string, sources: string[]): DoorAiReport {
         climateAnalysis: getDoorReportMetricRows(details.climateAnalysis, "온습도 분석"),
         hourlyAnalysis: getDoorReportText(details.hourlyAnalysis),
         solutionGuide: getDoorReportSolutionList(
-          details.solutionGuide,
+          details.solutionGuide ?? value.solutionGuide,
           value.recommendation,
-          details.actionItems,
+          details.actionItems ?? value.actionItems,
         ),
       },
       sources,
       generatedAt: Date.now(),
     };
-  } catch {
+  } catch (error) {
+    console.warn("[DoorOpener] AI 리포트 JSON 파싱 실패", {
+      error,
+      answerPreview: trimmed.slice(0, 160),
+    });
+
     return {
       status: "NORMAL",
-      summary: trimmed || "AI 분석 결과를 확인해 주세요.",
+      summary: "리포트 내용을 정리하지 못했어요. 수집된 통계를 기준으로 확인해 주세요.",
       observations: [],
       details: {
-        overview: trimmed ? [{ label: "분석 결과", value: "", note: trimmed }] : [],
+        overview: [],
         activityAnalysis: [],
         climateAnalysis: [],
         hourlyAnalysis: "",
-        solutionGuide: [
-          {
-            title: "원본 통계를 확인해 주세요",
-            description: "AI 응답 형식을 읽지 못했어요. 수집된 출입량과 온습도를 직접 확인해 주세요.",
-          },
-        ],
+        solutionGuide: [],
       },
       sources,
       generatedAt: Date.now(),
     };
   }
+}
+
+function parseDoorReportJsonObject(answer: string): Record<string, unknown> {
+  const withoutFence = answer
+    .replace(/^\uFEFF/, "")
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  const jsonStart = withoutFence.indexOf("{");
+  const jsonEnd = withoutFence.lastIndexOf("}");
+  const extracted =
+    jsonStart >= 0 && jsonEnd > jsonStart
+      ? withoutFence.slice(jsonStart, jsonEnd + 1)
+      : withoutFence;
+  const candidates = [withoutFence, extracted];
+
+  for (const candidate of [...new Set(candidates)]) {
+    const repairedSolutionGuide = candidate.replace(
+      /}\s*,\s*"solutionGuide"\s*:/,
+      ',"solutionGuide":',
+    );
+    const repairedTrailingCommas = candidate.replace(/,\s*([}\]])/g, "$1");
+    const repairedBoth = repairedSolutionGuide.replace(/,\s*([}\]])/g, "$1");
+
+    for (const attempt of [
+      candidate,
+      repairedSolutionGuide,
+      repairedTrailingCommas,
+      repairedBoth,
+    ]) {
+      try {
+        let parsed: unknown = JSON.parse(attempt);
+        if (typeof parsed === "string") parsed = JSON.parse(parsed);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Try the next conservative repair.
+      }
+    }
+  }
+
+  throw new Error("Door report JSON not found or malformed");
 }
 
 function getDoorReportText(value: unknown) {
@@ -1692,6 +1765,89 @@ function getDoorReportSolutionList(
     .join(" ");
 
   return legacyText ? [{ title: "해결 방법", description: legacyText }] : [];
+}
+
+function ensureDoorAiReportSolutions(
+  report: DoorAiReport,
+  latestClimate: HceClimateSample | undefined,
+  counts: BeeTrafficCounts,
+): DoorAiReport {
+  const validSolutions = report.details.solutionGuide.filter(
+    (solution) => solution.title.trim() && solution.description.trim(),
+  );
+  if (validSolutions.length > 0) {
+    return {
+      ...report,
+      details: { ...report.details, solutionGuide: validSolutions },
+    };
+  }
+
+  return {
+    ...report,
+    details: {
+      ...report.details,
+      solutionGuide: createDoorFieldSolutions(latestClimate, counts),
+    },
+  };
+}
+
+function createDoorFieldSolutions(
+  latestClimate: HceClimateSample | undefined,
+  counts: BeeTrafficCounts,
+): DoorAiSolution[] {
+  const solutions: DoorAiSolution[] = [];
+  const temperature = latestClimate?.temperatureC;
+
+  if (temperature != null && temperature > 27) {
+    solutions.push(
+      {
+        title: "직사광선을 먼저 줄여주세요",
+        description:
+          "벌통에 햇빛이 직접 닿는다면 차광막이나 주변 구조물로 그늘을 만들어 주세요. 벌통 윗부분의 열을 막는 물건은 치워 열이 빠져나갈 공간을 확보해요.",
+      },
+      {
+        title: "주변 공기 흐름을 만들어주세요",
+        description:
+          "환기구와 출입구를 막은 벌이나 이물질을 정리해 주세요. 벌통이 벽이나 물건에 붙어 있다면 주변에 공기가 지나갈 간격을 만들어 주세요.",
+      },
+      {
+        title: "30분 뒤 온도를 다시 봐주세요",
+        description:
+          "조치 후 내부 온도가 27°C 이하로 내려오는지 다시 확인해 주세요. 계속 높다면 그늘 범위를 넓히고 주변 통풍을 한 번 더 살펴봐요.",
+      },
+    );
+  } else if (temperature != null && temperature < 24) {
+    solutions.push(
+      {
+        title: "찬바람이 직접 닿지 않게 해주세요",
+        description:
+          "벌통이 바람길에 놓여 있다면 바람막이를 설치해 찬 공기가 직접 닿지 않게 해주세요. 환기구 전체를 막지는 말고 공기가 천천히 흐를 정도로 유지해요.",
+      },
+      {
+        title: "30분 뒤 온도를 다시 확인해요",
+        description:
+          "주변 환경을 정리한 뒤 내부 온도가 24°C 이상으로 올라오는지 확인해 주세요. 계속 낮다면 제품 안내에 따라 더 따뜻한 위치를 검토해요.",
+      },
+    );
+  } else {
+    solutions.push({
+      title: "출입구 주변을 정리해주세요",
+      description:
+        "출입구에 벌이 몰렸거나 이물질이 붙어 있다면 통로를 정리해 주세요. 한 시간 뒤 같은 기준으로 출입량을 다시 비교해요.",
+    });
+  }
+
+  const incoming = counts.entranceIn + counts.exitIn;
+  const outgoing = counts.entranceOut + counts.exitOut;
+  if (outgoing > incoming) {
+    solutions.push({
+      title: "저녁에는 돌아온 벌을 비교해요",
+      description:
+        "해가 약해진 뒤 들어온 벌과 나간 벌의 차이가 줄어드는지 확인해 주세요. 차이가 계속 벌어지면 다음날 같은 시간대 활동량과 함께 다시 비교해요.",
+    });
+  }
+
+  return solutions.slice(0, 4);
 }
 
 function getDoorAiStatusMeta(status?: DoorAiReportStatus) {

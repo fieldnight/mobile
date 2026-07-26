@@ -13,7 +13,7 @@ const TEMP_MAX = 36;
 const BEST_TEMP_MIN = 24;
 const BEST_TEMP_MAX = 27;
 const TEMP_STEP = 0.5;
-const THUMB_SIZE = 36;
+const THUMB_SIZE = 30;
 
 const OPERATING_MODES = [
   { id: "normal", icon: "sun" as const, label: "일반 모드", temp: 25.5, vent: 45 },
@@ -103,10 +103,51 @@ export function HiveControlSection({
         </View>
       </View>
 
+      <View className="mb-2">
+        <View className="mb-1.5 flex-row items-center justify-between">
+          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
+            운영 모드
+          </PretendardFont>
+          <Pressable onPress={() => applyMode("normal")} hitSlop={8}>
+            <PretendardFont weight="semibold" style={{ fontSize: 11.5, color: C.ter }}>
+              초기화
+            </PretendardFont>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 6, paddingRight: 6 }}
+        >
+          {OPERATING_MODES.map((item) => {
+            const active = item.id === mode;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => applyMode(item.id)}
+                className="flex-row items-center gap-1.5 rounded-xl border px-2.5 py-1.5 active:opacity-75"
+                style={{
+                  minWidth: 104,
+                  borderColor: active ? C.text : C.border,
+                  backgroundColor: active ? C.text : C.white,
+                }}
+              >
+                <Feather name={item.icon} size={13} color={active ? C.white : C.primary} />
+                <PretendardFont
+                  weight="bold"
+                  numberOfLines={1}
+                  style={{ fontSize: 11.5, color: active ? C.white : C.text }}
+                >
+                  {item.label}
+                </PretendardFont>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <ControlPanel
-        title="온도조절"
-        icon="thermometer"
-        value={`${targetTemp.toFixed(1)}°C`}
         caption="수정벌 활동 적정 온도 24~27°C · 0.5°C 단위"
         active={tempOn}
         auto={tempAuto}
@@ -117,9 +158,6 @@ export function HiveControlSection({
       </ControlPanel>
 
       <ControlPanel
-        title="환기"
-        icon="wind"
-        value={`${ventStrength}%`}
         caption="환기 세기 0~100% · 벌통 내부 공기 흐름 조절"
         active={ventOn}
         auto={ventAuto}
@@ -128,58 +166,11 @@ export function HiveControlSection({
       >
         <StrengthSlider value={ventStrength} onChange={setVentStrength} />
       </ControlPanel>
-
-      <View className="mt-1">
-        <View className="mb-2 flex-row items-center justify-between">
-          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
-            운영 모드
-          </PretendardFont>
-          <Pressable onPress={() => applyMode("normal")} hitSlop={8}>
-            <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.ter }}>
-              초기화
-            </PretendardFont>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-        >
-          {OPERATING_MODES.map((item) => {
-            const active = item.id === mode;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => applyMode(item.id)}
-                className="flex-row items-center gap-2 rounded-2xl border px-3 py-2 active:opacity-75"
-                style={{
-                  minWidth: 116,
-                  borderColor: active ? C.text : C.border,
-                  backgroundColor: active ? C.text : C.white,
-                }}
-              >
-                <Feather name={item.icon} size={15} color={active ? C.white : C.primary} />
-                <PretendardFont
-                  weight="bold"
-                  numberOfLines={1}
-                  style={{ fontSize: 13, color: active ? C.white : C.text }}
-                >
-                  {item.label}
-                </PretendardFont>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
     </Card>
   );
 }
 
 function ControlPanel({
-  title,
-  icon,
-  value,
   caption,
   active,
   auto,
@@ -187,9 +178,6 @@ function ControlPanel({
   onToggleAuto,
   children,
 }: {
-  title: string;
-  icon: keyof typeof Feather.glyphMap;
-  value: string;
   caption: string;
   active: boolean;
   auto: boolean;
@@ -199,48 +187,18 @@ function ControlPanel({
 }) {
   return (
     <View
-      className="mb-2 rounded-[22px]"
+      className="mb-2 rounded-[18px]"
       style={{
-        minHeight: 146,
-        padding: 14,
+        minHeight: 104,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
         backgroundColor: active ? C.white : "rgba(255,255,255,0.9)",
         borderWidth: 1,
         borderColor: active ? "rgba(15, 118, 110, 0.22)" : "rgba(15, 23, 42, 0.08)",
-        shadowColor: C.shadow,
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 5 },
       }}
     >
-      <View className="mb-2 flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
-          <View
-            className="h-9 w-9 items-center justify-center rounded-full"
-            style={{ backgroundColor: active ? C.infoBg : C.bgAlt }}
-          >
-            <Feather name={icon} size={17} color={active ? C.primary : C.ter} />
-          </View>
-          <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>
-            {title}
-          </PretendardFont>
-        </View>
-        <View className="rounded-full px-3 py-1.5" style={{ backgroundColor: auto ? C.infoBg : C.bgAlt }}>
-          <PretendardFont weight="bold" style={{ fontSize: 11.5, color: auto ? C.primary : C.ter }}>
-            {auto ? "자동 제어 중" : "수동 제어"}
-          </PretendardFont>
-        </View>
-      </View>
-
-      <View className="mb-1 flex-row items-center justify-between gap-3">
-        <PretendardFont
-          weight="bold"
-          adjustsFontSizeToFit
-          numberOfLines={1}
-          style={{ flex: 1, fontSize: 35, color: active ? C.text : C.ter }}
-        >
-          {value}
-        </PretendardFont>
-        <View className="flex-row gap-2">
+      <View className="mb-1 flex-row items-center">
+        <View className="flex-row gap-1.5">
           <PanelButton icon="power" label="전원" active={active} onPress={onTogglePower} />
           <PanelButton icon="zap" label="AUTO" active={auto} onPress={onToggleAuto} />
         </View>
@@ -248,13 +206,12 @@ function ControlPanel({
 
       {children}
 
-      <View className="mt-1.5 flex-row items-center gap-2">
-        <View className="h-2 w-2 rounded-full" style={{ backgroundColor: C.success }} />
+      <View className="mt-0.5">
         <PretendardFont
           weight="semibold"
           numberOfLines={1}
           adjustsFontSizeToFit
-          style={{ flex: 1, fontSize: 11, color: C.sec }}
+          style={{ fontSize: 10.5, color: C.sec }}
         >
           {caption}
         </PretendardFont>
@@ -280,19 +237,19 @@ function PanelButton({
       hitSlop={8}
       className="flex-row items-center justify-center gap-1.5 rounded-xl border px-2 active:opacity-75"
       style={{
-        minWidth: 72,
-        height: 38,
+        minWidth: 62,
+        height: 32,
         borderColor: active ? C.text : C.border,
         backgroundColor: active ? C.white : C.bgAlt,
       }}
     >
       <View
-        className="h-6 w-6 items-center justify-center rounded-full"
+        className="h-5 w-5 items-center justify-center rounded-full"
         style={{ backgroundColor: active ? C.text : "#E2E8F0" }}
       >
-        <Feather name={icon} size={13} color={active ? C.white : C.ter} />
+        <Feather name={icon} size={11} color={active ? C.white : C.ter} />
       </View>
-      <PretendardFont weight="bold" style={{ fontSize: 12, color: active ? C.text : C.ter }}>
+      <PretendardFont weight="bold" style={{ fontSize: 11, color: active ? C.text : C.ter }}>
         {label}
       </PretendardFont>
     </Pressable>
@@ -316,7 +273,7 @@ function TemperatureSlider({
       valueRatio={(value - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
       onRatioChange={(ratio) => onChange(toValue(ratio))}
       minLabel={`${TEMP_MIN}°`}
-      maxLabel={`${TEMP_MAX}°`}
+      valueLabel={`${value.toFixed(1)}°C`}
       goodStart={(BEST_TEMP_MIN - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
       goodEnd={(BEST_TEMP_MAX - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
     />
@@ -335,7 +292,7 @@ function StrengthSlider({
       valueRatio={value / 100}
       onRatioChange={(ratio) => onChange(Math.max(0, Math.min(100, Math.round(ratio * 100))))}
       minLabel="0%"
-      maxLabel="100%"
+      valueLabel={`${value}%`}
       goodStart={0.25}
       goodEnd={0.6}
     />
@@ -346,14 +303,14 @@ function SegmentSlider({
   valueRatio,
   onRatioChange,
   minLabel,
-  maxLabel,
+  valueLabel,
   goodStart,
   goodEnd,
 }: {
   valueRatio: number;
   onRatioChange: (ratio: number) => void;
   minLabel: string;
-  maxLabel: string;
+  valueLabel: string;
   goodStart: number;
   goodEnd: number;
 }) {
@@ -395,23 +352,23 @@ function SegmentSlider({
   );
 
   return (
-    <View className="flex-row items-center gap-2">
-      <PretendardFont weight="bold" style={{ width: 28, fontSize: 12, color: C.sec }}>
+    <View className="flex-row items-center gap-1.5">
+      <PretendardFont weight="bold" style={{ width: 25, fontSize: 10.5, color: C.sec }}>
         {minLabel}
       </PretendardFont>
 
       {/* Thumb보다 넓은 track 전체를 잡게 해 현장 장갑 터치에서도 덜 뻑뻑하게 만듭니다. */}
       <View
         {...panResponder.panHandlers}
-        className="h-14 flex-1 justify-center"
+        className="h-11 flex-1 justify-center"
         onLayout={(event) => {
           const nextWidth = Math.max(1, event.nativeEvent.layout.width);
           setSliderWidth((previous) => (Math.abs(previous - nextWidth) < 1 ? previous : nextWidth));
         }}
       >
-        <View className="h-3 rounded-full" style={{ backgroundColor: C.bgAlt }} />
+        <View className="h-2.5 rounded-full" style={{ backgroundColor: C.bgAlt }} />
         <View
-          className="absolute h-3 rounded-full"
+          className="absolute h-2.5 rounded-full"
           style={{
             left: goodLeft,
             width: goodWidth,
@@ -419,7 +376,7 @@ function SegmentSlider({
           }}
         />
         <View
-          className="absolute h-3 rounded-full"
+          className="absolute h-2.5 rounded-full"
           style={{ width: activeWidth, backgroundColor: "rgba(15, 118, 110, 0.5)" }}
         />
         <View
@@ -429,7 +386,7 @@ function SegmentSlider({
             left: thumbLeft,
             width: THUMB_SIZE,
             height: THUMB_SIZE,
-            borderWidth: 3,
+            borderWidth: 2.5,
             borderColor: C.success,
             shadowColor: C.shadow,
             shadowOpacity: 0.22,
@@ -437,15 +394,20 @@ function SegmentSlider({
             shadowOffset: { width: 0, height: 3 },
           }}
         >
-          <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: C.success }} />
+          <View className="h-2 w-2 rounded-full" style={{ backgroundColor: C.success }} />
         </View>
       </View>
 
       <PretendardFont
         weight="bold"
-        style={{ width: 34, textAlign: "right", fontSize: 12, color: C.sec }}
+        style={{
+          width: 54,
+          textAlign: "right",
+          fontSize: 16,
+          color: C.text,
+        }}
       >
-        {maxLabel}
+        {valueLabel}
       </PretendardFont>
     </View>
   );

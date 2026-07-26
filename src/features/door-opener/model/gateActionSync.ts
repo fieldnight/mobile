@@ -273,7 +273,36 @@ function mergeServerCardsWithLocal(
     return card.serverActionId == null || !serverIds.has(card.serverActionId);
   });
 
-  return mergeCurrentDefaults([...syncedCards, ...unsyncedLocalCards]);
+  return preserveLocalCardOrder(
+    mergeCurrentDefaults([...syncedCards, ...unsyncedLocalCards]),
+    localCards,
+  );
+}
+
+/* Server CRUD has no order column. Keep the farmer's drag order from
+ * AsyncStorage instead of replacing it with the API response order. */
+function preserveLocalCardOrder(
+  cards: NfcDoorCardConfig[],
+  localCards: NfcDoorCardConfig[],
+) {
+  const localIndexById = new Map(localCards.map((card, index) => [card.id, index]));
+  const localIndexByServerId = new Map(
+    localCards
+      .filter((card) => card.serverActionId != null)
+      .map((card, index) => [card.serverActionId, index]),
+  );
+
+  return [...cards].sort((left, right) => {
+    const leftIndex =
+      localIndexById.get(left.id) ??
+      localIndexByServerId.get(left.serverActionId) ??
+      Number.MAX_SAFE_INTEGER;
+    const rightIndex =
+      localIndexById.get(right.id) ??
+      localIndexByServerId.get(right.serverActionId) ??
+      Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex;
+  });
 }
 
 function gateActionToCard(action: GateAction): NfcDoorCardConfig {
