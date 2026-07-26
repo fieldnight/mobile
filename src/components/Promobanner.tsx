@@ -32,9 +32,9 @@ const HIVE_COPIES = [
 ];
 
 const REPORT_COPIES = [
-  { before: "고민 하나로\n", hl: "수익이 늘어난다면?" },
-  { before: "지금 고민이\n", hl: "수익으로 바뀐다면?" },
-  { before: "AI가 답 찾고\n", hl: "수익까지 계산해드려요" },
+  { before: "우리 농장 딸기,\n", hl: "지금 잘 크고 있을까요?" },
+  { before: "같은 생육단계 농가와\n", hl: "지금 상태를 비교해요" },
+  { before: "현재 출하 흐름으로\n", hl: "앞으로의 수확량을 살펴봐요" },
 ];
 
 const IMG_HIVE = require("../../assets/images/1.png");
@@ -50,20 +50,23 @@ const SLIDES = [
     dotActive: "#F59E0B",
     dotInactive: "rgba(146,64,14,0.2)",
     ctaColor: "#F59E0B",
-    ctaLabel: "벌통 관리하기",
-    route: "/hive-control",
+    actions: [{ label: "벌통 관리하기", route: "/hive-control" }],
   },
   {
     id: "report",
     image: IMG_REPORT,
-    badge: "AI 리포트 베타",
+    badge: "스마트팜 데이터 리포트 베타",
     copies: REPORT_COPIES,
     hlColor: "#5f0634",
     dotActive: "#5f0634",
     dotInactive: "rgba(6,95,70,0.2)",
     ctaColor: "#5f0634",
-    ctaLabel: "AI에게 물어보기",
-    route: "/bee-chat",
+    note:
+      "전체 513,545행 점검 · 5개 농가 42,466행으로 등급 기준 구성 · 출하 이력 4개 농가로 생산량 예측 검증",
+    actions: [
+      { label: "수정벌 챗봇", route: "/bee-chat" },
+      { label: "수확량 예측 리포트", route: "/report" },
+    ],
   },
 ];
 
@@ -129,7 +132,7 @@ function AnimatedTitle({
         className="text-3xl text-gray-900 leading-10"
       >
         {displayed.before}
-        <Text>{displayed.hl}</Text>
+        <Text style={{ color: hlColor }}>{displayed.hl}</Text>
       </PretendardFont>
     </Animated.View>
   );
@@ -262,7 +265,7 @@ export function PromoBanner() {
         renderItem={({ item, index }) => (
           <ImageBackground
             source={item.image}
-            style={{ width: BANNER_WIDTH, height: 250, overflow: "hidden" }}
+            style={{ width: BANNER_WIDTH, height: 292, overflow: "hidden" }}
             className="rounded-[18px]"
             imageStyle={{ borderRadius: 18 }}
             resizeMode="cover"
@@ -288,19 +291,33 @@ export function PromoBanner() {
               />
             </View>
 
-            {/* dot + 버튼 — 하단 고정 */}
-            <View className="px-[22px] pb-6 gap-6">
+            {/* 근거 + dot + 버튼 — 하단 고정 */}
+            <View className="px-[22px] pb-5 gap-3">
+              {item.note ? (
+                <PretendardFont
+                  weight="medium"
+                  className="text-[12px] leading-[17px]"
+                  style={{ color: "rgba(25,31,40,0.72)" }}
+                >
+                  {item.note}
+                </PretendardFont>
+              ) : null}
               <CopyDots
                 count={item.copies.length}
                 current={curCopies[index]}
                 activeColor={item.dotActive}
                 inactiveColor={item.dotInactive}
               />
-              <TossButton
-                label={item.ctaLabel}
-                color={item.ctaColor}
-                onPress={() => router.push(item.route as any)}
-              />
+              <View className="flex-row flex-wrap gap-2">
+                {item.actions.map((action) => (
+                  <TossButton
+                    key={action.route}
+                    label={action.label}
+                    color={item.ctaColor}
+                    onPress={() => router.push(action.route as any)}
+                  />
+                ))}
+              </View>
             </View>
           </ImageBackground>
         )}
