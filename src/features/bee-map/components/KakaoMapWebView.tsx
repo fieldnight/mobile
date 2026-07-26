@@ -4,18 +4,20 @@ import WebView, { WebViewMessageEvent } from "react-native-webview";
 
 import { PretendardFont } from "@/components/PretendardFont";
 import { PUBLIC_CONFIG } from "@/lib/publicConfig";
-import type { BeeMapPlace } from "../model/mapPlace";
+import type { BeeMapPlace, BeeMapUserLocation } from "../model/mapPlace";
 import { buildMapHtml } from "../utils/mapHtml";
 
 interface KakaoMapWebViewProps {
   places: BeeMapPlace[];
   selectedPlaceId?: string;
+  userLocation?: BeeMapUserLocation;
   onMarkerPress: (placeId: string) => void;
 }
 
 export function KakaoMapWebView({
   places,
   selectedPlaceId,
+  userLocation,
   onMarkerPress,
 }: KakaoMapWebViewProps) {
   const webViewRef = useRef<WebView>(null);
@@ -33,14 +35,46 @@ export function KakaoMapWebView({
       }),
     [places, selectedPlaceId],
   );
+  const userLocationPayload = useMemo(
+    () => {
+      if (!userLocation) return "";
+
+      const selectedPlace = places.find(
+        (place) => place.id === selectedPlaceId,
+      );
+
+      return JSON.stringify({
+        type: "setUserLocation",
+        location: userLocation,
+        selectedPlace: selectedPlace
+          ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+          : undefined,
+      });
+    },
+    [places, selectedPlaceId, userLocation],
+  );
 
   const syncMarkers = useCallback(() => {
     webViewRef.current?.postMessage(markerPayload);
   }, [markerPayload]);
 
+  const syncUserLocation = useCallback(() => {
+    if (!userLocationPayload) return;
+    webViewRef.current?.postMessage(userLocationPayload);
+  }, [userLocationPayload]);
+
+  const handleLoadEnd = useCallback(() => {
+    syncMarkers();
+    syncUserLocation();
+  }, [syncMarkers, syncUserLocation]);
+
   useEffect(() => {
     if (mapReady) syncMarkers();
   }, [mapReady, syncMarkers]);
+
+  useEffect(() => {
+    if (mapReady) syncUserLocation();
+  }, [mapReady, syncUserLocation]);
 
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -91,7 +125,7 @@ export function KakaoMapWebView({
       originWhitelist={["*"]}
       javaScriptEnabled
       domStorageEnabled
-      onLoadEnd={syncMarkers}
+      onLoadEnd={handleLoadEnd}
       onMessage={handleMessage}
       style={styles.webView}
     />

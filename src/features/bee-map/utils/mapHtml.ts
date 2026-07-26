@@ -16,8 +16,10 @@ export function buildMapHtml(apiKey: string = ""): string {
     #error p { color: #e53e3e; font-size: 14px; margin-bottom: 8px; }
     #error small { color: #999; font-size: 12px; }
     .marker {
-      width: 42px; height: 42px; border: 0; border-radius: 999px;
-      color: #fff; font-size: 14px; font-weight: 800;
+      width: max-content; min-width: 46px; max-width: 230px; min-height: 40px;
+      height: auto; padding: 8px 12px; border: 0; border-radius: 14px;
+      color: #fff; font-size: 12px; line-height: 16px; font-weight: 800;
+      white-space: normal; word-break: keep-all; text-align: center;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 12px 24px rgba(15, 23, 42, 0.24);
       transform: translateY(-6px);
@@ -36,6 +38,17 @@ export function buildMapHtml(apiKey: string = ""): string {
     }
     .marker-seller .marker-tail { background: #0ea5e9; }
     .marker-farm .marker-tail { background: #f97316; }
+    .marker-user {
+      width: 28px; height: 28px; border-radius: 999px;
+      background: rgba(37, 99, 235, 0.18);
+      border: 2px solid rgba(37, 99, 235, 0.42);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+    }
+    .marker-user-dot {
+      width: 12px; height: 12px; border-radius: 999px;
+      background: #2563eb; border: 2px solid #ffffff;
+    }
   </style>
 </head>
 <body>
@@ -49,8 +62,10 @@ export function buildMapHtml(apiKey: string = ""): string {
   <script>
     var map = null;
     var overlays = [];
+    var userOverlay = null;
     var ready = false;
     var pendingPayload = null;
+    var pendingUserLocationPayload = null;
     var defaultCenter = { lat: 35.836, lng: 128.754 };
 
     function sendToApp(payload) {
@@ -74,10 +89,16 @@ export function buildMapHtml(apiKey: string = ""): string {
     function createMarker(place, selectedId) {
       var content = document.createElement('button');
       var selected = selectedId === place.id;
-      var label = place.kind === 'farm' ? '농' : '업';
       content.type = 'button';
       content.className = 'marker marker-' + place.kind + (selected ? ' is-selected' : '');
-      content.innerHTML = '<span>' + label + '</span><span class="marker-tail"></span>';
+
+      var name = document.createElement('span');
+      name.textContent = place.name || '업체';
+      content.appendChild(name);
+
+      var tail = document.createElement('span');
+      tail.className = 'marker-tail';
+      content.appendChild(tail);
       content.addEventListener('click', function() {
         sendToApp({ type: 'markerPress', id: place.id });
       });
@@ -109,6 +130,20 @@ export function buildMapHtml(apiKey: string = ""): string {
       map.setBounds(bounds, 48, 48, 48, 48);
     }
 
+    function focusSelectedPlace(places, selectedId) {
+      if (!selectedId) return false;
+
+      var selectedPlace = places.find(function(place) {
+        return place.id === selectedId;
+      });
+
+      if (!selectedPlace) return false;
+
+      map.setCenter(new kakao.maps.LatLng(selectedPlace.lat, selectedPlace.lng));
+      map.setLevel(5);
+      return true;
+    }
+
     function renderPlaces(payload) {
       if (!ready || !map) {
         pendingPayload = payload;
@@ -123,13 +158,55 @@ export function buildMapHtml(apiKey: string = ""): string {
         overlay.setMap(map);
         overlays.push(overlay);
       });
-      fitPlaces(places);
+
+      if (!focusSelectedPlace(places, payload.selectedId)) {
+        fitPlaces(places);
+      }
+    }
+
+    function renderUserLocation(payload) {
+      if (!ready || !map) {
+        pendingUserLocationPayload = payload;
+        return;
+      }
+
+      var location = payload.location || {};
+      if (typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
+
+      if (userOverlay) userOverlay.setMap(null);
+
+      var content = document.createElement('div');
+      content.className = 'marker-user';
+      content.innerHTML = '<span class="marker-user-dot"></span>';
+
+      var position = new kakao.maps.LatLng(location.lat, location.lng);
+      userOverlay = new kakao.maps.CustomOverlay({
+        position: position,
+        content: content,
+        yAnchor: 0.5,
+      });
+      userOverlay.setMap(map);
+
+      var selectedPlace = payload.selectedPlace || {};
+      if (
+        typeof selectedPlace.lat === 'number' &&
+        typeof selectedPlace.lng === 'number'
+      ) {
+        var bounds = new kakao.maps.LatLngBounds();
+        bounds.extend(position);
+        bounds.extend(new kakao.maps.LatLng(selectedPlace.lat, selectedPlace.lng));
+        map.setBounds(bounds, 100, 64, 100, 64);
+      } else {
+        map.setCenter(position);
+        map.setLevel(5);
+      }
     }
 
     function receiveMessage(event) {
       try {
         var payload = JSON.parse(event.data);
         if (payload.type === 'setPlaces') renderPlaces(payload);
+        if (payload.type === 'setUserLocation') renderUserLocation(payload);
       } catch (error) {
         showError('지도 데이터를 처리하지 못했습니다.');
       }
@@ -147,6 +224,7 @@ export function buildMapHtml(apiKey: string = ""): string {
       ready = true;
       sendToApp({ type: 'mapReady' });
       if (pendingPayload) renderPlaces(pendingPayload);
+      if (pendingUserLocationPayload) renderUserLocation(pendingUserLocationPayload);
     }
 
     function loadKakaoMap() {

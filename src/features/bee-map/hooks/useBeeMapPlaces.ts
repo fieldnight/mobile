@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PUBLIC_CONFIG } from "@/lib/publicConfig";
-import { getOurbeeFarmPlaces, searchBeeSellerPlaces } from "../api";
+import { getBeeSellerPlaces, getOurbeeFarmPlaces } from "../api";
 import type { BeeMapFilter, BeeMapPlace } from "../model/mapPlace";
 
 const SELLER_QUERY_KEY = ["bee-map", "seller-places"];
 const FARM_QUERY_KEY = ["bee-map", "farm-places"];
-const MAP_STALE_TIME = 1000 * 60 * 10;
+const MAP_STALE_TIME = Infinity;
 
 function applyFilter(places: BeeMapPlace[], filter: BeeMapFilter) {
   if (filter === "all") return places;
@@ -17,17 +17,16 @@ function applyFilter(places: BeeMapPlace[], filter: BeeMapFilter) {
 export function useBeeMapPlaces(filter: BeeMapFilter) {
   const sellerQuery = useQuery({
     queryKey: SELLER_QUERY_KEY,
-    queryFn: () => searchBeeSellerPlaces(PUBLIC_CONFIG.kakaoRestApiKey),
-    enabled: Boolean(PUBLIC_CONFIG.kakaoRestApiKey),
+    queryFn: getBeeSellerPlaces,
     staleTime: MAP_STALE_TIME,
-    retry: 1,
+    retry: false,
   });
 
   const farmQuery = useQuery({
     queryKey: FARM_QUERY_KEY,
     queryFn: getOurbeeFarmPlaces,
     staleTime: MAP_STALE_TIME,
-    retry: 1,
+    retry: false,
   });
 
   const places = useMemo(() => {

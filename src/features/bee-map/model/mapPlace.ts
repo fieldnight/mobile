@@ -9,7 +9,14 @@ export interface BeeMapPlace {
   address?: string;
   phone?: string;
   description?: string;
+  sourceName?: string;
   sourceUrl?: string;
+}
+
+export interface BeeMapUserLocation {
+  lat: number;
+  lng: number;
+  requestedAt: number;
 }
 
 export type BeeMapFilter = "all" | BeeMapPlaceKind;

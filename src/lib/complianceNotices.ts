@@ -21,7 +21,7 @@ export const AGE_CONFIRM_DESCRIPTION =
 export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
   terms: {
     title: '서비스 이용약관',
-    updatedAt: '2026.07.15',
+    updatedAt: '2026.07.25',
     sections: [
       {
         title: '운영자 정보',
@@ -35,7 +35,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
       {
         title: '서비스 내용',
         body:
-          'Webee는 벌통 및 농지 관리, 수정벌 추천, 병해 진단 보조, 커뮤니티, 알림 기능을 제공하는 모바일 서비스입니다.',
+          'Ourbee는 벌통 및 농지 관리, 수정벌 추천, 수정벌 지도, 병해 진단 보조, 커뮤니티, 알림 기능을 제공하는 모바일 서비스입니다.',
       },
       {
         title: '회원 계정',
@@ -53,7 +53,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
       {
         title: '결제',
         body:
-          '현재 Webee 앱은 앱 내 결제 및 PG 결제를 제공하지 않습니다. 유료 기능이 도입되는 경우 결제 조건, 환불, 해지 기준을 별도로 안내합니다.',
+          '현재 Ourbee 앱은 앱 내 결제 및 PG 결제를 제공하지 않습니다. 유료 기능이 도입되는 경우 결제 조건, 환불, 해지 기준을 별도로 안내합니다.',
       },
       {
         title: '이용 제한',
@@ -67,7 +67,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
   },
   privacy: {
     title: '개인정보 처리방침',
-    updatedAt: '2026.07.15',
+    updatedAt: '2026.07.25',
     sections: [
       {
         title: '개인정보 처리자',
@@ -85,6 +85,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
           '문의 정보: 이메일, 문의 내용',
           '서비스 이용 정보: 접속 기록, 기기 정보, 알림 토큰, 서비스 이용 기록',
           '사용자 입력 정보: 농지, 벌통, 작물, 진단 요청 내용',
+          '선택 권한 허용 시 현재 위치 좌표: 수정벌 지도에서 내 위치로 이동하고 주변 판매처 및 농장 위치를 확인하는 데 사용하며 서버에 저장하지 않습니다.',
         ],
       },
       {
@@ -92,6 +93,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
         items: [
           '회원 식별 및 로그인',
           '벌통, 농지, 작물 관리 기능 제공',
+          '수정벌 지도에서 현재 위치 기준 주변 판매처 및 농장 정보 확인',
           'AI 추천, 진단, 상담 기능 제공',
           '문의 답변 및 서비스 알림 제공',
           '서비스 안정성 확보 및 오류 개선',
@@ -119,7 +121,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
       {
         title: '국외 이전',
         body:
-          'Webee는 국내 이용자를 대상으로 서비스를 제공합니다. 다만 FCM 등 해외 사업자 인프라를 통해 알림 토큰 등 서비스 운영에 필요한 정보가 처리될 수 있으며, 관련 항목은 개인정보 보호 기준에 따라 관리합니다.',
+          'Ourbee는 국내 이용자를 대상으로 서비스를 제공합니다. 다만 FCM 등 해외 사업자 인프라를 통해 알림 토큰 등 서비스 운영에 필요한 정보가 처리될 수 있으며, 관련 항목은 개인정보 보호 기준에 따라 관리합니다.',
       },
       {
         title: '이용자 권리',
@@ -130,7 +132,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
   },
   permissions: {
     title: '앱 권한 안내',
-    updatedAt: '2026.07.15',
+    updatedAt: '2026.07.25',
     sections: [
       {
         title: '선택 권한',
@@ -141,7 +143,7 @@ export const LEGAL_NOTICES: Record<LegalNoticeKey, LegalNotice> = {
         title: '권한별 사용 목적',
         items: [
           '사진/카메라: 프로필 이미지, 병해 진단 이미지 등록',
-          '위치: 농지 및 벌통 지역 정보 입력, 주변 정보 확인',
+          '위치: 농지 및 벌통 지역 정보 입력, 수정벌 지도에서 현재 위치 기준 주변 판매처 및 농장 확인',
           '알림: 벌통 상태, 뉴스, 커뮤니티, 문의 답변 안내',
           'NFC: 개폐기 카드 설정 및 제어 기능',
         ],
