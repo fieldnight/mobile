@@ -25,6 +25,7 @@ import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { AutoControlScheduleSection } from "@/features/hive-control";
 import { useSyncHiveList } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { HiveWifiSetupSheet } from "@/features/hive-wifi";
 import { Spacing } from "../constants";
 
 const BG_IMAGE = require("../../assets/df.jpg");
@@ -50,6 +51,7 @@ export default function HiveSettingsScreen() {
   const [selectedStn, setSelectedStn] = useState<number>(108);
   const [searchText, setSearchText] = useState("");
   const [savedMessage, setSavedMessage] = useState(false);
+  const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
   const savedMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedHive =
@@ -131,6 +133,65 @@ export default function HiveSettingsScreen() {
           </View>
           <Feather name="info" size={18} color={C.sec} />
         </View>
+
+        <BeeBoxCard variant="setting">
+          <View className="flex-row items-center gap-3">
+            <View
+              className="h-10 w-10 items-center justify-center rounded-full"
+              style={{ backgroundColor: C.infoBg }}
+            >
+              <Feather name="wifi" size={19} color={C.primary} />
+            </View>
+            <View className="flex-1">
+              <PretendardFont
+                weight="bold"
+                className="text-[17px] text-toss-text"
+              >
+                벌통 Wi-Fi 설정
+              </PretendardFont>
+              <PretendardFont className="mt-0.5 text-[13px] leading-[19px] text-toss-sec">
+                설치 장소가 바뀌거나 공유기를 교체했을 때 다시 연결해요.
+              </PretendardFont>
+            </View>
+          </View>
+
+          {selectedHive && (
+            <View
+              className="mt-4 flex-row items-center justify-between rounded-xl px-3.5 py-3"
+              style={{ backgroundColor: C.bg }}
+            >
+              <PretendardFont
+                weight="semibold"
+                style={{ fontSize: 13, color: C.textAlt }}
+              >
+                설정할 벌통
+              </PretendardFont>
+              <PretendardFont
+                weight="bold"
+                style={{ fontSize: 13, color: C.text }}
+              >
+                {selectedHive.name}
+              </PretendardFont>
+            </View>
+          )}
+
+          <Pressable
+            onPress={() => {
+              haptic();
+              setWifiSetupVisible(true);
+            }}
+            className="mt-4 flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-80"
+            style={{ backgroundColor: C.primary }}
+          >
+            <Feather name="refresh-cw" size={16} color={C.white} />
+            <PretendardFont
+              weight="bold"
+              style={{ fontSize: 14, color: C.white }}
+            >
+              Wi-Fi 연결·변경
+            </PretendardFont>
+          </Pressable>
+        </BeeBoxCard>
 
         <BeeBoxCard delay={100} variant="setting">
           <HiveScheduleTargetPicker
@@ -253,6 +314,13 @@ export default function HiveSettingsScreen() {
           </PretendardFont>
         </Animated.View>
       )}
+
+      <HiveWifiSetupSheet
+        visible={wifiSetupVisible}
+        onClose={() => setWifiSetupVisible(false)}
+        initialDeviceId={selectedHive?.macAddress}
+        onProvisioned={showSavedMessage}
+      />
     </ImageBackground>
   );
 }
