@@ -1,10 +1,11 @@
 /**
  * 홈 화면 바로가기 아이콘 그리드
- * - 상단 4개(25% 너비) + 하단 5개(20% 너비) 2행 구성
+ * - 상단 핵심 기능 7개 + 하단 부가 기능 5개 구성
  * - 탭 시 스케일 bounce 애니메이션 + 라우트 이동
  */
 import { useRef } from "react";
-import { Animated, Image, Pressable, View } from "react-native";
+import { Animated, Image, Pressable, ScrollView, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PretendardFont } from "./PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -31,6 +32,31 @@ const ITEMS = [
     route: "/fruit-price",
     label: "시세확인",
     icon: require("../../assets/homeIcons/trading.png"),
+    size: "lg",
+  },
+  {
+    id: "report",
+    route: "/report",
+    label: "예측리포트",
+    iconName: "file-text",
+    iconColor: "#B8761A",
+    iconBg: "#FFF6E5",
+    size: "lg",
+  },
+  {
+    id: "bee-diagnosis",
+    route: "/bee-diagnosis",
+    label: "질병진단",
+    icon: require("../../assets/homeIcons/diagnosis.png"),
+    size: "lg",
+  },
+  {
+    id: "market",
+    route: "/market",
+    label: "수정벌지도",
+    iconName: "map-pin",
+    iconColor: "#2563EB",
+    iconBg: "#DBEAFE",
     size: "lg",
   },
   {
@@ -79,25 +105,31 @@ const ITEMS = [
   id: string;
   route: `/${string}`;
   label: string;
-  icon: any;
+  icon?: any;
+  iconName?: keyof typeof Feather.glyphMap;
+  iconColor?: string;
+  iconBg?: string;
   size: keyof typeof ICON_SIZE;
 }[];
 
-const TOP_ITEMS = ITEMS.slice(0, 4);
-const BOTTOM_ITEMS = ITEMS.slice(4);
+const TOP_ITEMS = ITEMS.slice(0, 7);
+const BOTTOM_ITEMS = ITEMS.slice(7);
 const ROW_ICON_HEIGHT = { top: 56, bottom: 44 };
 
 function GridItem({
   id,
   label,
   icon,
+  iconName,
+  iconColor,
+  iconBg,
   size,
   route,
   colWidth,
   iconHeight,
   onInquiryPress,
 }: (typeof ITEMS)[number] & {
-  colWidth: `${number}%`;
+  colWidth: number | `${number}%`;
   iconHeight: number;
   onInquiryPress?: () => void;
 }) {
@@ -145,17 +177,33 @@ function GridItem({
             aspectRatio: 1,
           }}
         >
-          <Image
-            source={icon}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="contain"
-          />
+          {icon ? (
+            <Image
+              source={icon}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="contain"
+            />
+          ) : iconName ? (
+            <View
+              className="items-center justify-center rounded-2xl"
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: iconBg ?? "#FFF6E5",
+              }}
+            >
+              <Feather name={iconName} size={30} color={iconColor ?? C.primary} />
+            </View>
+          ) : null}
         </Animated.View>
       </View>
       <PretendardFont
         weight="semibold"
         className="text-xs mb-3 pt-1.5"
         style={{ color: C.text }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
       >
         {label}
       </PretendardFont>
@@ -166,17 +214,21 @@ function GridItem({
 export function HomeGridIcon({ onInquiryPress }: { onInquiryPress?: () => void }) {
   return (
     <View className="mx-4 mt-5 mb-4 rounded-3xl bg-white px-2 py-3">
-      <View className="flex-row">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 2 }}
+      >
         {TOP_ITEMS.map((item) => (
           <GridItem
             key={item.id}
             {...item}
-            colWidth="25%"
+            colWidth={56}
             iconHeight={ROW_ICON_HEIGHT.top}
             onInquiryPress={onInquiryPress}
           />
         ))}
-      </View>
+      </ScrollView>
       <View className="my-1" />
       <View className="flex-row">
         {BOTTOM_ITEMS.map((item) => (
