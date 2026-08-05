@@ -120,7 +120,7 @@ export default function AppHeader({
       <Animated.View
         style={[
           StyleSheet.absoluteFillObject,
-          { backgroundColor: dark ? "#0B1220" : "white" },
+          { backgroundColor: dark ? "#1D2E40" : "white" },
           solidStyle,
         ]}
       />
@@ -139,7 +139,7 @@ export default function AppHeader({
             left: 0,
             right: 0,
             height: StyleSheet.hairlineWidth,
-            backgroundColor: dark ? "#94A3B8" : "#000",
+            backgroundColor: dark ? "#7890A5" : "#000",
           },
           borderStyle,
         ]}
@@ -151,7 +151,7 @@ export default function AppHeader({
             icon="chevron-left"
             onPress={onBack}
             color={foreground}
-            rippleColor={dark ? "#243248" : "#E5E8EB"}
+            rippleColor={dark ? "#314A61" : "#E5E8EB"}
             testId="button-header-back"
           />
         ) : (
@@ -172,7 +172,7 @@ export default function AppHeader({
             icon={rightAction.icon}
             onPress={rightAction.onPress}
             color={rightAction.color ?? foreground}
-            rippleColor={dark ? "#243248" : "#E5E8EB"}
+            rippleColor={dark ? "#314A61" : "#E5E8EB"}
             testId={rightAction.testId}
           />
         ) : (

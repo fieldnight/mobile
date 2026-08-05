@@ -62,7 +62,7 @@ function MarketCard({
   return (
     <Pressable
       onPress={onPress}
-      className="mr-2.5 min-w-[152px] rounded-[14px] border-[1.5px] p-3 active:opacity-90"
+      className="mr-2 min-w-[138px] rounded-[12px] border p-2.5 active:opacity-90"
       style={({ pressed }) => ({
         backgroundColor: pressed ? C.primarySoft : C.white,
         borderColor: pressed ? C.primary : C.border,
@@ -74,17 +74,17 @@ function MarketCard({
       })}
     >
       {/* 작물명과 삭제 버튼을 한 줄에 배치해 카드 상단에서 바로 인지되도록 합니다. */}
-      <View className="mb-2 flex-row items-start justify-between gap-2">
+      <View className="mb-1 flex-row items-start justify-between gap-2">
         <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
           {emoji(item.cropMidName) ? (
-            <PretendardFont style={{ fontSize: 18 }}>
+            <PretendardFont style={{ fontSize: 16 }}>
               {emoji(item.cropMidName)}
             </PretendardFont>
           ) : null}
           <PretendardFont
             weight="bold"
             className="flex-1"
-            style={{ fontSize: 18, color: C.text, lineHeight: 23 }}
+            style={{ fontSize: 16, color: C.text, lineHeight: 20 }}
             numberOfLines={1}
           >
             {item.cropMidName}
@@ -112,11 +112,11 @@ function MarketCard({
       </View>
 
       {item.cropMinorName ? (
-        <PretendardFont style={{ fontSize: 11, color: C.sec, marginBottom: 8 }} numberOfLines={1}>
+        <PretendardFont style={{ fontSize: 10.5, color: C.sec, marginBottom: 5 }} numberOfLines={1}>
           {item.cropMinorName}
         </PretendardFont>
       ) : (
-        <View style={{ marginBottom: 8 }} />
+        <View style={{ marginBottom: 5 }} />
       )}
 
       <View style={{ backgroundColor: C.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-start" }}>
@@ -340,29 +340,17 @@ function GuestInterestMarketSection({
   return (
     <View className="border-t" style={{ borderTopColor: C.bg }}>
       {/* 비로그인 사용자는 저장 API를 호출하지 않고 예시 바로가기만 보여줍니다. */}
-      <View className="px-4 pb-3 pt-3">
-        <View
-          className="flex-row items-start rounded-2xl border px-3.5 py-3"
-          style={{ backgroundColor: C.infoBg, borderColor: C.sectionBorder, gap: 10 }}
-        >
-          <View className="h-8 w-8 items-center justify-center rounded-full bg-white">
-            <Feather name="lock" size={15} color={C.primary} />
-          </View>
-          <View className="flex-1">
-            <PretendardFont weight="bold" style={{ fontSize: 13.5, color: C.text }}>
-              로그인하면 내 맞춤 시세를 저장할 수 있어요
-            </PretendardFont>
-            <PretendardFont style={{ fontSize: 12.5, color: C.textAlt, lineHeight: 18, marginTop: 3 }}>
-              지금은 예시로 서울가락 · 딸기 · 설향 바로가기를 보여드릴게요.
-            </PretendardFont>
-          </View>
-        </View>
+      <View className="flex-row items-center px-3 pb-1 pt-1.5" style={{ gap: 5 }}>
+        <Feather name="lock" size={12} color={C.ter} />
+        <PretendardFont style={{ fontSize: 11.5, color: C.sec }}>
+          로그인하면 맞춤 시세를 저장할 수 있어요
+        </PretendardFont>
       </View>
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10 }}
       >
         <MarketCard
           item={GUEST_SAMPLE_MARKET}
@@ -421,13 +409,13 @@ function MemberInterestMarketSection({
   return (
     <View className="border-t" style={{ borderTopColor: C.bg }}>
       {/* 카드 위에 겹치지 않도록 등록 액션을 일반 레이아웃 흐름 안에 둡니다. */}
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-3">
+      <View className="flex-row items-center justify-between px-3 pb-1 pt-1.5">
         <PretendardFont style={{ fontSize: 12, color: C.sec }}>
           자주 보는 시장·작물을 바로 열어요
         </PretendardFont>
         <Pressable
           onPress={() => setAddModalVisible(true)}
-          className="flex-row items-center rounded-full px-3 py-2 active:opacity-80"
+          className="flex-row items-center rounded-full px-2.5 py-1.5 active:opacity-80"
           style={{ backgroundColor: C.primary, gap: 6 }}
         >
           <Feather name="plus" size={13} color={C.white} />
@@ -439,13 +427,13 @@ function MemberInterestMarketSection({
 
       {/* 카드 목록 */}
       {isLoading ? (
-        <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingBottom: 20 }}>
-          {[130, 130, 130].map((w, i) => (
-            <Skeleton key={i} height={100} width={w} borderRadius={14} />
+        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10 }}>
+          {[126, 126, 126].map((w, i) => (
+            <Skeleton key={i} height={72} width={w} borderRadius={12} />
           ))}
         </View>
       ) : markets.length === 0 ? (
-        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
+        <View style={{ paddingHorizontal: 12, paddingTop: 3, paddingBottom: 10 }}>
           <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.sec, marginBottom: 4 }}>
             등록된 바로가기가 없어요
           </PretendardFont>
@@ -459,7 +447,7 @@ function MemberInterestMarketSection({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10 }}
         >
           {markets.map((item) => (
             <MarketCard

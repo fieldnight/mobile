@@ -67,7 +67,7 @@ function StatusBadge({
           weight="semibold"
           style={{ fontSize: 13, color: C.text }}
         >
-          {isOnline ? "연결됨" : "오프라인"}
+          {isOnline ? "온라인" : "오프라인"}
         </PretendardFont>
       </View>
       {/* 벌통 위치 — 배지 아래줄 */}

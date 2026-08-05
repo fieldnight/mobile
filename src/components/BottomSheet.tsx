@@ -107,7 +107,7 @@ export function BottomSheet({
             <Animated.View
               style={{
                 maxHeight: SCREEN_H * snapHeight,
-                backgroundColor: dark ? "#111A29" : C.white,
+                backgroundColor: dark ? "#24384D" : C.white,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
                 transform: [{ translateY }],
@@ -118,7 +118,7 @@ export function BottomSheet({
               <View {...panResponder.panHandlers} className="items-center pb-1 pt-3">
                 <View
                   className="h-1 w-10 rounded-full"
-                  style={{ backgroundColor: dark ? "#33445C" : C.border }}
+                style={{ backgroundColor: dark ? "#506B83" : C.border }}
                 />
               </View>
 
@@ -127,14 +127,14 @@ export function BottomSheet({
                 <View className="min-w-0 flex-1">
                   <PretendardFont
                     weight="bold"
-                    style={{ fontSize: 20, color: dark ? "#F4F7FB" : C.text }}
+                    style={{ fontSize: 20, color: dark ? "#F8FBFE" : C.text }}
                   >
                     {title}
                   </PretendardFont>
                 </View>
                 {headerAccessory}
                 <Pressable onPress={handleClose} hitSlop={12} className="active:opacity-60">
-                  <Feather name="x" size={20} color={dark ? "#91A0B5" : C.ter} />
+                  <Feather name="x" size={20} color={dark ? "#B2C1CF" : C.ter} />
                 </Pressable>
               </View>
 

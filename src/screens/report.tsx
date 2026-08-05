@@ -17,6 +17,7 @@ import AppHeader from "@/components/AppHeader";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import { HEADER_HEIGHT, useScrollHeader } from "@/hooks";
 
@@ -530,7 +531,15 @@ function Section({ icon, title, description, children }) {
   );
 }
 
-function TextField({ label, value, onChangeText, placeholder, optional }) {
+function TextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  optional,
+  locked = false,
+  onLockedPress,
+}) {
   return (
     <View className="mb-4">
       <View className="mb-2 flex-row items-center">
@@ -547,19 +556,27 @@ function TextField({ label, value, onChangeText, placeholder, optional }) {
           </PretendardFont>
         ) : null}
       </View>
-      <View
+      <Pressable
+        onPress={locked ? onLockedPress : undefined}
         className="h-12 flex-row items-center rounded-2xl px-4"
-        style={{ backgroundColor: "#EEF2F6" }}
+        style={{
+          backgroundColor: locked ? "#F1F4F7" : "#F7F9FB",
+          borderWidth: 1,
+          borderColor: locked ? "#E1E6EB" : "#E7ECF0",
+        }}
       >
         <TextInput
           className="h-12 flex-1 text-[17px]"
-          style={{ color: C.text }}
+          style={{ color: locked ? C.sec : C.text }}
           value={value}
           onChangeText={onChangeText}
+          editable={!locked}
+          pointerEvents={locked ? "none" : "auto"}
           placeholder={placeholder}
           placeholderTextColor={C.ter}
         />
-      </View>
+        {locked ? <Feather name="lock" size={15} color={C.ter} /> : null}
+      </Pressable>
     </View>
   );
 }
@@ -571,6 +588,8 @@ function ChoiceGroup({
   value,
   onChange,
   columns = 2,
+  locked = false,
+  onLockedPress,
 }) {
   const width = columns === 3 ? "31.8%" : columns === 1 ? "100%" : "48.5%";
 
@@ -599,25 +618,29 @@ function ChoiceGroup({
             <Pressable
               key={option.value}
               onPressIn={() => {
+                if (locked) {
+                  onLockedPress?.();
+                  return;
+                }
                 if (!selected) onChange(option.value);
               }}
-              onPress={() => onChange(option.value)}
-              className="justify-center rounded-2xl border px-3 py-3"
-              android_ripple={{ color: C.recommendCtaBorder }}
-              style={({ pressed }) => ({
+              className="justify-center rounded-2xl px-3 py-3 active:opacity-80"
+              android_ripple={{ color: "#DCECF4" }}
+              style={{
                 width,
                 minHeight: option.helper ? 66 : 52,
-                borderWidth: selected ? 0 : 1,
-                borderColor: C.border,
-                backgroundColor: selected ? C.primary : "#EEF2F6",
-                opacity: pressed ? 0.82 : 1,
-                transform: [{ scale: pressed ? 0.985 : 1 }],
-              })}
+                borderWidth: selected ? 1.5 : 0,
+                borderColor: selected ? "#4F91AF" : "transparent",
+                backgroundColor: selected ? "#DCEFF7" : "#EDF1F4",
+              }}
             >
               <PretendardFont
                 weight={selected ? "bold" : "semibold"}
                 className="text-[15px] leading-5"
-                style={{ color: selected ? C.white : C.text }}
+                style={{
+                  color: selected ? "#245C74" : "#65717C",
+                  paddingRight: selected ? 22 : 0,
+                }}
               >
                 {option.label}
               </PretendardFont>
@@ -625,10 +648,25 @@ function ChoiceGroup({
                 <PretendardFont
                   weight="medium"
                   className="mt-1 text-[13px] leading-[18px]"
-                  style={{ color: selected ? C.white : C.sec }}
+                  style={{
+                    color: selected ? "#5D8192" : C.sec,
+                    paddingRight: selected ? 22 : 0,
+                  }}
                 >
                   {option.helper}
                 </PretendardFont>
+              ) : null}
+              {selected ? (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: option.helper ? 14 : 18,
+                  }}
+                >
+                  <Feather name="check-circle" size={16} color="#3D88A8" />
+                </View>
               ) : null}
             </Pressable>
           );
@@ -712,7 +750,8 @@ function WizardProgress({ currentStep }) {
     <View>
       <View className="flex-row items-center justify-between">
         {WIZARD_STEPS.map((step, index) => {
-          const active = index <= currentStep;
+          const completed = index < currentStep;
+          const current = index === currentStep;
 
           return (
             <View
@@ -725,16 +764,24 @@ function WizardProgress({ currentStep }) {
               <View
                 className="h-8 w-8 items-center justify-center rounded-full"
                 style={{
-                  backgroundColor: active ? C.primary : C.white,
-                  borderWidth: active ? 0 : 1,
-                  borderColor: C.border,
+                  backgroundColor: current
+                    ? "#3F88A8"
+                    : completed
+                      ? "#DCECF4"
+                      : "#F3F6F8",
+                  borderWidth: current ? 0 : 1,
+                  borderColor: completed ? "#BFD9E5" : "#E1E7EC",
                 }}
               >
                 <PretendardFont
-                  weight="bold"
+                  weight={current ? "bold" : "semibold"}
                   style={{
                     fontSize: 14,
-                    color: active ? C.white : C.ter,
+                    color: current
+                      ? C.white
+                      : completed
+                        ? "#47758A"
+                        : "#98A4AF",
                   }}
                 >
                   {step.number}
@@ -745,7 +792,7 @@ function WizardProgress({ currentStep }) {
                   className="mx-1 h-0.5 flex-1"
                   style={{
                     backgroundColor:
-                      index < currentStep ? C.primary : C.border,
+                      index < currentStep ? "#A9CFDF" : "#E3E8ED",
                   }}
                 />
               ) : null}
@@ -794,6 +841,7 @@ function WizardPage({
 
 export default function ReportScreen() {
   const router = useRouter();
+  const { show: showToast } = useAppToast();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
@@ -802,6 +850,7 @@ export default function ReportScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+  const [isSampleMode, setIsSampleMode] = useState(false);
   const [guideVisible, setGuideVisible] = useState(false);
   const [measurementGuideVisible, setMeasurementGuideVisible] =
     useState(false);
@@ -828,15 +877,34 @@ export default function ReportScreen() {
     });
   }, [width]);
 
+  const showSampleLockedToast = () => {
+    showToast("예시 리포트라서 입력 내용을 변경할 수 없어요.", "info");
+  };
+
   const setValue = (key, value) => {
+    if (isSampleMode) {
+      showSampleLockedToast();
+      return;
+    }
     setForm((current) =>
       current[key] === value ? current : { ...current, [key]: value },
     );
   };
 
   const fillSample = () => {
+    if (isSampleMode) {
+      showSampleLockedToast();
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setForm(SAMPLE_INPUT);
+    setIsSampleMode(true);
+    showToast("예시 농장을 채웠어요. 입력값은 변경되지 않아요.", "info");
+  };
+
+  const sampleLockProps = {
+    locked: isSampleMode,
+    onLockedPress: showSampleLockedToast,
   };
 
   const goToStep = (nextStep) => {
@@ -893,6 +961,7 @@ export default function ReportScreen() {
 
     const payload = {
       ...form,
+      reportMode: isSampleMode ? "sample" : "farm",
       inputPrecision: "approximate",
       analysisDate: analysisDate.value,
       analysisDateLabel: analysisDate.label,
@@ -1228,20 +1297,27 @@ export default function ReportScreen() {
               onPress={fillSample}
               className="mb-5 flex-row items-center justify-center rounded-2xl border py-3 active:opacity-80"
               style={{
-                backgroundColor: C.recommendCtaBg,
-                borderColor: C.recommendCtaBorder,
+                backgroundColor: isSampleMode ? "#E9F3F7" : "#F4F8FA",
+                borderColor: isSampleMode ? "#8BB8CB" : "#D7E5EB",
               }}
             >
-              <Feather name="zap" size={17} color={C.primary} />
+              <Feather
+                name={isSampleMode ? "lock" : "zap"}
+                size={17}
+                color={isSampleMode ? "#467B91" : "#6C93A4"}
+              />
               <PretendardFont
-                weight="bold"
+                weight="semibold"
                 className="ml-2 text-[15px]"
-                style={{ color: C.text }}
+                style={{ color: isSampleMode ? "#355F71" : "#526B77" }}
               >
-                예시 농장으로 채워보기
+                {isSampleMode
+                  ? "예시 농장 적용됨 · 입력 잠김"
+                  : "예시 농장으로 채워보기"}
               </PretendardFont>
             </Pressable>
             <TextField
+              {...sampleLockProps}
               label="농장 이름"
               optional
               value={form.farmId}
@@ -1249,12 +1325,14 @@ export default function ReportScreen() {
               placeholder="예: 산청 딸기농장"
             />
             <TextField
+              {...sampleLockProps}
               label="농장이 있는 지역"
               value={form.location}
               onChangeText={(value) => setValue("location", value)}
               placeholder="예: 경남 산청군"
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="딸기를 재배하는 전체 평수"
               helper="여러 동이면 모두 합친 면적"
               options={AREA_OPTIONS}
@@ -1282,12 +1360,14 @@ export default function ReportScreen() {
               onMore={() => setMeasurementGuideVisible(true)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="현재 가장 가까운 모습"
               options={STAGES}
               value={form.stage}
               onChange={(value) => setValue("stage", value)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="주변 농가와 비교하면"
               helper="최근 7일 변화 기준 · 자가평가 점수로 환산"
               options={GROWTH_OPTIONS}
@@ -1317,18 +1397,21 @@ export default function ReportScreen() {
               onMore={() => setMeasurementGuideVisible(true)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="낮 온도 · 10~16시 평균"
               options={DAY_TEMP_OPTIONS}
               value={form.dayTempBand}
               onChange={(value) => setValue("dayTempBand", value)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="밤·새벽 온도 · 0~6시 평균"
               options={NIGHT_TEMP_OPTIONS}
               value={form.nightTempBand}
               onChange={(value) => setValue("nightTempBand", value)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="낮 상대습도 · 10~16시 평균"
               options={HUMIDITY_OPTIONS}
               value={form.humidityBand}
@@ -1357,12 +1440,14 @@ export default function ReportScreen() {
               onMore={() => setMeasurementGuideVisible(true)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="첫 수확을 시작한 지 얼마나 됐나요?"
               options={HARVEST_PERIOD_OPTIONS}
               value={form.harvestPeriod}
               onChange={(value) => setValue("harvestPeriod", value)}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="최근 7일 전체 출하량"
               helper="2kg 상자 수×2로 계산"
               options={WEEKLY_SHIPMENT_OPTIONS}
@@ -1371,6 +1456,7 @@ export default function ReportScreen() {
               columns={1}
             />
             <ChoiceGroup
+              {...sampleLockProps}
               title="지난주와 비교한 출하 흐름"
               helper="최근 7일과 직전 7일 비교"
               options={SHIPMENT_TREND_OPTIONS}
@@ -1429,12 +1515,14 @@ export default function ReportScreen() {
                   onMore={() => setMeasurementGuideVisible(true)}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="현재 사용하는 호박벌 통 수"
                   options={HIVE_COUNT_OPTIONS}
                   value={form.hiveCountBand}
                   onChange={(value) => setValue("hiveCountBand", value)}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="호박벌이 실제로 다니는 하우스 면적"
                   helper="벌이 다니는 동들의 면적만 합산"
                   options={BEE_COVERAGE_AREA_OPTIONS}
@@ -1465,6 +1553,7 @@ export default function ReportScreen() {
                   </PretendardFont>
                 </View>
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="벌통 1통의 일벌 수"
                   helper="구매 제품·판매처 안내 기준"
                   options={WORKER_COUNT_OPTIONS}
@@ -1473,6 +1562,7 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="지금 벌통을 들인 지 얼마나 됐나요?"
                   options={HIVE_AGE_OPTIONS}
                   value={form.hiveAgeBand}
@@ -1480,6 +1570,7 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="오전 9~11시 · 벌통 입구 5분 출입 합계"
                   helper="나간 벌 + 들어온 벌"
                   options={BEE_TRAFFIC_OPTIONS}
@@ -1488,6 +1579,7 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="낮 11~14시 · 꽃 위 벌 10분 관찰"
                   helper="꽃을 만지는 벌만 세기"
                   options={MIDDAY_BEE_OPTIONS}
@@ -1496,6 +1588,7 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="현재 활짝 핀 꽃 수"
                   helper="1m×1m 대표구역 세 곳 평균"
                   options={OPEN_FLOWER_OPTIONS}
@@ -1504,6 +1597,7 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <ChoiceGroup
+                  {...sampleLockProps}
                   title="최근 약제 살포와 벌 안전 대기시간"
                   options={PESTICIDE_SAFETY_OPTIONS}
                   value={form.pesticideSafety}

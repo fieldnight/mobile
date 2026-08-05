@@ -229,6 +229,7 @@ export function BeeMapPlaceSheet({
         offset: snapInterval * index,
         index,
       })}
+      onScrollEndDrag={selectVisiblePlace}
       onMomentumScrollEnd={selectVisiblePlace}
       onScrollToIndexFailed={(info) => {
         listRef.current?.scrollToOffset({

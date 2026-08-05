@@ -16,6 +16,7 @@ export {
 } from "./hooks";
 
 export {
+  DIAGNOSIS_DISPLAY_CONFIDENCE,
   parseDiagnosisConfidence,
   splitDiagnosisLines,
 } from "./model";

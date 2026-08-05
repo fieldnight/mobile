@@ -19,25 +19,25 @@ import { HEADER_HEIGHT, useScrollHeader } from "@/hooks";
 
 const C = {
   ...HiveC,
-  bg: "#0A101B",
-  surface: "#111A29",
-  surfaceAlt: "#182438",
-  text: "#F4F7FB",
-  textAlt: "#C4CFDC",
-  sec: "#91A0B5",
-  ter: "#73839A",
-  border: "#2B3A50",
-  sectionBorder: "#33445C",
-  bgAlt: "#182438",
-  primary: "#76C7E6",
-  primarySoft: "#173247",
-  recommendCtaBg: "#142B3D",
-  recommendCtaBorder: "#28536B",
-  selected: "#173247",
-  infoBg: "#142B3D",
-  success: "#45D49A",
-  warning: "#F3B95F",
-  error: "#FF7E91",
+  bg: "#1A2A3B",
+  surface: "#24384D",
+  surfaceAlt: "#2E465E",
+  text: "#F8FBFE",
+  textAlt: "#D8E3EC",
+  sec: "#B2C1CF",
+  ter: "#93A5B7",
+  border: "#425B72",
+  sectionBorder: "#506B83",
+  bgAlt: "#2E465E",
+  primary: "#82CDE8",
+  primarySoft: "#2D5369",
+  recommendCtaBg: "#294A5F",
+  recommendCtaBorder: "#4A7890",
+  selected: "#2D5369",
+  infoBg: "#294A5F",
+  success: "#58DDA8",
+  warning: "#F7C66F",
+  error: "#FF94A4",
 };
 
 function Card({ children, style, ...props }) {
@@ -48,9 +48,9 @@ function Card({ children, style, ...props }) {
         backgroundColor: C.surface,
         borderColor: C.border,
         shadowColor: "#000000",
-        shadowOpacity: 0.28,
-        shadowRadius: 16,
-        elevation: 2,
+        shadowOpacity: 0.16,
+        shadowRadius: 12,
+        elevation: 1,
         ...(style || {}),
       }}
     >
@@ -638,6 +638,7 @@ export default function ReportResultScreen() {
       return FALLBACK;
     }
   }, [params.data]);
+  const isExampleReport = input.reportMode === "sample";
 
   const stage = STAGE_INFO[input.stage] || STAGE_INFO.S3;
   const area = number(input.areaM2, 660);
@@ -862,7 +863,7 @@ export default function ReportResultScreen() {
   return (
     <View className="flex-1" style={{ backgroundColor: C.bg }}>
       <AppHeader
-        title="딸기 농장 리포트"
+        title={isExampleReport ? "예시 딸기 리포트" : "딸기 농장 리포트"}
         onBack={() => router.back()}
         rightAction={{ icon: "x", onPress: goHome }}
         isScrolled={isScrolled}
@@ -879,13 +880,29 @@ export default function ReportResultScreen() {
       >
         <View className="flex-row items-center justify-between">
           <View className="mr-3 flex-1">
-            <PretendardFont
-              weight="bold"
-              className="text-lg"
-              style={{ color: C.text }}
-            >
-              농장 분석 결과
-            </PretendardFont>
+            <View className="flex-row items-center">
+              <PretendardFont
+                weight="bold"
+                className="text-lg"
+                style={{ color: C.text }}
+              >
+                {isExampleReport ? "예시 농장 분석 결과" : "농장 분석 결과"}
+              </PretendardFont>
+              {isExampleReport ? (
+                <View
+                  className="ml-2 rounded-full px-2 py-1"
+                  style={{ backgroundColor: C.recommendCtaBg }}
+                >
+                  <PretendardFont
+                    weight="bold"
+                    className="text-[11px]"
+                    style={{ color: C.primary }}
+                  >
+                    체험용
+                  </PretendardFont>
+                </View>
+              ) : null}
+            </View>
             <PretendardFont
               className="mt-1 text-sm"
               numberOfLines={1}

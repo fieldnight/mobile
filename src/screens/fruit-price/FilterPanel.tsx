@@ -13,7 +13,7 @@ interface FilterPanelProps {
 
 export function FilterPanel({ marketCode, onMarketChange }: FilterPanelProps) {
   return (
-    <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+    <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
       <FilterDropdown
         label="도매시장 선택"
         value={marketCode}

@@ -1,66 +1,111 @@
-import { useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { PanResponder, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { Card } from "@/components/hive/hive-shared";
 import { BoxColor as C } from "@/types";
-import type { HiveControlState, HiveData } from "@/types/hive-control";
-import { HiveDropdown } from "./HiveDropdown";
 
-const TEMP_MIN = 16;
-const TEMP_MAX = 36;
-const BEST_TEMP_MIN = 24;
-const BEST_TEMP_MAX = 27;
-const TEMP_STEP = 0.5;
 const THUMB_SIZE = 30;
+const APPLY_DELAY_MS = 1800;
 
 const OPERATING_MODES = [
-  { id: "normal", icon: "sun" as const, label: "일반 모드", temp: 25.5, vent: 45 },
-  { id: "saving", icon: "moon" as const, label: "절전 모드", temp: 23, vent: 25 },
-  { id: "brood", icon: "heart" as const, label: "유충 육성 모드", temp: 34, vent: 30 },
-  { id: "spray", icon: "shield" as const, label: "방제 보호 모드", temp: 24, vent: 15 },
+  {
+    id: "saving",
+    icon: "moon" as const,
+    label: "절전 모드",
+    temperature: 24,
+    humidity: 58,
+  },
+  {
+    id: "ai",
+    icon: "cpu" as const,
+    label: "AI 모드",
+    temperature: 25,
+    humidity: 62,
+  },
+  {
+    id: "breeding",
+    icon: "heart" as const,
+    label: "사육 모드",
+    temperature: 26,
+    humidity: 65,
+  },
+  {
+    id: "normal",
+    icon: "sun" as const,
+    label: "일반 모드",
+    temperature: 25,
+    humidity: 60,
+  },
 ] as const;
 
 type OperatingModeId = (typeof OPERATING_MODES)[number]["id"];
 
 interface HiveControlSectionProps {
-  hives: HiveData[];
-  current: HiveControlState;
   controlHive: string;
-  onToggleTemperature: () => void;
-  onToggleVentilation: () => void;
-  onToggleTemperatureAuto: () => void;
-  onToggleVentilationAuto: () => void;
-  onSelectHive: (id: string) => void;
 }
 
+type SettingKind = "temperature" | "humidity";
+
+/**
+ * 스마트벌통 데모 제어
+ * - 실제 MQTT/API 명령은 보내지 않습니다.
+ * - 슬라이더 조작 후 잠시 잠겼다가 적용 완료 토스트만 표시합니다.
+ */
 export function HiveControlSection({
-  hives,
-  current,
-  controlHive,
-  onToggleTemperature,
-  onToggleVentilation,
-  onToggleTemperatureAuto,
-  onToggleVentilationAuto,
-  onSelectHive,
+  controlHive: _controlHive,
 }: HiveControlSectionProps) {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [mode, setMode] = useState<OperatingModeId>("normal");
-  const [targetTemp, setTargetTemp] = useState<number>(OPERATING_MODES[0].temp);
-  const [ventStrength, setVentStrength] = useState<number>(OPERATING_MODES[0].vent);
-  const selectedHive = hives.find((hive) => hive.id === controlHive);
-  const tempAuto = current.controls.find((control) => control.id === "heating")?.enabled ?? false;
-  const ventAuto = current.controls.find((control) => control.id === "ventilation")?.enabled ?? false;
-  const tempOn = current.heaterOn || current.coolerOn;
-  const ventOn = current.ventOn;
+  const { show: showToast } = useAppToast();
+  const [targetTemperature, setTargetTemperature] = useState(25);
+  const [targetHumidity, setTargetHumidity] = useState(62);
+  const [mode, setMode] = useState<OperatingModeId | null>("ai");
+  const [pending, setPending] = useState<Record<SettingKind, boolean>>({
+    temperature: false,
+    humidity: false,
+  });
+  const timers = useRef<Partial<Record<SettingKind, ReturnType<typeof setTimeout>>>>(
+    {},
+  );
+
+  useEffect(
+    () => () => {
+      Object.values(timers.current).forEach((timer) => {
+        if (timer) clearTimeout(timer);
+      });
+    },
+    [],
+  );
+
+  const applySetting = (kind: SettingKind) => {
+    if (pending[kind]) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPending((current) => ({ ...current, [kind]: true }));
+
+    timers.current[kind] = setTimeout(() => {
+      setPending((current) => ({ ...current, [kind]: false }));
+      showToast("반영되었습니다!", "success");
+      delete timers.current[kind];
+    }, APPLY_DELAY_MS);
+  };
 
   const applyMode = (nextMode: OperatingModeId) => {
     const next = OPERATING_MODES.find((item) => item.id === nextMode);
     if (!next) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMode(nextMode);
-    setTargetTemp(next.temp);
-    setVentStrength(next.vent);
+    setTargetTemperature(next.temperature);
+    setTargetHumidity(next.humidity);
+    showToast(`${next.label}로 설정했어요`, "success");
   };
 
   return (
@@ -73,52 +118,55 @@ export function HiveControlSection({
         padding: 14,
       }}
     >
-      <View className="mb-2.5 flex-row items-center justify-between">
-        <PretendardFont weight="bold" className="text-[22px]" style={{ color: C.text }}>
-          제어 설정
-        </PretendardFont>
-        <View className="relative">
-          <Pressable
-            onPress={() => setDropdownOpen((prev) => !prev)}
-            className="flex-row items-center gap-1.5 rounded-[14px] border bg-white px-3 py-2"
-            style={{ borderColor: C.border }}
+      <View className="mb-4 flex-row items-center justify-between">
+        <View>
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 19, color: C.textAlt }}
           >
-            <PretendardFont className="text-[14px]" style={{ color: C.text }}>
-              {selectedHive?.name ?? "벌통 선택"}
-            </PretendardFont>
-            <Feather name="chevron-down" size={16} color={C.sec} />
-          </Pressable>
-          {dropdownOpen ? (
-            <HiveDropdown
-              hives={hives}
-              selectedId={controlHive === "all" ? "" : controlHive}
-              onSelect={(id) => {
-                setDropdownOpen(false);
-                onSelectHive(id);
-              }}
-              onClose={() => setDropdownOpen(false)}
-              testPrefix="control"
-            />
-          ) : null}
+            온도 · 습도 설정
+          </PretendardFont>
+          <PretendardFont
+            weight="regular"
+            className="mt-1"
+            style={{ fontSize: 12.5, color: C.sec }}
+          >
+            값을 놓으면 잠시 후 자동으로 반영돼요
+          </PretendardFont>
+        </View>
+        <View
+          className="rounded-full px-2.5 py-1.5"
+          style={{ backgroundColor: "rgba(105, 180, 213, 0.13)" }}
+        >
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 11, color: C.primary }}
+          >
+            데모 제어
+          </PretendardFont>
         </View>
       </View>
 
-      <View className="mb-2">
-        <View className="mb-1.5 flex-row items-center justify-between">
-          <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
+      <View className="mb-3">
+        <View className="mb-2 flex-row items-center justify-between">
+          <PretendardFont
+            weight="semibold"
+            style={{ fontSize: 14, color: C.textAlt }}
+          >
             운영 모드
           </PretendardFont>
-          <Pressable onPress={() => applyMode("normal")} hitSlop={8}>
-            <PretendardFont weight="semibold" style={{ fontSize: 11.5, color: C.ter }}>
-              초기화
-            </PretendardFont>
-          </Pressable>
+          <PretendardFont
+            weight="regular"
+            style={{ fontSize: 11, color: C.ter }}
+          >
+            모드를 고르면 권장값이 적용돼요
+          </PretendardFont>
         </View>
 
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 6, paddingRight: 6 }}
+          contentContainerStyle={{ gap: 7, paddingRight: 6 }}
         >
           {OPERATING_MODES.map((item) => {
             const active = item.id === mode;
@@ -126,18 +174,31 @@ export function HiveControlSection({
               <Pressable
                 key={item.id}
                 onPress={() => applyMode(item.id)}
-                className="flex-row items-center gap-1.5 rounded-xl border px-2.5 py-1.5 active:opacity-75"
+                className="flex-row items-center rounded-xl px-3 py-2 active:opacity-75"
                 style={{
+                  gap: 6,
                   minWidth: 104,
-                  borderColor: active ? C.text : C.border,
-                  backgroundColor: active ? C.text : C.white,
+                  borderWidth: 1,
+                  borderColor: active
+                    ? "rgba(105, 180, 213, 0.85)"
+                    : "rgba(15, 23, 42, 0.07)",
+                  backgroundColor: active
+                    ? "rgba(105, 180, 213, 0.16)"
+                    : "rgba(255,255,255,0.7)",
                 }}
               >
-                <Feather name={item.icon} size={13} color={active ? C.white : C.primary} />
+                <Feather
+                  name={item.icon}
+                  size={14}
+                  color={active ? C.primary : C.ter}
+                />
                 <PretendardFont
-                  weight="bold"
+                  weight={active ? "bold" : "medium"}
                   numberOfLines={1}
-                  style={{ fontSize: 11.5, color: active ? C.white : C.text }}
+                  style={{
+                    fontSize: 12,
+                    color: active ? C.primary : C.sec,
+                  }}
                 >
                   {item.label}
                 </PretendardFont>
@@ -147,223 +208,231 @@ export function HiveControlSection({
         </ScrollView>
       </View>
 
-      <ControlPanel
-        caption="수정벌 활동 적정 온도 24~27°C · 0.5°C 단위"
-        active={tempOn}
-        auto={tempAuto}
-        onTogglePower={onToggleTemperature}
-        onToggleAuto={onToggleTemperatureAuto}
-      >
-        <TemperatureSlider value={targetTemp} onChange={setTargetTemp} />
-      </ControlPanel>
+      <SettingCard
+        label="목표 온도"
+        helper="16~36°C · 수정벌 권장 구간 24~27°C"
+        value={targetTemperature}
+        valueLabel={`${targetTemperature.toFixed(1)}°C`}
+        min={16}
+        max={36}
+        step={0.5}
+        optimalMin={24}
+        optimalMax={27}
+        disabled={pending.temperature}
+        onChange={(value) => {
+          setMode(null);
+          setTargetTemperature(value);
+        }}
+        onSlidingComplete={() => applySetting("temperature")}
+      />
 
-      <ControlPanel
-        caption="환기 세기 0~100% · 벌통 내부 공기 흐름 조절"
-        active={ventOn}
-        auto={ventAuto}
-        onTogglePower={onToggleVentilation}
-        onToggleAuto={onToggleVentilationAuto}
-      >
-        <StrengthSlider value={ventStrength} onChange={setVentStrength} />
-      </ControlPanel>
+      <SettingCard
+        label="목표 습도"
+        helper="40~90% · 권장 구간 50~70%"
+        value={targetHumidity}
+        valueLabel={`${targetHumidity}%`}
+        min={40}
+        max={90}
+        step={1}
+        optimalMin={50}
+        optimalMax={70}
+        disabled={pending.humidity}
+        onChange={(value) => {
+          setMode(null);
+          setTargetHumidity(value);
+        }}
+        onSlidingComplete={() => applySetting("humidity")}
+      />
     </Card>
   );
 }
 
-function ControlPanel({
-  caption,
-  active,
-  auto,
-  onTogglePower,
-  onToggleAuto,
-  children,
+function SettingCard({
+  label,
+  helper,
+  value,
+  valueLabel,
+  min,
+  max,
+  step,
+  optimalMin,
+  optimalMax,
+  disabled,
+  onChange,
+  onSlidingComplete,
 }: {
-  caption: string;
-  active: boolean;
-  auto: boolean;
-  onTogglePower: () => void;
-  onToggleAuto: () => void;
-  children: ReactNode;
+  label: string;
+  helper: string;
+  value: number;
+  valueLabel: string;
+  min: number;
+  max: number;
+  step: number;
+  optimalMin: number;
+  optimalMax: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onSlidingComplete: () => void;
 }) {
   return (
     <View
-      className="mb-2 rounded-[18px]"
+      className="mb-2.5 rounded-[18px] px-3 py-3"
       style={{
-        minHeight: 104,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        backgroundColor: active ? C.white : "rgba(255,255,255,0.9)",
+        backgroundColor: "rgba(255,255,255,0.82)",
         borderWidth: 1,
-        borderColor: active ? "rgba(15, 118, 110, 0.22)" : "rgba(15, 23, 42, 0.08)",
+        borderColor: "rgba(15, 23, 42, 0.06)",
+        opacity: disabled ? 0.56 : 1,
       }}
     >
-      <View className="mb-1 flex-row items-center">
-        <View className="flex-row gap-1.5">
-          <PanelButton icon="power" label="전원" active={active} onPress={onTogglePower} />
-          <PanelButton icon="zap" label="AUTO" active={auto} onPress={onToggleAuto} />
-        </View>
-      </View>
-
-      {children}
-
-      <View className="mt-0.5">
+      <View className="mb-1 flex-row items-center justify-between">
         <PretendardFont
           weight="semibold"
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={{ fontSize: 10.5, color: C.sec }}
+          style={{ fontSize: 14, color: C.textAlt }}
         >
-          {caption}
+          {label}
         </PretendardFont>
+        {disabled ? (
+          <View className="flex-row items-center">
+            <ActivityIndicator size="small" color={C.primary} />
+            <PretendardFont
+              weight="medium"
+              className="ml-1.5"
+              style={{ fontSize: 12, color: C.sec }}
+            >
+              반영 중...
+            </PretendardFont>
+          </View>
+        ) : null}
       </View>
+
+      <SegmentSlider
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        valueLabel={valueLabel}
+        optimalMin={optimalMin}
+        optimalMax={optimalMax}
+        disabled={disabled}
+        onChange={onChange}
+        onSlidingComplete={onSlidingComplete}
+      />
+
+      <PretendardFont
+        weight="regular"
+        className="mt-1"
+        style={{ fontSize: 10.5, color: C.ter }}
+      >
+        {helper}
+      </PretendardFont>
     </View>
   );
 }
 
-function PanelButton({
-  icon,
-  label,
-  active,
-  onPress,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      className="flex-row items-center justify-center gap-1.5 rounded-xl border px-2 active:opacity-75"
-      style={{
-        minWidth: 62,
-        height: 32,
-        borderColor: active ? C.text : C.border,
-        backgroundColor: active ? C.white : C.bgAlt,
-      }}
-    >
-      <View
-        className="h-5 w-5 items-center justify-center rounded-full"
-        style={{ backgroundColor: active ? C.text : "#E2E8F0" }}
-      >
-        <Feather name={icon} size={11} color={active ? C.white : C.ter} />
-      </View>
-      <PretendardFont weight="bold" style={{ fontSize: 11, color: active ? C.text : C.ter }}>
-        {label}
-      </PretendardFont>
-    </Pressable>
-  );
-}
-
-function TemperatureSlider({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  const toValue = (ratio: number) => {
-    const raw = TEMP_MIN + ratio * (TEMP_MAX - TEMP_MIN);
-    return Math.max(TEMP_MIN, Math.min(TEMP_MAX, Math.round(raw / TEMP_STEP) * TEMP_STEP));
-  };
-
-  return (
-    <SegmentSlider
-      valueRatio={(value - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
-      onRatioChange={(ratio) => onChange(toValue(ratio))}
-      minLabel={`${TEMP_MIN}°`}
-      valueLabel={`${value.toFixed(1)}°C`}
-      goodStart={(BEST_TEMP_MIN - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
-      goodEnd={(BEST_TEMP_MAX - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)}
-    />
-  );
-}
-
-function StrengthSlider({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <SegmentSlider
-      valueRatio={value / 100}
-      onRatioChange={(ratio) => onChange(Math.max(0, Math.min(100, Math.round(ratio * 100))))}
-      minLabel="0%"
-      valueLabel={`${value}%`}
-      goodStart={0.25}
-      goodEnd={0.6}
-    />
-  );
-}
-
 function SegmentSlider({
-  valueRatio,
-  onRatioChange,
-  minLabel,
+  value,
+  min,
+  max,
+  step,
   valueLabel,
-  goodStart,
-  goodEnd,
+  optimalMin,
+  optimalMax,
+  disabled,
+  onChange,
+  onSlidingComplete,
 }: {
-  valueRatio: number;
-  onRatioChange: (ratio: number) => void;
-  minLabel: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
   valueLabel: string;
-  goodStart: number;
-  goodEnd: number;
+  optimalMin: number;
+  optimalMax: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onSlidingComplete: () => void;
 }) {
   const [sliderWidth, setSliderWidth] = useState(200);
-  const latestRatioRef = useRef(valueRatio);
-  latestRatioRef.current = valueRatio;
-  const onRatioChangeRef = useRef(onRatioChange);
-  onRatioChangeRef.current = onRatioChange;
-  const startRatioRef = useRef(valueRatio);
+  const onChangeRef = useRef(onChange);
+  const onSlidingCompleteRef = useRef(onSlidingComplete);
+  const startRatioRef = useRef(0);
+  const changedRef = useRef(false);
+  onChangeRef.current = onChange;
+  onSlidingCompleteRef.current = onSlidingComplete;
+
+  const range = max - min;
+  const valueRatio = Math.max(0, Math.min(1, (value - min) / range));
   const travel = Math.max(1, sliderWidth - THUMB_SIZE);
   const thumbLeft = Math.max(0, Math.min(travel, valueRatio * travel));
   const activeWidth = thumbLeft + THUMB_SIZE / 2;
-  const goodLeft = goodStart * sliderWidth;
-  const goodWidth = (goodEnd - goodStart) * sliderWidth;
+  const goodLeft = ((optimalMin - min) / range) * sliderWidth;
+  const goodWidth = ((optimalMax - optimalMin) / range) * sliderWidth;
+
+  const updateFromRatio = (ratio: number) => {
+    const boundedRatio = Math.max(0, Math.min(1, ratio));
+    const raw = min + boundedRatio * range;
+    const next = Math.max(
+      min,
+      Math.min(max, Math.round(raw / step) * step),
+    );
+    changedRef.current = true;
+    onChangeRef.current(next);
+  };
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => true,
+        onStartShouldSetPanResponder: () => !disabled,
+        onStartShouldSetPanResponderCapture: () => !disabled,
         onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1,
-        onMoveShouldSetPanResponderCapture: () => true,
+          !disabled && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1),
+        onMoveShouldSetPanResponderCapture: () => !disabled,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (event) => {
+          if (disabled) return;
+          changedRef.current = false;
           const nextRatio = Math.max(
             0,
             Math.min(1, (event.nativeEvent.locationX - THUMB_SIZE / 2) / travel),
           );
           startRatioRef.current = nextRatio;
-          onRatioChangeRef.current(nextRatio);
+          updateFromRatio(nextRatio);
         },
         onPanResponderMove: (_, gesture) => {
-          const nextRatio = startRatioRef.current + gesture.dx / travel;
-          onRatioChangeRef.current(Math.max(0, Math.min(1, nextRatio)));
+          if (disabled) return;
+          updateFromRatio(startRatioRef.current + gesture.dx / travel);
+        },
+        onPanResponderRelease: () => {
+          if (!disabled && changedRef.current) {
+            onSlidingCompleteRef.current();
+          }
+        },
+        onPanResponderTerminate: () => {
+          if (!disabled && changedRef.current) {
+            onSlidingCompleteRef.current();
+          }
         },
       }),
-    [travel],
+    [disabled, max, min, range, step, travel],
   );
 
   return (
-    <View className="flex-row items-center gap-1.5">
-      <PretendardFont weight="bold" style={{ width: 25, fontSize: 10.5, color: C.sec }}>
-        {minLabel}
+    <View className="flex-row items-center gap-2">
+      <PretendardFont
+        weight="regular"
+        style={{ width: 30, fontSize: 10, color: C.ter }}
+      >
+        {min}
       </PretendardFont>
 
-      {/* Thumb보다 넓은 track 전체를 잡게 해 현장 장갑 터치에서도 덜 뻑뻑하게 만듭니다. */}
       <View
         {...panResponder.panHandlers}
         className="h-11 flex-1 justify-center"
         onLayout={(event) => {
           const nextWidth = Math.max(1, event.nativeEvent.layout.width);
-          setSliderWidth((previous) => (Math.abs(previous - nextWidth) < 1 ? previous : nextWidth));
+          setSliderWidth((previous) =>
+            Math.abs(previous - nextWidth) < 1 ? previous : nextWidth,
+          );
         }}
       >
         <View className="h-2.5 rounded-full" style={{ backgroundColor: C.bgAlt }} />
@@ -372,12 +441,15 @@ function SegmentSlider({
           style={{
             left: goodLeft,
             width: goodWidth,
-            backgroundColor: "rgba(34, 197, 94, 0.24)",
+            backgroundColor: "rgba(34, 197, 94, 0.22)",
           }}
         />
         <View
           className="absolute h-2.5 rounded-full"
-          style={{ width: activeWidth, backgroundColor: "rgba(15, 118, 110, 0.5)" }}
+          style={{
+            width: activeWidth,
+            backgroundColor: "rgba(105, 180, 213, 0.7)",
+          }}
         />
         <View
           pointerEvents="none"
@@ -387,24 +459,27 @@ function SegmentSlider({
             width: THUMB_SIZE,
             height: THUMB_SIZE,
             borderWidth: 2.5,
-            borderColor: C.success,
+            borderColor: C.primary,
             shadowColor: C.shadow,
-            shadowOpacity: 0.22,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.16,
+            shadowRadius: 5,
+            shadowOffset: { width: 0, height: 2 },
           }}
         >
-          <View className="h-2 w-2 rounded-full" style={{ backgroundColor: C.success }} />
+          <View
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: C.primary }}
+          />
         </View>
       </View>
 
       <PretendardFont
-        weight="bold"
+        weight="semibold"
         style={{
-          width: 54,
+          width: 56,
           textAlign: "right",
-          fontSize: 16,
-          color: C.text,
+          fontSize: 15,
+          color: C.textAlt,
         }}
       >
         {valueLabel}

@@ -18,13 +18,11 @@ import AppHeader from "@/components/AppHeader";
 import { HEADER_HEIGHT } from "@/hooks";
 import { useRouter } from "expo-router";
 import { PretendardFont } from "@/components/PretendardFont";
-import { PageTitle } from "@/components/PageTitle";
 import { C } from "@/constants/hive-colors";
 import { Card } from "@/components/hive/hive-shared";
 import { FilterDropdown } from "@/components/FilterDropdown";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Spacing } from "@/constants";
 import { useAppToast } from "@/components/ToastContext";
 
 // ── 검색창 ─────────────────────────────────────────────────────────────────────
@@ -46,9 +44,9 @@ function SearchInput({
     <View>
       <View
         className="flex-row items-center rounded-xl px-3 gap-2"
-        style={{ backgroundColor: C.bg, height: 52 }}
+        style={{ backgroundColor: C.bg, height: 42 }}
       >
-        <Feather name="search" size={19} color={C.ter} />
+        <Feather name="search" size={17} color={C.ter} />
         <TextInput
           value={value}
           onChangeText={onChange}
@@ -58,7 +56,7 @@ function SearchInput({
           placeholderTextColor={C.ter}
           style={{
             flex: 1,
-            fontSize: 17,
+            fontSize: 15,
             color: C.text,
             fontFamily: "Pretendard-Regular",
           }}
@@ -127,9 +125,9 @@ const ResultRow = memo(({ item, index, onPress }: { item: ResultItem; index: num
         style={{
           width,
           paddingHorizontal: 10,
-          paddingVertical: 15,
-          fontSize: 16,
-          lineHeight: 22,
+          paddingVertical: 10,
+          fontSize: 14,
+          lineHeight: 19,
           color: C.text,
         }}
       >
@@ -229,9 +227,9 @@ export default function PesticideTable() {
               style={{
                 width,
                 paddingHorizontal: 10,
-                paddingVertical: 13,
-                fontSize: 15,
-                lineHeight: 20,
+                paddingVertical: 9,
+                fontSize: 13,
+                lineHeight: 18,
                 color: C.sec,
                 textAlign: "center",
                 borderRightWidth: 1,
@@ -279,20 +277,14 @@ export default function PesticideTable() {
 
       <PullToRefresh
         contentContainerStyle={{
-          padding: Spacing.lg,
-          paddingTop: HEADER_HEIGHT + Spacing.lg,
+          paddingHorizontal: 14,
+          paddingTop: HEADER_HEIGHT + 10,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.lg,
+          gap: 10,
         }}
         showsVerticalScrollIndicator={false}
         onRefresh={handleRefresh}
       >
-        <PageTitle
-          title="안심농약찾기"
-          subtitle={`작물·용도·병해충으로\n등록 농약 안전 정보를 확인하세요`}
-          subtitleStyle={{ fontSize: 18, lineHeight: 25, marginTop: 6 }}
-        />
-
         {/* 관심 농약 — 저장된 항목이 있을 때만 렌더링 */}
         <InterestPesticideList />
 
@@ -321,8 +313,8 @@ export default function PesticideTable() {
         )}
 
         {/* 검색 + 필터 카드 */}
-        <Card delay={0}>
-          <PretendardFont weight="bold" style={{ fontSize: 19, color: C.text, marginBottom: 16 }}>
+        <Card delay={0} style={{ padding: 12 }}>
+          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 9 }}>
             검색 조건
           </PretendardFont>
 
@@ -333,15 +325,12 @@ export default function PesticideTable() {
             onSuggestionPress={handleSuggestion}
           />
 
-          <View style={{ height: 1, backgroundColor: C.bg, marginVertical: 16 }} />
+          <View style={{ height: 8 }} />
 
-          <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.ter, marginBottom: 10 }}>
-            필터
-          </PretendardFont>
-          <View className="flex-row gap-2">
-            <FilterDropdown label="작물명" value={crop} options={aList} onSelect={setCrop} allOption size="large" style={{ flex: 1 }} />
-            <FilterDropdown label="용도" value={usage} options={bList} onSelect={setUsage} allOption size="large" style={{ flex: 1 }} />
-            <FilterDropdown label="곤충" value={insect} options={cList} onSelect={setInsect} allOption size="large" style={{ flex: 1 }} />
+          <View className="flex-row gap-1.5">
+            <FilterDropdown label="작물명" value={crop} options={aList} onSelect={setCrop} allOption style={{ flex: 1 }} />
+            <FilterDropdown label="용도" value={usage} options={bList} onSelect={setUsage} allOption style={{ flex: 1 }} />
+            <FilterDropdown label="곤충" value={insect} options={cList} onSelect={setInsect} allOption style={{ flex: 1 }} />
           </View>
         </Card>
 
@@ -350,14 +339,14 @@ export default function PesticideTable() {
           {/* 카드 헤더 */}
           <View
             className="flex-row items-center justify-between"
-            style={{ padding: 15, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.bg }}
+            style={{ padding: 12, paddingBottom: 9, borderBottomWidth: 1, borderBottomColor: C.bg }}
           >
             <View>
-              <PretendardFont weight="bold" style={{ fontSize: 19, color: C.text }}>
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
                 검색 결과
               </PretendardFont>
               {totalCount > 0 && (
-                <PretendardFont style={{ fontSize: 15, color: C.ter, marginTop: 4 }}>
+                <PretendardFont style={{ fontSize: 13, color: C.ter, marginTop: 2 }}>
                   총 {totalCount}건
                 </PretendardFont>
               )}
@@ -372,8 +361,8 @@ export default function PesticideTable() {
             </Pressable>
           </View>
 
-          <View style={{ paddingHorizontal: 15, paddingVertical: 8 }}>
-            <PretendardFont style={{ fontSize: 15, color: C.ter, lineHeight: 21 }}>
+          <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+            <PretendardFont style={{ fontSize: 13, color: C.ter, lineHeight: 18 }}>
               좌우로 스크롤하여 전체 내용을 확인하세요
             </PretendardFont>
           </View>
