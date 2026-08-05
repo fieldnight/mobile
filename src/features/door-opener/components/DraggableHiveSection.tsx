@@ -39,7 +39,8 @@ function getApiErrorMessage(error: any, fallback: string) {
 function isLocalFallbackHive(hive: HiveData) {
   return (
     (hive.id === "1" && hive.macAddress === "AA:BB:CC:DD:EE:FF") ||
-    (hive.id === "2" && hive.macAddress === "11:22:33:44:55:66")
+    (hive.id === "2" && hive.macAddress === "11:22:33:44:55:66") ||
+    (hive.id === "3" && hive.macAddress === "22:33:44:55:66:77")
   );
 }
 
@@ -191,6 +192,18 @@ export function DraggableHiveSection({
   };
 
   const openHiveDetail = (hive: HiveData) => {
+    const navigateToHive = () => {
+      router.push({
+        pathname: "/hive-control",
+        params: { selectedHiveId: hive.id },
+      });
+    };
+
+    if (isLocalFallbackHive(hive)) {
+      navigateToHive();
+      return;
+    }
+
     // IoT 화면에서 벌통을 탭하면 상세조회 API를 먼저 호출해 콘솔에서 응답을 확인합니다.
     queryClient
       .fetchQuery({
@@ -201,10 +214,7 @@ export function DraggableHiveSection({
         showToast(getApiErrorMessage(error, "벌통 상세 조회에 실패했어요"), "error");
       });
 
-    router.push({
-      pathname: "/hive-control",
-      params: { selectedHiveId: hive.id },
-    });
+    navigateToHive();
   };
 
   return (

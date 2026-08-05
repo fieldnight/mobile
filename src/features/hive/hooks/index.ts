@@ -13,7 +13,11 @@ import {
   type HiveUpdateRequest,
 } from "../api";
 import { getApiErrorLogData } from "../utils";
-import { useHiveStore } from "@/stores/useHiveStore";
+import {
+  DEMO_HIVES,
+  HIVE_DEMO_MODE,
+  useHiveStore,
+} from "@/stores/useHiveStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
@@ -36,7 +40,7 @@ export function useHiveList() {
   return useQuery({
     queryKey: HIVE_QUERY_KEYS.list,
     queryFn: getHives,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !HIVE_DEMO_MODE,
   });
 }
 
@@ -50,6 +54,26 @@ export function useSyncHiveList() {
   const query = useHiveList();
 
   useEffect(() => {
+    if (HIVE_DEMO_MODE) {
+      const current = useHiveStore.getState().hives;
+      const alreadyUsingDemo =
+        current.length === DEMO_HIVES.length &&
+        current.every((hive, index) => {
+          const demo = DEMO_HIVES[index];
+          return (
+            hive.id === demo.id &&
+            hive.name === demo.name &&
+            hive.status === demo.status &&
+            hive.temperature === demo.temperature &&
+            hive.humidity === demo.humidity &&
+            hive.externalTemperature === demo.externalTemperature &&
+            hive.externalHumidity === demo.externalHumidity
+          );
+        });
+
+      if (!alreadyUsingDemo) setHives(DEMO_HIVES);
+      return;
+    }
     if (!query.data?.hives) return;
     setHives(query.data.hives.map(toHiveData));
   }, [query.data, setHives]);
@@ -224,7 +248,7 @@ export function useHiveConnectionStatuses(hiveIds: string[]) {
     queries: hiveIds.map((hiveId) => ({
       queryKey: HIVE_QUERY_KEYS.connection(hiveId),
       queryFn: () => getHiveConnection(hiveId),
-      enabled: isAuthenticated && hiveId !== "",
+      enabled: isAuthenticated && !HIVE_DEMO_MODE && hiveId !== "",
     })),
   });
 

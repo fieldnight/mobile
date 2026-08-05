@@ -192,10 +192,10 @@ export function buildMapHtml(apiKey: string = ""): string {
         typeof selectedPlace.lat === 'number' &&
         typeof selectedPlace.lng === 'number'
       ) {
-        var bounds = new kakao.maps.LatLngBounds();
-        bounds.extend(position);
-        bounds.extend(new kakao.maps.LatLng(selectedPlace.lat, selectedPlace.lng));
-        map.setBounds(bounds, 100, 64, 100, 64);
+        map.setCenter(
+          new kakao.maps.LatLng(selectedPlace.lat, selectedPlace.lng)
+        );
+        map.setLevel(5);
       } else {
         map.setCenter(position);
         map.setLevel(5);

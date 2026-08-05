@@ -868,16 +868,11 @@ function DoorAiReportCard({
   const [loading, setLoading] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const exampleDevice = useMemo(() => createMockDoorDeviceStats(new Date()), []);
-  const hasReceivedStats = Boolean(
-    device && (device.buckets.length > 0 || device.climateSamples.length > 0),
-  );
   const hasCompleteHourlyStats = Boolean(
     device && device.buckets.length > 0 && device.climateSamples.length >= 6,
   );
-  /* One closed/active hourly bucket plus six 10-minute climate samples is the
-   * smallest real report. Partial reception stays useful, but uses examples
-   * instead of a misleading incomplete AI report. */
-  const isExampleReport = hasReceivedStats && !hasCompleteHourlyStats;
+  // 시간별 실데이터가 충분히 쌓이기 전에는 항상 예시 리포트를 보여줍니다.
+  const isExampleReport = !hasCompleteHourlyStats;
   const reportDevice = hasCompleteHourlyStats ? device! : exampleDevice;
   const counts = reportDevice.bootCounts ??
     (reportDevice ? sumBucketTrafficCounts(reportDevice.buckets) : fallbackCounts);
@@ -888,7 +883,7 @@ function DoorAiReportCard({
     reportDevice.buckets,
     reportDevice.climateSamples,
   );
-  const hasData = hasCompleteHourlyStats || isExampleReport;
+  const hasData = true;
 
   useEffect(() => {
     setReport(null);

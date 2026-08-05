@@ -10,6 +10,8 @@ export type {
   SaveDiagnosisParams,
 } from "./types";
 
+export const DIAGNOSIS_DISPLAY_CONFIDENCE = 95;
+
 export function parseDiagnosisConfidence(value: string | number) {
   if (typeof value === "number") return clampConfidence(value);
   const parsed = Number.parseFloat(value.replace("%", "").trim());

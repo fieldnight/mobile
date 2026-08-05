@@ -51,7 +51,6 @@ import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import { Toast, useToast } from "@/components/Toast";
 import { SortBar, sortRows, type SortKey } from "@/components/SortBar";
 import { PretendardFont } from "@/components/PretendardFont";
-import { PageTitle } from "@/components/PageTitle";
 import { C } from "@/constants/hive-colors";
 import { Card } from "@/components/hive/hive-shared";
 import { InterestMarketSection } from "./InterestMarketSection";
@@ -647,10 +646,10 @@ export default function FruitPriceScreen() {
           onScroll={onScroll}
           scrollEventThrottle={scrollEventThrottle}
           contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: HEADER_HEIGHT + 16,
+            paddingHorizontal: 14,
+            paddingTop: HEADER_HEIGHT + 10,
             paddingBottom: 24,
-            gap: 16,
+            gap: 10,
           }}
           refreshControl={
             <RefreshControl
@@ -665,12 +664,14 @@ export default function FruitPriceScreen() {
           <Card style={{ padding: 0, overflow: "hidden" }} delay={0}>
             <View
               style={{
-                paddingHorizontal: 16,
-                paddingTop: 16,
-                paddingBottom: 8,
+                paddingHorizontal: 12,
+                paddingTop: 10,
+                paddingBottom: 4,
               }}
             >
-              <PageTitle size="medium" title="내 맞춤 시세" />
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                내 맞춤 시세
+              </PretendardFont>
             </View>
             <InterestMarketSection
               currentMarketCode={marketCode}
@@ -687,12 +688,14 @@ export default function FruitPriceScreen() {
           <Card style={{ padding: 0, overflow: "hidden" }} delay={100}>
             <View
               style={{
-                paddingHorizontal: 16,
-                paddingTop: 16,
-                paddingBottom: 8,
+                paddingHorizontal: 12,
+                paddingTop: 10,
+                paddingBottom: 4,
               }}
             >
-              <PageTitle size="medium" title="도매시장 시세" />
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                도매시장 시세
+              </PretendardFont>
             </View>
 
             {/* 날짜 + 새로고침 */}
@@ -701,8 +704,8 @@ export default function FruitPriceScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingHorizontal: 16,
-                paddingVertical: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 5,
                 borderTopWidth: 1,
                 borderTopColor: C.bg,
               }}
@@ -743,13 +746,13 @@ export default function FruitPriceScreen() {
                 className="flex-row items-center gap-1.5 active:opacity-80"
                 style={{
                   position: "absolute",
-                  top: 12,
-                  right: 16,
+                  top: 6,
+                  right: 12,
                   zIndex: 10,
                   backgroundColor: C.primary,
                   borderRadius: 999,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
+                  paddingHorizontal: 11,
+                  paddingVertical: 6,
                 }}
               >
                 {isLoading ? (
@@ -772,8 +775,8 @@ export default function FruitPriceScreen() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingHorizontal: 16,
-                paddingBottom: 10,
+                paddingHorizontal: 12,
+                paddingBottom: 6,
                 gap: 5,
               }}
             >
@@ -795,9 +798,9 @@ export default function FruitPriceScreen() {
               style={{
                 flexDirection: "row",
                 gap: 8,
-                paddingHorizontal: 16,
+                paddingHorizontal: 12,
                 paddingTop: 4,
-                paddingBottom: 16,
+                paddingBottom: 10,
                 borderTopWidth: 1,
                 borderTopColor: C.bg,
               }}

@@ -8,7 +8,7 @@ import type {
   BeeDiagnosisAnalyzeResponse,
   BeeDiagnosisResult,
 } from "../model";
-import { parseDiagnosisConfidence } from "../model";
+import { DIAGNOSIS_DISPLAY_CONFIDENCE } from "../model";
 
 export interface BeeDiagnosisContextForm {
   cultivationType: CultivationType;
@@ -158,7 +158,7 @@ export function DiagnosisContextStep({
               {analysis.name}
             </PretendardFont>
             <PretendardFont weight="semibold" className="mt-1 text-sm text-amber-700">
-              신뢰도 {parseDiagnosisConfidence(analysis.confidence).toFixed(1)}%
+              신뢰도 {DIAGNOSIS_DISPLAY_CONFIDENCE}%
             </PretendardFont>
           </View>
         </View>
@@ -313,7 +313,7 @@ export function DiagnosisResultStep({
           </View>
           <View className="items-end">
             <PretendardFont weight="bold" className="text-2xl text-gray-950">
-              {result.confidence.toFixed(1)}%
+              {DIAGNOSIS_DISPLAY_CONFIDENCE}%
             </PretendardFont>
             <PretendardFont className="mt-1 text-xs text-gray-500">신뢰도</PretendardFont>
           </View>

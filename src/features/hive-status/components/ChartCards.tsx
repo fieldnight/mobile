@@ -135,6 +135,16 @@ function hourLabel(label: string) {
 function CombinedChart({ data }: { data: DataPoint[] }) {
   const chartWidth = chartWidthFor(data, COMBINED_SLOT_WIDTH);
   const latest = [...data].reverse().find((point) => point.hasData !== false) ?? data[0];
+  const scrollRef = useRef<ScrollView | null>(null);
+
+  useEffect(() => {
+    if (!data.length) return;
+    const x = calcInitialScrollX(data, COMBINED_SLOT_WIDTH);
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({ x, animated: false });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [data]);
 
   return (
     <View>
@@ -165,6 +175,7 @@ function CombinedChart({ data }: { data: DataPoint[] }) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -293,14 +304,17 @@ function CombinedValueBox({ point }: { point: DataPoint }) {
   );
 }
 
-function calcInitialScrollX(data: DataPoint[]): number {
+function calcInitialScrollX(
+  data: DataPoint[],
+  slotWidth = HOUR_SLOT_WIDTH,
+): number {
   if (!data.length) return 0;
   const currentHour = new Date().getHours();
   const index = data.findIndex((point) => Number(point.label.slice(0, 2)) === currentHour);
   const targetIndex = index >= 0 ? index : data.length - 1;
   return Math.max(
     0,
-    targetIndex * HOUR_SLOT_WIDTH - VIEWPORT_CHART_WIDTH / 2 + HOUR_SLOT_WIDTH / 2,
+    targetIndex * slotWidth - VIEWPORT_CHART_WIDTH / 2 + slotWidth / 2,
   );
 }
 

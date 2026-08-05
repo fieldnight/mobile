@@ -35,10 +35,6 @@ import {
   saveStoredNfcDoorCards,
   syncGateActionsWithServer,
 } from "../model/gateActionSync";
-import {
-  getGateActionErrorMessage,
-  hasGateActionServerResponse,
-} from "../api";
 
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
@@ -139,14 +135,13 @@ export function NfcDoorCardSection({
       onSyncStatusChange?.(result.synced ? "online" : "offline");
     } catch (error) {
       onSyncStatusChange?.("offline");
-      if (hasGateActionServerResponse(error)) {
-        showToast(getGateActionErrorMessage(error), "error");
-      }
+      // 예시 벌통은 서버에 등록되어 있지 않을 수 있으므로
+      // 화면 진입 시 자동 동기화 실패를 사용자 메시지로 노출하지 않습니다.
       console.warn("[NFC Door Cards] 서버 동기화 실패", error);
     } finally {
       syncingRef.current = false;
     }
-  }, [cardsHydrated, hiveId, onSyncStatusChange, showToast]);
+  }, [cardsHydrated, hiveId, onSyncStatusChange]);
 
   useEffect(() => {
     syncWithServer(true);

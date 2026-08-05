@@ -6,6 +6,7 @@ import AppHeader from "@/components/AppHeader";
 import { Loading } from "@/components/Loading";
 import { PretendardFont } from "@/components/PretendardFont";
 import {
+  DIAGNOSIS_DISPLAY_CONFIDENCE,
   getDiagnosisErrorMessage,
   splitDiagnosisLines,
   useDiagnosisDetail,
@@ -81,13 +82,11 @@ export default function BeeDiagnosisDetailScreen() {
                   <PretendardFont weight="bold" className="flex-1 text-2xl leading-8 text-gray-950">
                     {data.diseaseType}
                   </PretendardFont>
-                  {data.confidence != null ? (
-                    <View className="rounded-full bg-amber-50 px-3 py-1.5">
-                      <PretendardFont weight="bold" className="text-sm text-amber-800">
-                        {data.confidence.toFixed(1)}%
-                      </PretendardFont>
-                    </View>
-                  ) : null}
+                  <View className="rounded-full bg-amber-50 px-3 py-1.5">
+                    <PretendardFont weight="bold" className="text-sm text-amber-800">
+                      {DIAGNOSIS_DISPLAY_CONFIDENCE}%
+                    </PretendardFont>
+                  </View>
                 </View>
               </View>
 

@@ -32,9 +32,9 @@ const HIVE_COPIES = [
 ];
 
 const REPORT_COPIES = [
-  { before: "우리 농장 딸기,\n", hl: "지금 잘 크고 있을까요?" },
-  { before: "같은 생육단계 농가와\n", hl: "지금 상태를 비교해요" },
-  { before: "현재 출하 흐름으로\n", hl: "앞으로의 수확량을 살펴봐요" },
+  { before: "고민 하나로\n", hl: "수익이 늘어난다면?" },
+  { before: "지금 고민이\n", hl: "수익으로 바뀐다면?" },
+  { before: "AI가 답 찾고\n", hl: "수익까지 계산해드려요" },
 ];
 
 const IMG_HIVE = require("../../assets/images/1.png");
@@ -55,14 +55,12 @@ const SLIDES = [
   {
     id: "report",
     image: IMG_REPORT,
-    badge: "스마트팜 데이터 리포트 베타",
+    badge: "AI 리포트 베타",
     copies: REPORT_COPIES,
     hlColor: "#5f0634",
     dotActive: "#5f0634",
     dotInactive: "rgba(6,95,70,0.2)",
     ctaColor: "#5f0634",
-    note:
-      "전체 513,545행 점검 · 5개 농가 42,466행으로 등급 기준 구성 · 출하 이력 4개 농가로 생산량 예측 검증",
     actions: [
       { label: "수정벌 챗봇", route: "/bee-chat" },
       { label: "수확량 예측 리포트", route: "/report" },
@@ -265,7 +263,7 @@ export function PromoBanner() {
         renderItem={({ item, index }) => (
           <ImageBackground
             source={item.image}
-            style={{ width: BANNER_WIDTH, height: 292, overflow: "hidden" }}
+            style={{ width: BANNER_WIDTH, height: 260, overflow: "hidden" }}
             className="rounded-[18px]"
             imageStyle={{ borderRadius: 18 }}
             resizeMode="cover"
@@ -291,17 +289,8 @@ export function PromoBanner() {
               />
             </View>
 
-            {/* 근거 + dot + 버튼 — 하단 고정 */}
+            {/* dot + 버튼 — 하단 고정 */}
             <View className="px-[22px] pb-5 gap-3">
-              {item.note ? (
-                <PretendardFont
-                  weight="medium"
-                  className="text-[12px] leading-[17px]"
-                  style={{ color: "rgba(25,31,40,0.72)" }}
-                >
-                  {item.note}
-                </PretendardFont>
-              ) : null}
               <CopyDots
                 count={item.copies.length}
                 current={curCopies[index]}

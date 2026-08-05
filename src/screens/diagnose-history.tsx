@@ -6,6 +6,7 @@ import AppHeader from "@/components/AppHeader";
 import { Loading } from "@/components/Loading";
 import { PretendardFont } from "@/components/PretendardFont";
 import {
+  DIAGNOSIS_DISPLAY_CONFIDENCE,
   getDiagnosisErrorMessage,
   splitDiagnosisLines,
   useDiagnosisList,
@@ -96,11 +97,9 @@ export default function DiagnosisHistoryScreen() {
                       </PretendardFont>
                       <Feather name="chevron-right" size={20} color="#9CA3AF" />
                     </View>
-                    {diagnosis.confidence != null ? (
-                      <PretendardFont weight="semibold" className="mt-1 text-xs text-amber-700">
-                        신뢰도 {diagnosis.confidence.toFixed(1)}%
-                      </PretendardFont>
-                    ) : null}
+                    <PretendardFont weight="semibold" className="mt-1 text-xs text-amber-700">
+                      신뢰도 {DIAGNOSIS_DISPLAY_CONFIDENCE}%
+                    </PretendardFont>
                     {summary ? (
                       <PretendardFont
                         className="mt-2 text-xs leading-5 text-gray-500"

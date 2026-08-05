@@ -1,16 +1,16 @@
 /**
  * 홈 화면 바로가기 아이콘 그리드
- * - 상단 핵심 기능 7개 + 하단 부가 기능 5개 구성
+ * - 내 농장 관리 / 영농 정보·추천 / 연결·지원 각 4개 구성
  * - 탭 시 스케일 bounce 애니메이션 + 라우트 이동
  */
 import { useRef } from "react";
-import { Animated, Image, Pressable, ScrollView, View } from "react-native";
+import { Animated, Image, Pressable, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PretendardFont } from "./PretendardFont";
 import { C } from "@/constants/hive-colors";
 
-const ICON_SIZE = { lg: "80%", md: "55%", sm: "45%" } as const;
+const ICON_SIZE = { lg: 1, md: 0.84, sm: 0.74 } as const;
 
 const ITEMS = [
   {
@@ -39,9 +39,9 @@ const ITEMS = [
     route: "/report",
     label: "예측리포트",
     iconName: "file-text",
-    iconColor: "#B8761A",
-    iconBg: "#FFF6E5",
-    size: "lg",
+    iconColor: "#B88A47",
+    iconBg: "transparent",
+    size: "md",
   },
   {
     id: "bee-diagnosis",
@@ -55,9 +55,9 @@ const ITEMS = [
     route: "/market",
     label: "수정벌지도",
     iconName: "map-pin",
-    iconColor: "#2563EB",
-    iconBg: "#DBEAFE",
-    size: "lg",
+    iconColor: "#5483C2",
+    iconBg: "transparent",
+    size: "md",
   },
   {
     id: "bee-news",
@@ -112,9 +112,25 @@ const ITEMS = [
   size: keyof typeof ICON_SIZE;
 }[];
 
-const TOP_ITEMS = ITEMS.slice(0, 7);
-const BOTTOM_ITEMS = ITEMS.slice(7);
-const ROW_ICON_HEIGHT = { top: 56, bottom: 44 };
+const GROUPS = [
+  {
+    id: "check",
+    label: "내 농장 관리",
+    itemIds: ["hive-control", "bee-chat", "report", "bee-diagnosis"],
+  },
+  {
+    id: "cultivation",
+    label: "영농 정보 · 추천",
+    itemIds: ["fruit-price", "recommend", "bee-news", "pesticide"],
+  },
+  {
+    id: "connection",
+    label: "연결 · 지원",
+    itemIds: ["community", "market", "add-farm", "inquiry"],
+  },
+] as const;
+
+const GROUP_ICON_HEIGHT = 54;
 
 function GridItem({
   id,
@@ -135,6 +151,7 @@ function GridItem({
 }) {
   const router = useRouter();
   const scale = useRef(new Animated.Value(1)).current;
+  const iconDimension = Math.round(iconHeight * ICON_SIZE[size]);
 
   const pressIn = () =>
     Animated.timing(scale, {
@@ -173,8 +190,9 @@ function GridItem({
         <Animated.View
           style={{
             transform: [{ scale }],
-            width: ICON_SIZE[size],
-            aspectRatio: 1,
+            width: iconDimension,
+            height: iconDimension,
+            opacity: 0.9,
           }}
         >
           {icon ? (
@@ -189,18 +207,18 @@ function GridItem({
               style={{
                 width: "100%",
                 height: "100%",
-                backgroundColor: iconBg ?? "#FFF6E5",
+                backgroundColor: iconBg ?? "transparent",
               }}
             >
-              <Feather name={iconName} size={30} color={iconColor ?? C.primary} />
+              <Feather name={iconName} size={28} color={iconColor ?? C.primary} />
             </View>
           ) : null}
         </Animated.View>
       </View>
       <PretendardFont
         weight="semibold"
-        className="text-xs mb-3 pt-1.5"
-        style={{ color: C.text }}
+        className="pt-1 text-xs"
+        style={{ color: C.textAlt }}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.72}
@@ -213,34 +231,34 @@ function GridItem({
 
 export function HomeGridIcon({ onInquiryPress }: { onInquiryPress?: () => void }) {
   return (
-    <View className="mx-4 mt-5 mb-4 rounded-3xl bg-white px-2 py-3">
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 2 }}
-      >
-        {TOP_ITEMS.map((item) => (
-          <GridItem
-            key={item.id}
-            {...item}
-            colWidth={56}
-            iconHeight={ROW_ICON_HEIGHT.top}
-            onInquiryPress={onInquiryPress}
-          />
-        ))}
-      </ScrollView>
-      <View className="my-1" />
-      <View className="flex-row">
-        {BOTTOM_ITEMS.map((item) => (
-          <GridItem
-            key={item.id}
-            {...item}
-            colWidth="20%"
-            iconHeight={ROW_ICON_HEIGHT.bottom}
-            onInquiryPress={onInquiryPress}
-          />
-        ))}
-      </View>
+    <View className="mx-4 mb-3 mt-4 rounded-3xl bg-white px-3 py-3">
+      {GROUPS.map((group, groupIndex) => (
+        <View key={group.id} className={groupIndex === 0 ? "" : "mt-2.5"}>
+          <PretendardFont
+            weight="semibold"
+            className="mb-1 ml-1 text-[12px]"
+            style={{ color: C.sec, lineHeight: 14 }}
+          >
+            {group.label}
+          </PretendardFont>
+          <View className="flex-row">
+            {group.itemIds.map((itemId) => {
+              const item = ITEMS.find((candidate) => candidate.id === itemId);
+              if (!item) return null;
+
+              return (
+                <GridItem
+                  key={item.id}
+                  {...item}
+                  colWidth="25%"
+                  iconHeight={GROUP_ICON_HEIGHT}
+                  onInquiryPress={onInquiryPress}
+                />
+              );
+            })}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
