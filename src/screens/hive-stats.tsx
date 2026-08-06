@@ -35,7 +35,6 @@ import { WeatherSection } from "@/components/hive/Hive-weather";
 import {
   useWeatherRegion,
   useMakeWeather,
-  getHivePeriodData,
   useHiveTelemetryData,
 } from "@/features/hive-status";
 import { useSyncHiveList } from "@/features/hive";
@@ -93,14 +92,13 @@ export default function HiveStatsScreen() {
     }
   }, [selectedIndex]);
 
-  const fallbackStatData = hasHives ? getHivePeriodData(selectedHive, period) : [];
   const telemetryQuery = useHiveTelemetryData({
     hiveId: selectedHive,
     period,
-    fallbackData: fallbackStatData,
+    fallbackData: [],
   });
   const refetchTelemetry = telemetryQuery.refetch;
-  const statData = telemetryQuery.data ?? fallbackStatData;
+  const statData = telemetryQuery.data ?? [];
 
   useEffect(() => {
     console.log("[Hive Stats] 센서 데이터 상태", {

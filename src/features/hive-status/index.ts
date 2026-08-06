@@ -11,7 +11,6 @@ export {
   useHiveReplacementHistoryList,
   useUpdateHiveReplacementHistory,
 } from "./hooks/useHiveReplacementHistory";
-export { getHivePeriodData } from "./api/hiveApi";
 export {
   PeriodCard,
   ChartCards,
