@@ -19,50 +19,27 @@ function getApiErrorDetail(error: unknown) {
   return error;
 }
 
-export type HiveControlType =
-  | "TEMPERATURE"
-  | "HUMIDITY"
-  | "CO2"
-  | "FAN"
-  | "HEATER"
-  | "DOOR";
+export type ControlType = "TEMPERATURE" | "HUMIDITY";
 
-export interface AutoControlSetting {
-  type: HiveControlType;
-  enabled: boolean;
-}
-
-export interface ManualControlSetting {
-  type: HiveControlType;
-  isOn: boolean;
+export interface HiveControlEntry {
+  type: ControlType;
+  targetValue: number | null;
 }
 
 export interface HiveControlSettingsResponse {
-  auto: AutoControlSetting[];
-  manual: ManualControlSetting[];
+  controls: HiveControlEntry[];
 }
 
 export interface ControlResultEvent {
-  commandId: string;
-  hiveId: number;
-  type: HiveControlType;
   success: boolean;
-  autoEnabled: boolean | null;
-  manualEnabled: boolean | null;
-  isOn: boolean | null;
+  targetTemperature: number | null;
+  targetHumidity: number | null;
   message: string | null;
 }
 
-export interface AutoControlRequest {
-  type: HiveControlType;
-  enabled: boolean;
-}
-
 export interface ManualControlRequest {
-  type: HiveControlType;
-  /** 수동 제어 API는 enabled와 isOn을 같이 전달해야 서버 상태가 맞게 갱신됩니다. */
-  enabled: boolean;
-  isOn: boolean;
+  targetTemperature?: number;
+  targetHumidity?: number;
 }
 
 export interface HiveAutoControlSchedule {
@@ -101,46 +78,16 @@ export async function getHiveControlSettings(
   }
 }
 
-export async function requestAutoControl(
-  hiveId: string | number,
-  body: AutoControlRequest,
-): Promise<string> {
-  try {
-    const res = await api.post<ApiResponse<string>>(
-      `/api/v1/hives/${hiveId}/control/auto`,
-      body,
-    );
-    console.log("[Hive Control API] 자동 제어 요청 성공", {
-      hiveId,
-      body,
-      data: res.data.data,
-    });
-    return res.data.data;
-  } catch (error) {
-    console.error("[Hive Control API] 자동 제어 요청 실패", {
-      hiveId,
-      body,
-      error: getApiErrorDetail(error),
-    });
-    throw error;
-  }
-}
-
 export async function requestManualControl(
   hiveId: string | number,
   body: ManualControlRequest,
-): Promise<string> {
+): Promise<void> {
   try {
-    const res = await api.post<ApiResponse<string>>(
+    await api.post<ApiResponse<void>>(
       `/api/v1/hives/${hiveId}/control/manual`,
       body,
     );
-    console.log("[Hive Control API] 수동 제어 요청 성공", {
-      hiveId,
-      body,
-      data: res.data.data,
-    });
-    return res.data.data;
+    console.log("[Hive Control API] 수동 제어 요청 성공", { hiveId, body });
   } catch (error) {
     console.error("[Hive Control API] 수동 제어 요청 실패", {
       hiveId,
@@ -203,17 +150,12 @@ export async function deleteHiveAutoControlSchedule({
 }: {
   hiveId: string | number;
   scheduleId: string | number;
-}): Promise<string> {
+}): Promise<void> {
   try {
-    const res = await api.delete<ApiResponse<string>>(
+    await api.delete<ApiResponse<void>>(
       `/api/v1/hives/${hiveId}/control/auto/schedules/${scheduleId}`,
     );
-    console.log("[Hive Control Schedule API] 삭제 성공", {
-      hiveId,
-      scheduleId,
-      data: res.data.data,
-    });
-    return res.data.data;
+    console.log("[Hive Control Schedule API] 삭제 성공", { hiveId, scheduleId });
   } catch (error) {
     console.error("[Hive Control Schedule API] 삭제 실패", {
       hiveId,

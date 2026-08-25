@@ -11,6 +11,7 @@ import { HiveControlSection } from "@/features/hive-control";
 import { HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { useSyncHiveList } from "@/features/hive";
 
 const BG_IMAGE = require("../../assets/df.jpg");
 
@@ -22,6 +23,7 @@ const BG_IMAGE = require("../../assets/df.jpg");
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 

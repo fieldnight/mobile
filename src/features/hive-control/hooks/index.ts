@@ -5,9 +5,7 @@ import {
   deleteHiveAutoControlSchedule,
   getHiveAutoControlSchedules,
   getHiveControlSettings,
-  requestAutoControl,
   requestManualControl,
-  type AutoControlRequest,
   type ControlResultEvent,
   type HiveAutoControlScheduleCreateRequest,
   type ManualControlRequest,
@@ -17,7 +15,6 @@ import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
  * 스마트벌통 제어 query key 모음
- * - 자동/수동 제어 요청 후 관련 조회 캐시만 정확히 다시 가져오기 위해 한곳에 모읍니다.
  */
 export const HIVE_CONTROL_QUERY_KEYS = {
   settings: (hiveId: string | number | undefined) =>
@@ -26,7 +23,7 @@ export const HIVE_CONTROL_QUERY_KEYS = {
     ["hive-control", "auto-schedules", hiveId] as const,
 };
 
-/** 현재 벌통의 자동/수동 제어 설정을 조회합니다. */
+/** 현재 벌통의 제어 설정(목표 온도/습도)을 조회합니다. */
 export function useHiveControlSettings(hiveId: string | number | undefined) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -34,19 +31,6 @@ export function useHiveControlSettings(hiveId: string | number | undefined) {
     queryKey: HIVE_CONTROL_QUERY_KEYS.settings(hiveId),
     queryFn: () => getHiveControlSettings(hiveId!),
     enabled: isAuthenticated && hiveId !== undefined && hiveId !== "",
-  });
-}
-
-/** 자동 제어 명령 전송 hook */
-export function useRequestAutoControl() {
-  return useMutation({
-    mutationFn: ({
-      hiveId,
-      body,
-    }: {
-      hiveId: string | number;
-      body: AutoControlRequest;
-    }) => requestAutoControl(hiveId, body),
   });
 }
 

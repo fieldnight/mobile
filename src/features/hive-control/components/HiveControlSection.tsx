@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   PanResponder,
@@ -12,9 +12,11 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { Card } from "@/components/hive/hive-shared";
 import { BoxColor as C } from "@/types";
+import { useHiveControlSettings, useHiveControlSse, useRequestManualControl } from "../hooks";
+import type { ControlResultEvent, ManualControlRequest } from "../api";
 
 const THUMB_SIZE = 30;
-const APPLY_DELAY_MS = 1800;
+const SSE_TIMEOUT_MS = 15000;
 
 const OPERATING_MODES = [
   {
@@ -55,15 +57,11 @@ interface HiveControlSectionProps {
 
 type SettingKind = "temperature" | "humidity";
 
-/**
- * 스마트벌통 데모 제어
- * - 실제 MQTT/API 명령은 보내지 않습니다.
- * - 슬라이더 조작 후 잠시 잠겼다가 적용 완료 토스트만 표시합니다.
- */
-export function HiveControlSection({
-  controlHive: _controlHive,
-}: HiveControlSectionProps) {
+export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
   const { show: showToast } = useAppToast();
+  const { data: controlSettings } = useHiveControlSettings(controlHive || undefined);
+  const { mutate: mutateManualControl } = useRequestManualControl();
+
   const [targetTemperature, setTargetTemperature] = useState(25);
   const [targetHumidity, setTargetHumidity] = useState(62);
   const [mode, setMode] = useState<OperatingModeId | null>("ai");
@@ -74,6 +72,8 @@ export function HiveControlSection({
   const timers = useRef<Partial<Record<SettingKind, ReturnType<typeof setTimeout>>>>(
     {},
   );
+  // 벌통별로 서버 값을 한 번만 초기화하기 위한 ref
+  const initializedHiveRef = useRef<string>("");
 
   useEffect(
     () => () => {
@@ -84,17 +84,85 @@ export function HiveControlSection({
     [],
   );
 
+  // 서버에서 가져온 목표값으로 초기화 (벌통이 바뀔 때마다)
+  useEffect(() => {
+    if (!controlSettings || initializedHiveRef.current === controlHive) return;
+    initializedHiveRef.current = controlHive;
+
+    const tempEntry = controlSettings.controls.find((c) => c.type === "TEMPERATURE");
+    const humEntry = controlSettings.controls.find((c) => c.type === "HUMIDITY");
+    if (tempEntry?.targetValue != null) setTargetTemperature(tempEntry.targetValue);
+    if (humEntry?.targetValue != null) setTargetHumidity(humEntry.targetValue);
+  }, [controlSettings, controlHive]);
+
+  const handleSseResult = useCallback(
+    (event: ControlResultEvent) => {
+      // 해당 필드가 있으면 타이머 해제 후 반영
+      if (event.targetTemperature != null) {
+        clearTimeout(timers.current.temperature);
+        delete timers.current.temperature;
+        setPending((c) => ({ ...c, temperature: false }));
+        if (event.success) setTargetTemperature(event.targetTemperature!);
+      }
+      if (event.targetHumidity != null) {
+        clearTimeout(timers.current.humidity);
+        delete timers.current.humidity;
+        setPending((c) => ({ ...c, humidity: false }));
+        if (event.success) setTargetHumidity(event.targetHumidity!);
+      }
+      // 필드가 없으면 (실패 응답 등) 모두 해제
+      if (event.targetTemperature == null && event.targetHumidity == null) {
+        clearTimeout(timers.current.temperature);
+        clearTimeout(timers.current.humidity);
+        delete timers.current.temperature;
+        delete timers.current.humidity;
+        setPending({ temperature: false, humidity: false });
+      }
+
+      if (event.success) {
+        showToast("반영되었습니다!", "success");
+      } else {
+        showToast(event.message ?? "제어 명령이 실패했어요", "error");
+      }
+    },
+    [showToast],
+  );
+
+  useHiveControlSse({
+    enabled: !!controlHive,
+    onResult: handleSseResult,
+  });
+
   const applySetting = (kind: SettingKind) => {
-    if (pending[kind]) return;
+    if (pending[kind] || !controlHive) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPending((current) => ({ ...current, [kind]: true }));
 
+    const body: ManualControlRequest =
+      kind === "temperature" ? { targetTemperature } : { targetHumidity };
+
+    mutateManualControl(
+      { hiveId: controlHive, body },
+      {
+        onError: () => {
+          clearTimeout(timers.current[kind]);
+          delete timers.current[kind];
+          setPending((current) => ({ ...current, [kind]: false }));
+          showToast("제어 명령 전송에 실패했어요", "error");
+        },
+      },
+    );
+
+    // SSE 응답이 없을 경우 타임아웃
     timers.current[kind] = setTimeout(() => {
-      setPending((current) => ({ ...current, [kind]: false }));
-      showToast("반영되었습니다!", "success");
       delete timers.current[kind];
-    }, APPLY_DELAY_MS);
+      setPending((current) => {
+        if (!current[kind]) return current;
+        return { ...current, [kind]: false };
+      });
+      showToast("벌통 응답 시간이 초과됐어요", "error");
+    }, SSE_TIMEOUT_MS);
   };
 
   const applyMode = (nextMode: OperatingModeId) => {
@@ -132,17 +200,6 @@ export function HiveControlSection({
             style={{ fontSize: 12.5, color: C.sec }}
           >
             값을 놓으면 잠시 후 자동으로 반영돼요
-          </PretendardFont>
-        </View>
-        <View
-          className="rounded-full px-2.5 py-1.5"
-          style={{ backgroundColor: "rgba(105, 180, 213, 0.13)" }}
-        >
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 11, color: C.primary }}
-          >
-            데모 제어
           </PretendardFont>
         </View>
       </View>
