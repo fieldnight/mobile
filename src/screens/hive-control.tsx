@@ -10,7 +10,8 @@ import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { HiveControlSection } from "@/features/hive-control";
 import { HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
-import { DEMO_HIVES, useHiveStore } from "@/stores/useHiveStore";
+import { useHiveStore } from "@/stores/useHiveStore";
+import { useSyncHiveList } from "@/features/hive";
 
 const BG_IMAGE = require("../../assets/df.jpg");
 
@@ -22,7 +23,8 @@ const BG_IMAGE = require("../../assets/df.jpg");
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const hives = DEMO_HIVES;
+  useSyncHiveList();
+  const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
 
   // IoT 화면에서 특정 벌통을 눌러 진입하면 해당 벌통을 먼저 보여줍니다.

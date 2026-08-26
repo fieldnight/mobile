@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { registerTokenCallbacks } from '@/lib/tokenManager';
 import { queryClient } from '@/providers';
 import { unregisterCurrentDeviceFcmToken } from '@/features/notification/model/fcmTokenService';
+import { useHiveStore } from '@/stores/useHiveStore';
 import type { User, LoginRequest, RegisterRequest, ApiResponse, SignInResponseData, OAuthSignInResponse } from '@/types';
 
 function getResponseHeader(headers: unknown, name: string): string | null {
@@ -187,6 +188,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
+          useHiveStore.getState().setHives([]);
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
       },
@@ -197,6 +199,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
+          useHiveStore.getState().setHives([]);
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
       },
@@ -220,6 +223,8 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         delete api.defaults.headers.common['Authorization'];
+        queryClient.clear();
+        useHiveStore.getState().setHives([]);
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
       },
     }),

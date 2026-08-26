@@ -74,10 +74,6 @@ export async function getHiveTelemetry({
       },
     );
 
-    if (String(res.data.code) !== "200") {
-      throw new Error(res.data.message || "센서 데이터를 조회하지 못했습니다.");
-    }
-
     console.log("[Hive Telemetry API] 센서 데이터 조회 성공", {
       hiveId,
       period: res.data.data.period,
@@ -152,19 +148,14 @@ export function mergeTelemetryData(
 
   const merged = labels.map((label) => {
     const fallbackPoint = fallbackMap.get(label) ?? emptyPoint(label);
+    const r = (v: number) => Math.round(v * 10) / 10;
     const point: DataPoint = {
       label,
-      internalTemperature:
-        responseMaps.INTERNAL_TEMPERATURE.get(label) ??
-        fallbackPoint.internalTemperature,
-      externalTemperature:
-        responseMaps.EXTERNAL_TEMPERATURE.get(label) ??
-        fallbackPoint.externalTemperature,
-      internalHumidity:
-        responseMaps.INTERNAL_HUMIDITY.get(label) ?? fallbackPoint.internalHumidity,
-      externalHumidity:
-        responseMaps.EXTERNAL_HUMIDITY.get(label) ?? fallbackPoint.externalHumidity,
-      co2: responseMaps.CO2.get(label) ?? fallbackPoint.co2,
+      internalTemperature: r(responseMaps.INTERNAL_TEMPERATURE.get(label) ?? fallbackPoint.internalTemperature),
+      externalTemperature: r(responseMaps.EXTERNAL_TEMPERATURE.get(label) ?? fallbackPoint.externalTemperature),
+      internalHumidity: r(responseMaps.INTERNAL_HUMIDITY.get(label) ?? fallbackPoint.internalHumidity),
+      externalHumidity: r(responseMaps.EXTERNAL_HUMIDITY.get(label) ?? fallbackPoint.externalHumidity),
+      co2: r(responseMaps.CO2.get(label) ?? fallbackPoint.co2),
       hasData: HIVE_TELEMETRY_SENSORS.some(({ sensorType }) =>
         responseMaps[sensorType].has(label),
       )
