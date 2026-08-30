@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -12,17 +12,15 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import {
-  disconnectHiveWifi,
   getHiveSetupPassword,
   getHiveSetupSsid,
-  getHiveWifiStatus,
   isValidHiveDeviceId,
   normalizeHiveDeviceId,
+  openHiveSetupPage,
   openWifiSettings,
-  sendRouterCredentials,
 } from "../model/hiveWifiProvisioning";
 
-type SetupStep = "device" | "network" | "sending" | "success";
+type SetupStep = "wifi" | "website" | "confirm";
 
 interface HiveWifiSetupSheetProps {
   visible: boolean;
@@ -35,7 +33,7 @@ const INPUT_BG = "#EEF2F6";
 
 function safeInitialDeviceId(value?: string) {
   const normalized = normalizeHiveDeviceId(value ?? "");
-  return isValidHiveDeviceId(normalized) ? normalized : "test-01";
+  return isValidHiveDeviceId(normalized) ? normalized : "";
 }
 
 function getErrorMessage(error: unknown) {
@@ -45,8 +43,8 @@ function getErrorMessage(error: unknown) {
 }
 
 /**
- * 스마트벌통 최초 연결과 Wi-Fi 변경에서 함께 사용하는 설정 시트입니다.
- * 현장 공유기 비밀번호는 상태나 저장소에 보관하지 않고 ESP32에 한 번만 전달합니다.
+ * 벌통 핫스팟 연결 → 펌웨어 웹 설정 → MAC 확인 흐름입니다.
+ * 공유기 비밀번호는 앱이 받거나 저장하지 않고 벌통 웹페이지에서만 입력합니다.
  */
 export function HiveWifiSetupSheet({
   visible,
@@ -54,52 +52,35 @@ export function HiveWifiSetupSheet({
   initialDeviceId,
   onProvisioned,
 }: HiveWifiSetupSheetProps) {
-  const [step, setStep] = useState<SetupStep>("device");
+  const [step, setStep] = useState<SetupStep>("wifi");
   const [deviceId, setDeviceId] = useState(() =>
     safeInitialDeviceId(initialDeviceId),
   );
-  const [routerSsid, setRouterSsid] = useState("");
-  const [routerPassword, setRouterPassword] = useState("");
-  const [passwordVisible, setPasswordVisible] = useState(false);
   const [settingsOpened, setSettingsOpened] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [openingPage, setOpeningPage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const setupSsid = useMemo(() => getHiveSetupSsid(deviceId), [deviceId]);
-  const setupPassword = getHiveSetupPassword();
-  const setupPasswordLabel = setupPassword || "벌통 라벨에서 확인";
   const normalizedDeviceId = normalizeHiveDeviceId(deviceId);
   const validDeviceId = isValidHiveDeviceId(normalizedDeviceId);
-  const validRouterCredentials =
-    routerSsid.trim().length > 0 &&
-    routerSsid.trim().length <= 32 &&
-    (routerPassword.length === 0 ||
-      (routerPassword.length >= 8 && routerPassword.length <= 63));
+  const setupSsid = validDeviceId
+    ? getHiveSetupSsid(normalizedDeviceId)
+    : "Hive-AA:BB:CC:DD:EE:FF";
+  const setupPassword = getHiveSetupPassword();
 
   useEffect(() => {
     if (!visible) return;
-    setStep("device");
+    setStep("wifi");
     setDeviceId(safeInitialDeviceId(initialDeviceId));
-    setRouterSsid("");
-    setRouterPassword("");
-    setPasswordVisible(false);
     setSettingsOpened(false);
-    setConnecting(false);
+    setOpeningPage(false);
     setErrorMessage("");
   }, [initialDeviceId, visible]);
 
   const haptic = () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync();
-  };
-
-  const handleClose = () => {
-    setRouterPassword("");
-    void disconnectHiveWifi();
-    onClose();
+    if (Platform.OS !== "web") void Haptics.selectionAsync();
   };
 
   const handleOpenSettings = async () => {
-    if (!validDeviceId) return;
     haptic();
     setErrorMessage("");
 
@@ -111,74 +92,119 @@ export function HiveWifiSetupSheet({
     }
   };
 
-  const handleConfirmConnection = async () => {
-    if (!validDeviceId || connecting) return;
+  const handleOpenSetupPage = async () => {
+    if (openingPage) return;
     haptic();
-    setConnecting(true);
+    setOpeningPage(true);
     setErrorMessage("");
 
     try {
-      const status = await getHiveWifiStatus();
-      if (status.setupSsid && status.setupSsid !== setupSsid) {
-        throw new Error(`연결된 벌통이 ${setupSsid}인지 확인해주세요.`);
-      }
-      setStep("network");
+      await openHiveSetupPage();
+      setStep("website");
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
-      setConnecting(false);
+      setOpeningPage(false);
     }
   };
 
-  const handleSendCredentials = async () => {
-    if (!validRouterCredentials || step === "sending") return;
+  const handleWebsiteConfirmed = () => {
     haptic();
-    setStep("sending");
     setErrorMessage("");
-
-    try {
-      await sendRouterCredentials(routerSsid, routerPassword);
-      setRouterPassword("");
-      await disconnectHiveWifi();
-      setStep("success");
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-      setStep("network");
-    }
+    setStep("confirm");
   };
 
   const handleComplete = () => {
+    if (!validDeviceId) return;
     haptic();
     onProvisioned?.(normalizedDeviceId);
-    handleClose();
+    onClose();
   };
 
   return (
     <BottomSheet
       visible={visible}
-      onClose={handleClose}
+      onClose={onClose}
       title="벌통 Wi-Fi 연결"
       snapHeight={0.86}
-      dragCloseEnabled={!connecting && step !== "sending"}
+      dragCloseEnabled={!openingPage}
     >
       <StepHeader step={step} />
 
-      {step === "device" && (
+      {step === "wifi" ? (
         <>
           <InfoPanel
-            icon="power"
-            title="벌통 전원을 켜주세요"
-            description="처음 켠 벌통은 자체 Wi-Fi를 만들어요. 휴대폰 설정에서 아래 Wi-Fi를 선택해주세요."
+            icon="wifi"
+            title="벌통 핫스팟에 연결해주세요"
+            description="휴대폰 Wi-Fi 설정에서 Hive-로 시작하는 벌통 네트워크를 선택한 뒤 앱으로 돌아오세요."
           />
 
-          <FieldLabel label="벌통 번호" />
+          <View className="mt-4 gap-2">
+            <SetupValue icon="radio" label="연결할 Wi-Fi" value={setupSsid} />
+            <SetupValue icon="key" label="기본 비밀번호" value={setupPassword} />
+          </View>
+
+          <SecondaryButton
+            label={settingsOpened ? "Wi-Fi 설정 다시 열기" : "휴대폰 Wi-Fi 설정 열기"}
+            onPress={handleOpenSettings}
+          />
+
+          {settingsOpened ? (
+            <PrimaryButton
+              label={openingPage ? "설정 페이지 여는 중..." : "벌통 Wi-Fi 연결 후 설정 페이지 열기"}
+              disabled={openingPage}
+              loading={openingPage}
+              onPress={handleOpenSetupPage}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {step === "website" ? (
+        <>
+          <InfoPanel
+            icon="external-link"
+            title="브라우저에서 공유기 Wi-Fi를 등록해주세요"
+            description="벌통이 사용할 현장 공유기의 Wi-Fi 이름과 비밀번호를 입력하고 Save and restart를 누르세요."
+          />
+
+          <View className="mt-4 rounded-2xl p-4" style={{ backgroundColor: C.infoBg }}>
+            <PretendardFont
+              weight="semibold"
+              style={{ fontSize: 13, lineHeight: 21, color: C.textAlt }}
+            >
+              브라우저에 “Saved. The Smart Hive is restarting.”가 표시되면 설정이 저장된 것입니다. 그 뒤 이 앱으로 돌아오세요.
+            </PretendardFont>
+          </View>
+
+          <SecondaryButton
+            label={openingPage ? "설정 페이지 여는 중..." : "설정 페이지 다시 열기"}
+            disabled={openingPage}
+            onPress={handleOpenSetupPage}
+          />
+          <PrimaryButton
+            label="Saved 메시지를 확인했어요"
+            onPress={handleWebsiteConfirmed}
+          />
+        </>
+      ) : null}
+
+      {step === "confirm" ? (
+        <>
+          <InfoPanel
+            icon="check-circle"
+            title="벌통 MAC 주소를 확인해주세요"
+            description="이 주소가 서버 등록과 MQTT 토픽에 동일하게 사용됩니다."
+            success
+          />
+
+          <FieldLabel label="벌통 MAC 주소" />
           <TextInput
             value={deviceId}
             onChangeText={setDeviceId}
-            editable={!connecting}
-            autoCapitalize="none"
+            autoCapitalize="characters"
             autoCorrect={false}
-            placeholder="test-01"
+            placeholder="AA:BB:CC:DD:EE:FF"
             placeholderTextColor={C.ter}
             className="rounded-2xl px-4 py-3 text-[14px]"
             style={{
@@ -190,155 +216,29 @@ export function HiveWifiSetupSheet({
             testID="input-hive-device-id"
           />
 
-          <View className="mt-3 flex-row items-center gap-2 rounded-xl bg-gray-300 px-3.5 py-3">
-            <Feather name="wifi" size={16} color={C.primary} />
-            <PretendardFont
-              weight="semibold"
-              style={{ fontSize: 13, color: C.text, flex: 1 }}
-            >
-              앱이 연결할 Wi-Fi: {setupSsid}
-            </PretendardFont>
-          </View>
-
-          <View className="mt-2 flex-row items-center gap-2 rounded-xl bg-gray-300 px-3.5 py-3">
-            <Feather name="key" size={16} color={C.primary} />
-            <PretendardFont
-              weight="semibold"
-              style={{ fontSize: 13, color: C.text, flex: 1 }}
-            >
-              처음 연결 비밀번호: {setupPasswordLabel}
-            </PretendardFont>
-          </View>
-
-          <SecondaryButton
-            label={settingsOpened ? "Wi-Fi 설정 다시 열기" : "휴대폰 Wi-Fi 설정 열기"}
-            disabled={!validDeviceId}
-            onPress={handleOpenSettings}
-          />
-
-          {settingsOpened && (
-            <PrimaryButton
-              label={connecting ? "연결 확인 중..." : "벌통 Wi-Fi에 연결했어요"}
-              disabled={connecting}
-              loading={connecting}
-              onPress={handleConfirmConnection}
-            />
-          )}
-        </>
-      )}
-
-      {(step === "network" || step === "sending") && (
-        <>
-          <InfoPanel
-            icon="check-circle"
-            title={`${setupSsid} 연결됨`}
-            description="이제 벌통이 앞으로 사용할 농장·현장 Wi-Fi를 입력해주세요."
-            success
-          />
-
-          <FieldLabel label="현장 Wi-Fi 이름" />
-          <TextInput
-            value={routerSsid}
-            onChangeText={setRouterSsid}
-            editable={step !== "sending"}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="공유기 Wi-Fi 이름"
-            placeholderTextColor={C.ter}
-            className="rounded-2xl px-4 py-3 text-[14px]"
-            style={{
-              minHeight: 50,
-              backgroundColor: INPUT_BG,
-              color: C.text,
-              fontFamily: "Pretendard-Medium",
-            }}
-            testID="input-router-ssid"
-          />
-
-          <FieldLabel label="현장 Wi-Fi 비밀번호" />
-          <View
-            className="flex-row items-center rounded-2xl px-4"
-            style={{ minHeight: 50, backgroundColor: INPUT_BG }}
-          >
-            <TextInput
-              value={routerPassword}
-              onChangeText={setRouterPassword}
-              editable={step !== "sending"}
-              secureTextEntry={!passwordVisible}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="off"
-              placeholder="8자 이상 입력"
-              placeholderTextColor={C.ter}
-              className="flex-1 py-3 text-[14px]"
-              style={{
-                color: C.text,
-                fontFamily: "Pretendard-Medium",
-              }}
-              testID="input-router-password"
-            />
-            <Pressable
-              onPress={() => setPasswordVisible((value) => !value)}
-              disabled={step === "sending"}
-              hitSlop={10}
-              accessibilityLabel={
-                passwordVisible ? "비밀번호 숨기기" : "비밀번호 보기"
-              }
-            >
-              <Feather
-                name={passwordVisible ? "eye-off" : "eye"}
-                size={18}
-                color={C.sec}
-              />
-            </Pressable>
-          </View>
-
           <PretendardFont
-            style={{ marginTop: 10, fontSize: 12, lineHeight: 18, color: C.sec }}
+            style={{ marginTop: 10, fontSize: 12, lineHeight: 19, color: C.sec }}
           >
-            비밀번호는 앱에 저장하지 않고 벌통으로 한 번만 전달해요.
+            연결했던 Wi-Fi가 {setupSsid}였다면 `Hive-` 뒤의 주소를 입력하면 됩니다. 하이픈 없이 12자리로 입력해도 자동 정리됩니다.
           </PretendardFont>
+
+          {!validDeviceId && deviceId.trim() ? (
+            <PretendardFont
+              style={{ marginTop: 8, fontSize: 12, lineHeight: 18, color: C.error }}
+            >
+              MAC 주소를 AA:BB:CC:DD:EE:FF 형식으로 확인해주세요.
+            </PretendardFont>
+          ) : null}
 
           <PrimaryButton
-            label={step === "sending" ? "벌통에 전달 중..." : "Wi-Fi 정보 전달하기"}
-            disabled={!validRouterCredentials || step === "sending"}
-            loading={step === "sending"}
-            onPress={handleSendCredentials}
+            label="확인하고 벌통 등록으로 돌아가기"
+            disabled={!validDeviceId}
+            onPress={handleComplete}
           />
         </>
-      )}
+      ) : null}
 
-      {step === "success" && (
-        <View className="items-center py-5">
-          <View
-            className="mb-5 h-16 w-16 items-center justify-center rounded-full"
-            style={{ backgroundColor: "#E8F8F0" }}
-          >
-            <Feather name="check" size={30} color={C.success} />
-          </View>
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 20, color: C.text, textAlign: "center" }}
-          >
-            Wi-Fi 정보를 전달했어요
-          </PretendardFont>
-          <PretendardFont
-            style={{
-              marginTop: 10,
-              fontSize: 14,
-              lineHeight: 22,
-              color: C.sec,
-              textAlign: "center",
-            }}
-          >
-            벌통이 재시작한 뒤 현장 Wi-Fi와 MQTT 서버에 연결해요. 보통 10~30초 정도
-            걸립니다.
-          </PretendardFont>
-          <PrimaryButton label="완료" onPress={handleComplete} />
-        </View>
-      )}
-
-      {!!errorMessage && (
+      {errorMessage ? (
         <View
           className="mt-4 flex-row items-start gap-2 rounded-xl px-3.5 py-3"
           style={{ backgroundColor: "#FFF1F2" }}
@@ -350,13 +250,13 @@ export function HiveWifiSetupSheet({
             {errorMessage}
           </PretendardFont>
         </View>
-      )}
+      ) : null}
     </BottomSheet>
   );
 }
 
 function StepHeader({ step }: { step: SetupStep }) {
-  const activeStep = step === "device" ? 1 : step === "success" ? 3 : 2;
+  const activeStep = step === "wifi" ? 1 : step === "website" ? 2 : 3;
 
   return (
     <View className="mb-5 flex-row items-center">
@@ -364,27 +264,45 @@ function StepHeader({ step }: { step: SetupStep }) {
         <View key={number} className="flex-1 flex-row items-center">
           <View
             className="h-7 w-7 items-center justify-center rounded-full"
-            style={{
-              backgroundColor: number <= activeStep ? C.primary : C.border,
-            }}
+            style={{ backgroundColor: number <= activeStep ? C.primary : C.border }}
           >
-            <PretendardFont
-              weight="bold"
-              style={{ fontSize: 12, color: C.white }}
-            >
+            <PretendardFont weight="bold" style={{ fontSize: 12, color: C.white }}>
               {number}
             </PretendardFont>
           </View>
-          {number < 3 && (
+          {number < 3 ? (
             <View
               className="mx-2 h-0.5 flex-1"
-              style={{
-                backgroundColor: number < activeStep ? C.primary : C.border,
-              }}
+              style={{ backgroundColor: number < activeStep ? C.primary : C.border }}
             />
-          )}
+          ) : null}
         </View>
       ))}
+    </View>
+  );
+}
+
+function SetupValue({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View className="flex-row items-center gap-3 rounded-xl bg-gray-300 px-3.5 py-3">
+      <Feather name={icon} size={16} color={C.primary} />
+      <View className="flex-1">
+        <PretendardFont style={{ fontSize: 11.5, color: C.sec }}>{label}</PretendardFont>
+        <PretendardFont
+          weight="semibold"
+          style={{ marginTop: 2, fontSize: 13, color: C.text }}
+        >
+          {value}
+        </PretendardFont>
+      </View>
     </View>
   );
 }
@@ -405,14 +323,8 @@ function InfoPanel({
       className="flex-row gap-3 rounded-2xl p-4"
       style={{ backgroundColor: success ? "#E8F8F0" : C.infoBg }}
     >
-      <View
-        className="h-9 w-9 items-center justify-center rounded-full bg-white"
-      >
-        <Feather
-          name={icon}
-          size={18}
-          color={success ? C.success : C.primary}
-        />
+      <View className="h-9 w-9 items-center justify-center rounded-full bg-white">
+        <Feather name={icon} size={18} color={success ? C.success : C.primary} />
       </View>
       <View className="flex-1">
         <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
@@ -455,12 +367,9 @@ function PrimaryButton({
       onPress={onPress}
       disabled={disabled}
       className="mt-6 flex-row items-center justify-center gap-2 rounded-2xl py-4 active:opacity-80"
-      style={{
-        backgroundColor: disabled ? C.border : C.primary,
-        minHeight: 54,
-      }}
+      style={{ backgroundColor: disabled ? C.border : C.primary, minHeight: 54 }}
     >
-      {loading && <ActivityIndicator size="small" color={C.white} />}
+      {loading ? <ActivityIndicator size="small" color={C.white} /> : null}
       <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
         {label}
       </PretendardFont>

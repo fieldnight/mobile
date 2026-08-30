@@ -7,10 +7,10 @@ export interface HiveWifiStatus {
 }
 
 const SETUP_AP_PASSWORD =
-  process.env.EXPO_PUBLIC_HIVE_SETUP_AP_PASSWORD?.trim() ?? "";
-const SETUP_BASE_URL = "http://192.168.4.1";
+  process.env.EXPO_PUBLIC_HIVE_SETUP_AP_PASSWORD?.trim() || "hive-setup";
+export const HIVE_SETUP_URL = "http://192.168.4.1";
 const REQUEST_TIMEOUT_MS = 8_000;
-const DEVICE_ID_PATTERN = /^[a-zA-Z0-9_-]{1,27}$/;
+const DEVICE_ID_PATTERN = /^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/;
 
 export class HiveWifiProvisioningError extends Error {
   constructor(
@@ -34,7 +34,7 @@ async function requestHive(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${SETUP_BASE_URL}${path}`, {
+    const response = await fetch(`${HIVE_SETUP_URL}${path}`, {
       ...init,
       signal: controller.signal,
     });
@@ -53,7 +53,18 @@ async function requestHive(
 }
 
 export function normalizeHiveDeviceId(value: string) {
-  return value.trim().replace(/^Hive-/i, "");
+  const withoutPrefix = value
+    .trim()
+    .replace(/^Hive-/i, "")
+    .replace(/-/g, ":")
+    .toUpperCase();
+  const compact = withoutPrefix.replace(/:/g, "");
+
+  if (/^[0-9A-F]{12}$/.test(compact)) {
+    return compact.match(/.{2}/g)?.join(":") ?? withoutPrefix;
+  }
+
+  return withoutPrefix;
 }
 
 export function isValidHiveDeviceId(value: string) {
@@ -89,6 +100,23 @@ export async function openWifiSettings() {
   }
 
   await Linking.openSettings();
+}
+
+/**
+ * 벌통 설정 AP에 연결된 상태에서 펌웨어가 제공하는 웹 설정 페이지를 엽니다.
+ * 외부 브라우저가 HTTP를 처리하므로 앱 릴리스의 cleartext 정책과 무관합니다.
+ */
+export async function openHiveSetupPage() {
+  logInfo("setup web page requested", { url: HIVE_SETUP_URL });
+
+  try {
+    await Linking.openURL(HIVE_SETUP_URL);
+  } catch {
+    throw new HiveWifiProvisioningError(
+      "벌통 설정 페이지를 열지 못했어요. 휴대폰이 벌통 Wi-Fi에 연결됐는지 확인해주세요.",
+      "HIVE_WIFI_SETUP_PAGE_FAILED",
+    );
+  }
 }
 
 export async function getHiveWifiStatus(): Promise<HiveWifiStatus> {
