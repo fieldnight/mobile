@@ -1,7 +1,6 @@
 import { Image, useWindowDimensions, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
-import type { DoorOpenerRuntimeState } from "../model/doorOpenerRuntime";
 import type { BeeTrafficCounts, HceClimateSample } from "../model/webeeHce";
 import type { GateActionAppConnectionStatus } from "./NfcDoorCardSection";
 
@@ -83,27 +82,27 @@ function ClimateSummary({ sample }: { sample?: HceClimateSample }) {
   return (
     <View
       className="mt-3 flex-row items-center justify-between rounded-2xl px-3 py-2"
-      style={{ backgroundColor: "rgba(255,255,255,0.14)" }}
+      style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
     >
       <PretendardFont
         weight="semibold"
-        style={{ fontSize: 12.5, color: "rgba(255,255,255,0.74)" }}
+        style={{ fontSize: 12.5, color: C.textAlt }}
       >
         온습도
       </PretendardFont>
       {sample ? (
         <View className="flex-row items-center" style={{ gap: 10 }}>
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
             {sample.temperatureC.toFixed(1)}°C
           </PretendardFont>
-          <PretendardFont weight="bold" style={{ fontSize: 15, color: "#DDFBEA" }}>
+          <PretendardFont weight="bold" style={{ fontSize: 15, color: "#1B9C79" }}>
             {sample.humidityPercent.toFixed(0)}%
           </PretendardFont>
         </View>
       ) : (
         <PretendardFont
           weight="semibold"
-          style={{ fontSize: 12.5, color: "rgba(255,255,255,0.62)" }}
+          style={{ fontSize: 12.5, color: C.ter }}
         >
           카드로 수신 대기
         </PretendardFont>
@@ -124,20 +123,20 @@ function ConnectionChip({
   return (
     <View
       className="flex-row items-center rounded-full px-2.5 py-1"
-      style={{ backgroundColor: "rgba(255,255,255,0.14)" }}
+      style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
     >
       <View
         className="mr-1.5 rounded-full"
         style={{
           width: 7,
           height: 7,
-          backgroundColor: status ? "#34D399" : "rgba(255,255,255,0.45)",
+          backgroundColor: status ? "#34D399" : "rgba(25,31,40,0.28)",
         }}
       />
       <PretendardFont
         weight="bold"
         numberOfLines={1}
-        style={{ fontSize: 11.5, color: C.white }}
+        style={{ fontSize: 11.5, color: C.text }}
       >
         {label} {text}
       </PretendardFont>
@@ -149,21 +148,21 @@ function TrafficMainTile({ label, count }: { label: string; count: number }) {
   return (
     <View
       className="flex-1 rounded-2xl px-3 py-2.5"
-      style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+      style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
     >
       <PretendardFont
         weight="semibold"
-        style={{ fontSize: 14, color: "rgba(255,255,255,0.74)" }}
+        style={{ fontSize: 14, color: C.textAlt }}
       >
         {label}
       </PretendardFont>
       <View className="mt-0.5 flex-row items-end">
-        <PretendardFont weight="bold" style={{ fontSize: 31, color: C.white }}>
+        <PretendardFont weight="bold" style={{ fontSize: 31, color: C.text }}>
           {count}
         </PretendardFont>
         <PretendardFont
           weight="semibold"
-          style={{ marginBottom: 4, marginLeft: 3, fontSize: 13.5, color: "#F8D15C" }}
+          style={{ marginBottom: 4, marginLeft: 3, fontSize: 13.5, color: "#B8860B" }}
         >
           마리
         </PretendardFont>
@@ -178,55 +177,12 @@ function TrafficCountLine({ label, count }: { label: string; count: number }) {
       <PretendardFont
         weight="semibold"
         numberOfLines={1}
-        style={{ fontSize: 13, color: "rgba(255,255,255,0.74)" }}
+        style={{ fontSize: 13, color: C.textAlt }}
       >
         {label}
       </PretendardFont>
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.white }}>
+      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
         {count}
-      </PretendardFont>
-    </View>
-  );
-}
-
-function RuntimeSummary({
-  state,
-  runtimeText,
-}: {
-  state?: DoorOpenerRuntimeState | null;
-  runtimeText?: string | null;
-}) {
-  if (!state) return null;
-
-  const active = state.status === "ok" && state.mode !== "count_status";
-
-  return (
-    <View
-      className="mt-3 rounded-2xl px-3 py-2.5"
-      style={{ backgroundColor: "rgba(255,255,255,0.14)" }}
-    >
-      <PretendardFont
-        weight="bold"
-        numberOfLines={1}
-        style={{ fontSize: 15, color: active ? "#F8D15C" : C.white }}
-      >
-        {active ? "실행중" : "마지막 카드"} · {state.title}
-      </PretendardFont>
-      {runtimeText ? (
-        <PretendardFont
-          weight="bold"
-          numberOfLines={1}
-          style={{ marginTop: 2, fontSize: 14, color: C.white }}
-        >
-          {runtimeText}
-        </PretendardFont>
-      ) : null}
-      <PretendardFont
-        weight="medium"
-        numberOfLines={1}
-        style={{ marginTop: 2, fontSize: 12.5, color: "rgba(255,255,255,0.68)" }}
-      >
-        마지막 APDU · {state.result}
       </PretendardFont>
     </View>
   );

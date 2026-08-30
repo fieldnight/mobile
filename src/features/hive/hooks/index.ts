@@ -227,6 +227,8 @@ export function useHiveConnectionStatuses(hiveIds: string[]) {
       queryKey: HIVE_QUERY_KEYS.connection(hiveId),
       queryFn: () => getHiveConnection(hiveId),
       enabled: isAuthenticated && hiveId !== "",
+      refetchInterval: 10_000,
+      refetchIntervalInBackground: true,
     })),
   });
 

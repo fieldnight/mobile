@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { BottomSheet } from "@/components/BottomSheet";
+import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
-import { useCreateHive, useUpdateHive } from "@/features/hive";
-import { HiveWifiSetupSheet } from "@/features/hive-wifi";
+import { getHiveConnection, useCreateHive, useUpdateHive } from "@/features/hive";
+import {
+  HiveWifiSetupSheet,
+  isValidHiveDeviceId,
+  normalizeHiveDeviceId,
+} from "@/features/hive-wifi";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { C } from "@/constants/hive-colors";
 import type { HiveData, HiveFormInput } from "@/types/hive-control";
@@ -25,6 +30,17 @@ const EMPTY_FORM: HiveFormInput = {
   memo: "",
 };
 const FORM_PANEL_BG = "#EEF2F6";
+const CONNECTION_POLL_INTERVAL_MS = 3_000;
+const CONNECTION_POLL_ATTEMPTS = 20;
+
+interface ConnectionNotice {
+  result: "connected" | "timeout";
+  hiveName: string;
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
 
 function getApiErrorMessage(error: any, fallback: string) {
   return error?.response?.data?.message ?? error?.message ?? fallback;
@@ -38,7 +54,7 @@ function isLocalFallbackHive(hive: HiveData) {
 }
 
 function normalizeMacAddress(value: string) {
-  return value.trim().toLowerCase();
+  return normalizeHiveDeviceId(value).toLowerCase();
 }
 
 function normalizeHiveName(value: string) {
@@ -84,6 +100,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   const editing = !!hive;
   const hives = useHiveStore((state) => state.hives);
   const addHive = useHiveStore((state) => state.addHive);
+  const setHives = useHiveStore((state) => state.setHives);
   const updateHiveLocally = useHiveStore((state) => state.updateHive);
   const createHiveMutation = useCreateHive();
   const updateHiveMutation = useUpdateHive();
@@ -91,6 +108,16 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   const [form, setForm] = useState<HiveFormInput>(EMPTY_FORM);
   const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
   const [provisionedDeviceId, setProvisionedDeviceId] = useState("");
+  const [connectionNotice, setConnectionNotice] =
+    useState<ConnectionNotice | null>(null);
+  const connectionCheckGeneration = useRef(0);
+
+  useEffect(
+    () => () => {
+      connectionCheckGeneration.current += 1;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -114,8 +141,12 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 
   const submitting =
     createHiveMutation.isPending || updateHiveMutation.isPending;
+  const normalizedFormMac = normalizeHiveDeviceId(form.macAddress);
+  const validMacAddress = editing
+    ? form.macAddress.trim() !== ""
+    : isValidHiveDeviceId(normalizedFormMac);
   const canSubmit =
-    form.macAddress.trim() !== "" &&
+    validMacAddress &&
     form.name.trim() !== "" &&
     form.region.trim() !== "" &&
     form.location.trim() !== "" &&
@@ -133,9 +164,76 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   };
 
   const handleWifiProvisioned = (deviceId: string) => {
-    setProvisionedDeviceId(deviceId);
-    updateField("macAddress", deviceId);
-    showToast(`${deviceId} Wi-Fi 설정을 전달했어요`, "success");
+    const normalizedDeviceId = normalizeHiveDeviceId(deviceId);
+    setProvisionedDeviceId(normalizedDeviceId);
+    updateField("macAddress", normalizedDeviceId);
+    showToast("벌통 Wi-Fi 웹 설정을 완료했어요", "success");
+  };
+
+  const monitorFirstConnection = async (
+    hiveId: string,
+    hiveName: string,
+    macAddress: string,
+  ) => {
+    const generation = connectionCheckGeneration.current + 1;
+    connectionCheckGeneration.current = generation;
+    const startedAt = Date.now();
+
+    setConnectionNotice(null);
+    console.info("[Hive MQTT] 연결 확인 시작", {
+      hiveId,
+      macAddress,
+      maxAttempts: CONNECTION_POLL_ATTEMPTS,
+      pollIntervalMs: CONNECTION_POLL_INTERVAL_MS,
+    });
+
+    for (let attempt = 0; attempt < CONNECTION_POLL_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) await wait(CONNECTION_POLL_INTERVAL_MS);
+      if (connectionCheckGeneration.current !== generation) return;
+
+      try {
+        const connection = await getHiveConnection(hiveId);
+        if (connectionCheckGeneration.current !== generation) return;
+        if (!connection.isConnected) continue;
+
+        const currentHives = useHiveStore.getState().hives;
+        setHives(
+          currentHives.map((item) =>
+            item.id === hiveId
+              ? { ...item, status: "online" as const, lastUpdate: "방금" }
+              : item,
+          ),
+        );
+        console.info("[Hive MQTT] 연결 확인 성공", {
+          hiveId,
+          macAddress,
+          attempt: attempt + 1,
+          elapsedMs: Date.now() - startedAt,
+          lastConnectedAt: connection.lastConnectedAt,
+        });
+        setConnectionNotice({ result: "connected", hiveName });
+        return;
+      } catch (error) {
+        if (connectionCheckGeneration.current !== generation) return;
+        // MQTT 첫 메시지가 서버에 반영되는 동안에는 조회 실패도 재시도합니다.
+        console.warn("[Hive MQTT] 연결 상태 조회 실패, 재시도", {
+          hiveId,
+          macAddress,
+          attempt: attempt + 1,
+          message: getApiErrorMessage(error, "연결 상태 조회 실패"),
+        });
+      }
+    }
+
+    if (connectionCheckGeneration.current === generation) {
+      console.warn("[Hive MQTT] 연결 확인 시간 초과", {
+        hiveId,
+        macAddress,
+        attempts: CONNECTION_POLL_ATTEMPTS,
+        elapsedMs: Date.now() - startedAt,
+      });
+      setConnectionNotice({ result: "timeout", hiveName });
+    }
   };
 
   const handleSubmit = () => {
@@ -143,7 +241,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const payload = {
-      macAddress: form.macAddress.trim(),
+      macAddress: normalizedFormMac,
       name: form.name.trim(),
       region: form.region.trim(),
       location: form.location.trim(),
@@ -209,9 +307,15 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 
     createHiveMutation.mutate(payload, {
       onSuccess: ({ hiveId }) => {
-        addHive({ ...payload, id: String(hiveId), memo: payload.memo ?? "" });
-        showToast(`${payload.name} 벌통을 등록했어요`, "success");
+        const registeredHiveId = String(hiveId);
+        addHive({ ...payload, id: registeredHiveId, memo: payload.memo ?? "" });
+        showToast(`${payload.name} 벌통을 등록했어요. 연결을 확인하고 있어요`, "success");
         resetAndClose();
+        void monitorFirstConnection(
+          registeredHiveId,
+          payload.name,
+          payload.macAddress,
+        );
       },
       onError: (error) => {
         showToast(getApiErrorMessage(error, "벌통 등록에 실패했어요"), "error");
@@ -220,6 +324,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   };
 
   return (
+    <>
     <BottomSheet
       visible={visible}
       onClose={resetAndClose}
@@ -247,9 +352,16 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
       <FormInput
         value={form.macAddress}
         onChangeText={(value) => updateField("macAddress", value)}
-        placeholder="test-01"
+        placeholder="AA:BB:CC:DD:EE:FF"
         editable={!editing}
       />
+      {!editing && form.macAddress.trim() !== "" && !validMacAddress && (
+        <PretendardFont
+          style={{ marginTop: 8, fontSize: 12, lineHeight: 18, color: C.error }}
+        >
+          벌통 Wi-Fi 이름의 MAC 주소를 AA:BB:CC:DD:EE:FF 형식으로 입력해주세요.
+        </PretendardFont>
+      )}
 
       <FieldLabel label="벌통 이름" required />
       <FormInput
@@ -305,10 +417,32 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
       <HiveWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
-        initialDeviceId={form.macAddress || "test-01"}
+        initialDeviceId={form.macAddress}
         onProvisioned={handleWifiProvisioned}
       />
     </BottomSheet>
+    <NoticeBottomSheet
+      visible={connectionNotice !== null}
+      onClose={() => setConnectionNotice(null)}
+      title={
+        connectionNotice?.result === "timeout"
+          ? "벌통 연결이 확인되지 않았어요"
+          : "벌통과 연결됐어요"
+      }
+      message={
+        connectionNotice?.result === "timeout"
+          ? `${connectionNotice.hiveName} 벌통 등록은 완료됐지만 첫 MQTT 통신이 아직 확인되지 않았습니다. 벌통 전원과 현장 Wi-Fi를 확인해주세요.`
+          : `${connectionNotice?.hiveName ?? ""} 벌통의 첫 MQTT 통신이 확인되었습니다.`
+      }
+      icon={connectionNotice?.result === "timeout" ? "wifi-off" : "link"}
+      actions={[
+        {
+          label: "확인",
+          onPress: () => setConnectionNotice(null),
+        },
+      ]}
+    />
+    </>
   );
 }
 
@@ -342,13 +476,13 @@ function WifiSetupCard({
       </View>
       <View className="flex-1">
         <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
-          {configured ? `${configuredDeviceId} 연결 정보 전달 완료` : "벌통 Wi-Fi 연결"}
+          {configured ? `${configuredDeviceId} Wi-Fi 웹 설정 완료` : "벌통 Wi-Fi 연결"}
         </PretendardFont>
         <PretendardFont
           style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: C.sec }}
         >
           {configured
-            ? "아래 기본 정보를 입력해 벌통 등록을 마무리해주세요."
+            ? "웹 설정 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요."
             : "처음 설치하는 스마트벌통이라면 먼저 진행해주세요."}
         </PretendardFont>
       </View>

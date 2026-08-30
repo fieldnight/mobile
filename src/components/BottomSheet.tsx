@@ -34,6 +34,10 @@ interface BottomSheetProps {
   headerAccessory?: React.ReactNode;
   dragCloseEnabled?: boolean;
   tone?: "light" | "dark";
+  /** 딤 배경 위, 시트 바로 위에 얹는 안내 문구 등 (흰 글자 권장) */
+  aboveSheet?: React.ReactNode;
+  /** true면 snapHeight를 상한이 아닌 고정 높이로 사용해, 내부 콘텐츠 크기와 무관하게 시트 높이가 일정합니다. */
+  fixedHeight?: boolean;
 }
 
 export function BottomSheet({
@@ -47,6 +51,8 @@ export function BottomSheet({
   headerAccessory,
   dragCloseEnabled = true,
   tone = "light",
+  aboveSheet,
+  fixedHeight = false,
 }: BottomSheetProps) {
   const dark = tone === "dark";
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
@@ -104,9 +110,12 @@ export function BottomSheet({
       >
         <Pressable className="absolute inset-0" onPress={handleClose} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            {aboveSheet && <View className="px-5 pb-4">{aboveSheet}</View>}
             <Animated.View
               style={{
-                maxHeight: SCREEN_H * snapHeight,
+                ...(fixedHeight
+                  ? { height: SCREEN_H * snapHeight }
+                  : { maxHeight: SCREEN_H * snapHeight }),
                 backgroundColor: dark ? "#24384D" : C.white,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
@@ -153,7 +162,14 @@ export function BottomSheet({
                     {children}
                   </ScrollView>
                 ) : (
-                  <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 }}>
+                  <View
+                    style={{
+                      flex: fixedHeight ? 1 : undefined,
+                      paddingHorizontal: 20,
+                      paddingTop: 20,
+                      paddingBottom: fixedHeight ? 0 : 40,
+                    }}
+                  >
                     {children}
                   </View>
                 )}

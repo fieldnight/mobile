@@ -55,6 +55,14 @@ export interface NfcDoorCardConfig {
   repeat?: boolean;
   threshold?: number;
   countTarget?: BeeTrafficCounterKey;
+  /**
+   * 벌 마릿수 제어 기능(활동량 강제증가 등)의 고급 옵션 — 이 시간 구간 동안만
+   * 마릿수 제한 규칙을 적용합니다. 서버·개폐기(ESP32)는 아직 이 값을 받는 자리가
+   * 없어 앱에만 로컬로 저장되며, 실제 개폐 동작에는 아직 반영되지 않습니다.
+   */
+  timeWindowEnabled?: boolean;
+  timeWindowStart?: string;
+  timeWindowEnd?: string;
   serverActionId?: number;
 }
 
@@ -148,6 +156,9 @@ export function createCustomDoorCard({
   start,
   end,
   threshold,
+  timeWindowEnabled,
+  timeWindowStart,
+  timeWindowEnd,
 }: {
   title: string;
   functionType: NfcDoorFunction;
@@ -156,6 +167,9 @@ export function createCustomDoorCard({
   start: string;
   end: string;
   threshold?: number;
+  timeWindowEnabled?: boolean;
+  timeWindowStart?: string;
+  timeWindowEnd?: string;
 }): NfcDoorCardConfig {
   if (isBeeCountLimitFunction(functionType)) {
     const countTarget = COUNT_TARGET_BY_LIMIT_FUNCTION[functionType];
@@ -165,11 +179,16 @@ export function createCustomDoorCard({
       overpollination_guard: "과수정 방지",
       return_limit: "귀소량 제한",
     }[functionType];
+    const hasTimeWindow = Boolean(
+      timeWindowEnabled && timeWindowStart && timeWindowEnd,
+    );
 
     return {
       id: `custom-door-card-${Date.now()}`,
       title,
-      description: `${functionLabel} · ${safeThreshold}마리 기준`,
+      description: hasTimeWindow
+        ? `${functionLabel} · ${safeThreshold}마리 기준 · ${timeWindowStart}~${timeWindowEnd}`
+        : `${functionLabel} · ${safeThreshold}마리 기준`,
       icon: "sliders",
       removable: true,
       functionType,
@@ -180,6 +199,9 @@ export function createCustomDoorCard({
       repeat: false,
       threshold: safeThreshold,
       countTarget,
+      timeWindowEnabled: hasTimeWindow,
+      timeWindowStart: hasTimeWindow ? timeWindowStart : undefined,
+      timeWindowEnd: hasTimeWindow ? timeWindowEnd : undefined,
     };
   }
 

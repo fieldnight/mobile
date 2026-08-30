@@ -231,7 +231,7 @@ function formatDateLabel(value?: string | null) {
  */
 export function toHiveData(hive: HiveListItem | HiveDetail): HiveData {
   const online =
-    "connectionStatus" in hive ? hive.connectionStatus === "ONLINE" : true;
+    "connectionStatus" in hive ? hive.connectionStatus === "ONLINE" : false;
 
   return {
     id: String(hive.hiveId),

@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { AddNfcDoorCardModal } from "./AddNfcDoorCardModal";
 import { DoorOpenerSectionHeader } from "./DoorOpenerSectionHeader";
-import { AddNfcDoorCardButton, NfcDoorCard } from "./NfcDoorCard";
+import { NfcDoorCard } from "./NfcDoorCard";
 import { NfcDoorCardModal } from "./NfcDoorCardModal";
 import { ConfirmSheet } from "@/components/BottomSheet";
 import { useAppToast } from "@/components/ToastContext";
@@ -303,9 +303,9 @@ export function NfcDoorCardSection({
   };
 
   return (
-    <View className="mb-8">
+    <View>
       <DoorOpenerSectionHeader
-        title="개폐기 NFC 카드"
+        title="개폐기 카드"
         count={cards.length}
         actionLabel={deleting ? "완료" : "삭제"}
         actionActive={deleting}
@@ -313,6 +313,7 @@ export function NfcDoorCardSection({
           if (deleting) stopDragging();
           onToggleDeleting();
         }}
+        onAddPress={() => setAdding(true)}
       />
 
       <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
@@ -341,8 +342,6 @@ export function NfcDoorCardSection({
             />
           );
         })}
-
-        <AddNfcDoorCardButton size={cardWidth} onPress={() => setAdding(true)} />
       </View>
 
       {/* 카드 활성화 모달 (NFC 태깅 뷰) */}
