@@ -106,6 +106,12 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 로그인 실패', {
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
@@ -145,6 +151,13 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 소셜 로그인 실패', {
+            platform,
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
