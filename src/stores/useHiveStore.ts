@@ -37,14 +37,14 @@ function createHiveData(input: HiveFormInput): HiveData {
     memo: input.memo ?? "",
     registeredAt: todayLabel(),
     replacedAt: input.replacedAt,
-    status: "online",
-    temperature: 34,
-    humidity: 60,
-    externalTemperature: 22,
-    externalHumidity: 48,
+    status: "offline",
+    temperature: 0,
+    humidity: 0,
+    externalTemperature: 0,
+    externalHumidity: 0,
     weight: 28,
-    beeActivity: "medium",
-    lastUpdate: "방금",
+    beeActivity: "low",
+    lastUpdate: "연결 확인 중",
   };
 }
 
