@@ -1,4 +1,5 @@
 export { DoorOpenerBackground } from "./DoorOpenerBackground";
+export { DoorOpenerHeroBanner } from "./DoorOpenerHeroBanner";
 export { DoorOpenerHeroVisual, EMPTY_BEE_TRAFFIC_COUNTS } from "./DoorOpenerHeroVisual";
 export { DoorOpenerHiveCard } from "./DoorOpenerHiveCard";
 export { DoorOpenerSectionHeader } from "./DoorOpenerSectionHeader";

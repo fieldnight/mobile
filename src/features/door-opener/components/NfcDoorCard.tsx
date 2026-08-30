@@ -74,7 +74,7 @@ export function NfcDoorCard({
             </View>
           ) : null}
           <View className="flex-row items-start justify-between">
-            <Feather name={card.icon} size={20} color={C.white} />
+            <Feather name={card.icon} size={20} color={C.text} />
 
             {editable && card.removable && onDelete && (
               <Pressable
@@ -87,7 +87,7 @@ export function NfcDoorCard({
                 style={{
                   width: 30,
                   height: 30,
-                  backgroundColor: "rgba(255,255,255,0.22)",
+                  backgroundColor: "rgba(239, 68, 68, 0.92)",
                 }}
               >
                 <PretendardFont
@@ -103,16 +103,16 @@ export function NfcDoorCard({
           <View style={{ gap: 3 }}>
             <PretendardFont
               weight="bold"
-              style={{ fontSize: 16, lineHeight: 21, color: C.white }}
+              style={{ fontSize: 18, lineHeight: 23, color: C.text }}
             >
               {card.title}
             </PretendardFont>
             <PretendardFont
-              weight="medium"
+              weight="semibold"
               style={{
-                fontSize: 13.5,
-                lineHeight: 18,
-                color: "rgba(255,255,255,0.8)",
+                fontSize: 12.5,
+                lineHeight: 17,
+                color: "#5A6270",
               }}
             >
               {card.description}
@@ -124,66 +124,31 @@ export function NfcDoorCard({
   );
 }
 
-export function AddNfcDoorCardButton({
-  size,
-  onPress,
-}: {
-  size: number;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      className="active:opacity-70"
-      style={{ width: size }}
-    >
-      <CardShell size={size} dashed>
-        <View className="flex-1 items-center justify-center">
-          <Feather name="plus" size={26} color={C.white} />
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 14.5, color: C.white, marginTop: 6 }}
-          >
-            추가하기
-          </PretendardFont>
-        </View>
-      </CardShell>
-    </Pressable>
-  );
-}
-
 function CardShell({
   size,
   dragging,
   active,
-  dashed,
   children,
 }: {
   size: number;
   dragging?: boolean;
   active?: boolean;
-  dashed?: boolean;
   children: ReactNode;
 }) {
   return (
     <View
-      className={dashed ? "items-center justify-center" : "justify-between"}
+      className="justify-between"
       style={{
         minHeight: size * 0.66,
         borderRadius: 14,
         padding: 14,
-        backgroundColor: active
-          ? "rgba(255,255,255,0.22)"
-          : "rgba(255,255,255,0.16)",
-        borderWidth: active || dragging ? 2 : dashed ? 1.5 : 1,
-        borderStyle: dashed ? "dashed" : "solid",
+        backgroundColor: active ? "rgba(248,209,92,0.18)" : C.white,
+        borderWidth: active || dragging ? 2 : 1,
         borderColor: active
           ? "#F8D15C"
           : dragging
-            ? C.cardBorderDragging
-            : dashed
-              ? "rgba(255,255,255,0.55)"
-              : C.cardBorder,
+            ? C.primary
+            : "rgba(0,0,0,0.05)",
         opacity: dragging ? 0.92 : 1,
       }}
     >

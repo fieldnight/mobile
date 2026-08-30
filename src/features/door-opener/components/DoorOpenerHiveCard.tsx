@@ -73,9 +73,9 @@ export function DoorOpenerHiveCard({
             height: size * 0.6,
             borderRadius: 14,
             padding: 14,
-            backgroundColor: "rgba(255,255,255,0.16)",
+            backgroundColor: C.white,
             borderWidth: dragging ? 2 : 1,
-            borderColor: dragging ? C.cardBorderDragging : C.cardBorder,
+            borderColor: dragging ? C.primary : "rgba(0,0,0,0.05)",
             opacity: dragging ? 0.92 : 1,
           }}
         >
@@ -103,7 +103,7 @@ export function DoorOpenerHiveCard({
             <PretendardFont
               weight="bold"
               numberOfLines={1}
-              style={{ fontSize: 17, color: C.white }}
+              style={{ fontSize: 17, color: C.text }}
             >
               {hive.name}
             </PretendardFont>
@@ -111,7 +111,7 @@ export function DoorOpenerHiveCard({
               weight="medium"
               style={{
                 fontSize: 14,
-                color: "rgba(255,255,255,0.8)",
+                color: C.ter,
                 marginTop: 3,
               }}
             >
@@ -147,7 +147,9 @@ function RoundIconButton({
       style={{
         width: 44,
         height: 44,
-        backgroundColor: danger ? "rgba(239,68,68,0.34)" : "rgba(255,255,255,0.22)",
+        backgroundColor: danger
+          ? "rgba(239, 68, 68, 0.92)"
+          : "rgba(17, 24, 39, 0.92)",
       }}
     >
       <Feather name={icon} size={20} color={C.white} />
