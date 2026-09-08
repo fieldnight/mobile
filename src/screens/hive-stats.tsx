@@ -6,19 +6,25 @@
  * - PullToRefresh 새로고침, 설정 이동, 슬라이더/보기 모드 전환 핸들러를 포함합니다.
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Platform,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   ImageBackground,
+  ActivityIndicator,
+  Pressable,
+  View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
 
 const BG_IMAGE = require("../../assets/df.jpg");
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { useRoute } from "@react-navigation/native";
+import { useLocalSearchParams } from "expo-router";
 import { useScrollHeader } from "@/hooks";
 import { Spacing } from "../constants";
 import { HiveAddSheet } from "@/components/HiveAddSheet";
@@ -41,8 +47,6 @@ import { useSyncHiveList } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
 import type { Period } from "../types";
 
-const SLIDER_ITEM_WIDTH = Dimensions.get("window").width - 32;
-
 /**
  * HiveStatsScreen
  * - 벌통 통계 페이지의 메인 화면입니다.
@@ -51,19 +55,23 @@ const SLIDER_ITEM_WIDTH = Dimensions.get("window").width - 32;
  */
 export default function HiveStatsScreen() {
   const insets = useSafeAreaInsets();
-  const route = useRoute<any>();
+  const { width } = useWindowDimensions();
+  const sliderItemWidth = width - 32;
+  const { selectedHiveId } = useLocalSearchParams<{ selectedHiveId?: string }>();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
   useSyncHiveList();
 
   const [period, setPeriod] = useState<Period>("일간");
   const [selectedHive, setSelectedHive] = useState<string>(
-    route.params?.selectedHiveId ?? hives[0]?.id ?? "",
+    selectedHiveId ?? hives[0]?.id ?? "",
   );
   const [addHiveVisible, setAddHiveVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
-    "table",
+    "chart",
   );
+  const [chartSession, setChartSession] = useState(0);
+  const [chartInteracting, setChartInteracting] = useState(false);
   const { onScroll, scrollEventThrottle } = useScrollHeader();
 
   const { stn, regionName } = useWeatherRegion();
@@ -86,54 +94,23 @@ export default function HiveStatsScreen() {
   useEffect(() => {
     if (sliderRef.current) {
       sliderRef.current.scrollTo({
-        x: selectedIndex * SLIDER_ITEM_WIDTH,
+        x: selectedIndex * sliderItemWidth,
         animated: true,
       });
     }
-  }, [selectedIndex]);
+  }, [selectedIndex, sliderItemWidth]);
 
   const telemetryQuery = useHiveTelemetryData({
     hiveId: selectedHive,
     period,
     fallbackData: [],
   });
-  const refetchTelemetry = telemetryQuery.refetch;
   const statData = telemetryQuery.data ?? [];
-
-  useEffect(() => {
-    console.log("[Hive Stats] 센서 데이터 상태", {
-      selectedHive,
-      period,
-      isFetching: telemetryQuery.isFetching,
-      isError: telemetryQuery.isError,
-      source: telemetryQuery.data ? "telemetry-api" : "mock-fallback",
-      count: statData.length,
-    });
-  }, [
-    period,
-    selectedHive,
-    statData.length,
-    telemetryQuery.data,
-    telemetryQuery.isError,
-    telemetryQuery.isFetching,
-  ]);
 
   const isWeb = Platform.OS === "web";
   const haptic = () => {
     if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
-
-  // 당겨서 새로고침하면 현재 벌통/기간의 센서 데이터를 다시 조회한다.
-  const handleRefresh = useCallback(async () => {
-    console.log("[Hive Stats] 센서 데이터 수동 새로고침", {
-      selectedHive,
-      period,
-    });
-    await Promise.all([
-      selectedHive ? refetchTelemetry() : Promise.resolve(),
-      new Promise<void>((resolve) => setTimeout(resolve, 300)),
-    ]);
-  }, [period, refetchTelemetry, selectedHive]);
 
   //슬라이더에서 벌통을 선택했을 때 상태를 변경합니다.
   const handleHivePress = (id: string) => {
@@ -152,15 +129,18 @@ export default function HiveStatsScreen() {
 
   // 차트 / 통합 / 표 보기 모드를 변경하고 햅틱을 트리거합니다.
   const handleViewModeChange = (mode: "chart" | "combined" | "table") => {
-    haptic();
+    setChartInteracting(false);
+    // 같은 그래프 버튼을 다시 눌러도 현재 시점과 값으로 화면을 맞춥니다.
+    setChartSession((session) => session + 1);
     setViewMode(mode);
+    if (mode !== "table") void telemetryQuery.refetch();
   };
 
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
       <HiveTabBar />
 
-      <PullToRefresh
+      <BounceScrollView
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
@@ -169,7 +149,7 @@ export default function HiveStatsScreen() {
           gap: Spacing.lg,
         }}
         showsVerticalScrollIndicator={false}
-        onRefresh={handleRefresh}
+        scrollEnabled={!chartInteracting}
         onScroll={onScroll}
         scrollEventThrottle={scrollEventThrottle}
       >
@@ -178,7 +158,7 @@ export default function HiveStatsScreen() {
           hiveControls={hiveControls}
           allView={false}
           selectedIndex={selectedIndex}
-          itemWidth={SLIDER_ITEM_WIDTH}
+          itemWidth={sliderItemWidth}
           sliderRef={sliderRef}
           onHivePress={handleHivePress}
           onSlideEnd={handleSlideEnd}
@@ -189,7 +169,10 @@ export default function HiveStatsScreen() {
           <>
             <PeriodCard
               period={period}
-              onSelect={setPeriod}
+              onSelect={(nextPeriod) => {
+                setChartInteracting(false);
+                setPeriod(nextPeriod);
+              }}
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
               weatherContent={
@@ -204,10 +187,50 @@ export default function HiveStatsScreen() {
                 />
               }
             >
-              {viewMode === "table" ? (
+              <View className="mb-3 flex-row items-center justify-between gap-2">
+                <View className="flex-1">
+                  <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+                    {period === "일간" ? "오늘의 센서 기록" : `${period} 센서 기록`}
+                  </PretendardFont>
+                  <PretendardFont style={{ marginTop: 4, fontSize: 12, color: C.sec }}>
+                    {period === "일간" ? "시간별 기록 · 최근 측정 구간부터 표시" : "선택한 기간의 측정 기록"}
+                  </PretendardFont>
+                </View>
+                <Pressable
+                  onPress={() => void telemetryQuery.refetch()}
+                  accessibilityRole="button"
+                  accessibilityLabel="센서 기록 새로고침"
+                  accessibilityState={{ disabled: telemetryQuery.isFetching }}
+                  disabled={telemetryQuery.isFetching}
+                  style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
+                >
+                  {telemetryQuery.isFetching ? <ActivityIndicator color={C.primary} /> : <Feather name="refresh-cw" size={19} color={C.sec} />}
+                </Pressable>
+              </View>
+              {telemetryQuery.isError && (
+                <View accessibilityRole="alert" className="mb-3 rounded-xl p-3" style={{ backgroundColor: "#FFF4E5" }}>
+                  <PretendardFont style={{ fontSize: 13, color: "#92400E" }}>
+                    기록을 불러오지 못했어요. 새로고침해 주세요.{statData.length ? " 이전에 불러온 기록을 표시하고 있어요." : ""}
+                  </PretendardFont>
+                </View>
+              )}
+              {telemetryQuery.isLoading && telemetryQuery.isFetching ? (
+                <View className="items-center py-10" accessibilityLiveRegion="polite">
+                  <ActivityIndicator color={C.primary} />
+                  <PretendardFont style={{ marginTop: 12, color: C.sec, fontSize: 14 }}>
+                    센서 기록을 불러오고 있어요
+                  </PretendardFont>
+                </View>
+              ) : viewMode === "table" ? (
                 <DataTable data={statData} period={period} />
               ) : (
-                <ChartCards data={statData} viewMode={viewMode} />
+                <ChartCards
+                  key={`${selectedHive}-${period}-${viewMode}-${chartSession}`}
+                  data={statData}
+                  period={period}
+                  viewMode={viewMode}
+                  onInteractionChange={setChartInteracting}
+                />
               )}
             </PeriodCard>
 
@@ -216,7 +239,7 @@ export default function HiveStatsScreen() {
             <HiveEnvironmentGuide />
           </>
         ) : null}
-      </PullToRefresh>
+      </BounceScrollView>
 
       <HiveAddSheet
         visible={addHiveVisible}

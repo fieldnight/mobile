@@ -8,10 +8,9 @@ import { Dimensions, ImageBackground, Platform, Pressable, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useQueryClient } from "@tanstack/react-query";
 
 const BG_IMAGE = require("../../assets/df.jpg");
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import { ConfirmSheet } from "@/components/BottomSheet";
 import { HiveAddSheet } from "@/components/HiveAddSheet";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -23,7 +22,7 @@ import {
   useHiveConnectionStatuses,
   useSyncHiveList,
 } from "@/features/hive";
-import { HIVE_REPLACEMENT_QUERY_KEYS, useHiveLatestReplacementMap } from "@/features/hive-status";
+import { useHiveLatestReplacementMap } from "@/features/hive-status";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { useAppToast } from "@/components/ToastContext";
@@ -38,8 +37,7 @@ const ITEM_WIDTH = Dimensions.get("window").width - 32;
  */
 export default function HiveOverviewScreen() {
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
-  const hiveListQuery = useSyncHiveList();
+  useSyncHiveList();
   const deleteHiveMutation = useDeleteHive();
   const { show: showToast } = useAppToast();
   const hives = useHiveStore((state) => state.hives);
@@ -55,17 +53,6 @@ export default function HiveOverviewScreen() {
       ? { ...hive, replacedAt: latestReplacement.replacedAt }
       : hive;
   });
-
-  const handleRefresh = async () => {
-    await Promise.all([
-      hiveListQuery.refetch(),
-      ...hives.map((hive) =>
-        queryClient.invalidateQueries({
-          queryKey: HIVE_REPLACEMENT_QUERY_KEYS.latest(hive.id),
-        }),
-      ),
-    ]);
-  };
 
   const triggerLightHaptic = () => {
     if (Platform.OS !== "web") {
@@ -119,7 +106,7 @@ export default function HiveOverviewScreen() {
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
       <HiveTabBar />
 
-      <PullToRefresh
+      <BounceScrollView
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
@@ -129,7 +116,6 @@ export default function HiveOverviewScreen() {
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onRefresh={handleRefresh}
       >
         <AddHiveStrip onPress={openAddHiveSheet} />
 
@@ -146,7 +132,7 @@ export default function HiveOverviewScreen() {
           onEditHive={openEditHiveSheet}
           onDeleteHive={openDeleteHiveSheet}
         />
-      </PullToRefresh>
+      </BounceScrollView>
 
       <HiveAddSheet visible={addHiveVisible} onClose={() => setAddHiveVisible(false)} />
       <HiveAddSheet

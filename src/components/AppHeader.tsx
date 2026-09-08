@@ -119,7 +119,7 @@ export default function AppHeader({
       {/* 기본 흰 배경 — 스크롤하면 페이드아웃 */}
       <Animated.View
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           { backgroundColor: dark ? "#1D2E40" : "white" },
           solidStyle,
         ]}
@@ -128,7 +128,7 @@ export default function AppHeader({
       <AnimatedBlurView
         animatedProps={blurProps}
         tint={dark ? "dark" : "light"}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       {/* 스크롤 시 나타나는 하단 구분선 */}
       <Animated.View

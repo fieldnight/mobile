@@ -69,8 +69,6 @@ export function NfcDoorCardSection({
   runtimeText,
   hiveId,
   onSyncStatusChange,
-  refreshKey = 0,
-  onRefreshEnd,
   gateMode,
   gates,
 }: {
@@ -82,8 +80,6 @@ export function NfcDoorCardSection({
   runtimeText?: string | null;
   hiveId?: string | number;
   onSyncStatusChange?: (status: GateActionAppConnectionStatus) => void;
-  refreshKey?: number;
-  onRefreshEnd?: () => void;
   gateMode: GateOperatingMode;
   gates: GateData[];
 }) {
@@ -191,11 +187,6 @@ export function NfcDoorCardSection({
       syncWithServer(true);
     }, [syncWithServer]),
   );
-
-  useEffect(() => {
-    if (refreshKey <= 0) return;
-    syncWithServer(true).finally(onRefreshEnd);
-  }, [onRefreshEnd, refreshKey, syncWithServer]);
 
   const cell = useMemo(
     () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.66 + GRID_GAP }),

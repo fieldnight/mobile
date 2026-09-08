@@ -5,8 +5,8 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
+  PanResponder,
   Pressable,
-  RefreshControl,
   ScrollView,
   View,
 } from "react-native";
@@ -17,8 +17,10 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   Extrapolation,
 } from "react-native-reanimated";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import Svg, { Circle, G, Line, Polyline } from "react-native-svg";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -245,8 +247,6 @@ export default function DoorOpenerScreen() {
   const [appConnectionStatus, setAppConnectionStatus] =
     useState<GateActionAppConnectionStatus>("idle");
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<DoorOpenerTab>("control");
   const [statsState, setStatsState] = useState<DoorStatsState>({ devices: {} });
   const [statsCacheHydrated, setStatsCacheHydrated] = useState(false);
@@ -524,19 +524,6 @@ export default function DoorOpenerScreen() {
     };
   }, [activeTab]);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    if (activeTab === "stats") {
-      setRefreshing(false);
-      return;
-    }
-    setRefreshKey((value) => value + 1);
-  }, [activeTab]);
-
-  const handleRefreshEnd = useCallback(() => {
-    setRefreshing(false);
-  }, []);
-
   // DoorOpenerTabs 실측 높이(탭 바 + GateModeSection). 개폐기 탭 히어로 배너가
   // 이 아래에서 시작하도록 onLayout으로 갱신합니다. 드롭다운은 오버레이라 이 값에
   // 영향을 주지 않습니다.
@@ -546,6 +533,32 @@ export default function DoorOpenerScreen() {
   const controlScrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
+
+  // 당겨서 새로고침 대신, 최상단에서 아래로 당기면 콘텐츠가 늘어났다가
+  // 손을 떼면 스프링으로 튕겨 돌아오는 순수 시각 효과입니다.
+  const controlStretch = useSharedValue(0);
+  const controlPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        scrollY.value <= 0 && gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => {
+        if (scrollY.value > 0) return;
+        controlStretch.value = Math.min(48, Math.max(0, gesture.dy) * 0.45);
+      },
+      onPanResponderRelease: () => {
+        controlStretch.value = withSpring(0, { damping: 14, stiffness: 180 });
+      },
+      onPanResponderTerminate: () => {
+        controlStretch.value = withSpring(0, { damping: 14, stiffness: 180 });
+      },
+    }),
+  ).current;
+  const controlStretchStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: controlStretch.value * 0.5 },
+      { scaleY: 1 + controlStretch.value / 400 },
+    ],
+  }));
 
   // 리포트 화면 등으로 이동했다가 다시 돌아왔을 때 항상 스크롤 최상단(초기 상태)에서
   // 시작하도록, 화면이 포커스를 얻을 때마다 스크롤 위치와 히어로 애니메이션 값을 초기화합니다.
@@ -631,19 +644,14 @@ export default function DoorOpenerScreen() {
             showsVerticalScrollIndicator={false}
             onScroll={controlScrollHandler}
             scrollEventThrottle={16}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={C.white}
-                colors={[C.gatePrimary]}
-                progressBackgroundColor="rgba(255,255,255,0.92)"
-              />
-            }
+            {...controlPanResponder.panHandlers}
           >
-            <View
+            <Animated.View
               className="rounded-t-[28px] px-[18px] pt-5 gap-4"
-              style={{ marginTop: -220 - (tabsHeight - 50) }}
+              style={[
+                { marginTop: -220 - (tabsHeight - 50) },
+                controlStretchStyle,
+              ]}
             >
               <Animated.View entering={FadeInDown.delay(110).duration(380)}>
                 <NfcDoorCardSection
@@ -655,33 +663,22 @@ export default function DoorOpenerScreen() {
                   runtimeText={runtimeText}
                   hiveId={activeHive?.id}
                   onSyncStatusChange={setAppConnectionStatus}
-                  refreshKey={refreshKey}
-                  onRefreshEnd={handleRefreshEnd}
                   gateMode={gateMode}
                   gates={gates}
                 />
               </Animated.View>
 
-            </View>
+            </Animated.View>
           </Animated.ScrollView>
         </>
       ) : (
-        <ScrollView
+        <BounceScrollView
           contentContainerStyle={{
             paddingHorizontal: H_PAD,
             paddingTop: 18,
             paddingBottom: insets.bottom + 96,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={C.white}
-              colors={[C.gatePrimary]}
-              progressBackgroundColor="rgba(255,255,255,0.92)"
-            />
-          }
         >
           <Animated.View entering={FadeInDown.delay(95).duration(380)}>
             <GateReportSection />
@@ -698,7 +695,7 @@ export default function DoorOpenerScreen() {
               gateConnected={gateConnected}
             />
           </Animated.View>
-        </ScrollView>
+        </BounceScrollView>
       )}
     </View>
   );

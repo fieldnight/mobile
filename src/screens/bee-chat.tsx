@@ -12,7 +12,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { useNavigation } from "@react-navigation/native";
+import { router } from "expo-router";
 import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
@@ -106,7 +106,6 @@ function AssistantGuideOverlay({ onClose }: { onClose: () => void }) {
 }
 
 export default function BeeChatScreen() {
-  const navigation = useNavigation();
   const scrollRef = useRef<ScrollView>(null);
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [inputText, setInputText] = useState("");
@@ -214,7 +213,7 @@ export default function BeeChatScreen() {
     >
       <AppHeader
         title="수정벌 AI 상담"
-        onBack={() => navigation.goBack()}
+        onBack={() => router.back()}
         rightAction={{
           icon: "clock",
           onPress: openHistory,
