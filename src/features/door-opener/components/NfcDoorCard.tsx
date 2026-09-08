@@ -10,6 +10,13 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { NfcDoorCardConfig } from "./nfcDoorCards";
 
+/**
+ * 삼성 스마트싱스 앱의 방(room)별 기기 카드 그리드를 참고한 스타일.
+ * - 카드 배경은 화면 배경보다 살짝 짙은 단색(stCardBg), 그림자는 거의 없음.
+ * - 아이콘은 원형 배지 안에 들어가고, 실행중이면 컬러(stIconBadgeOn)로 채워지고
+ *   아니면 회색(stIconBadgeOff)으로 바뀝니다 — 텍스트보다 이 배지 색이 on/off를
+ *   먼저 보여주는 1차 신호입니다.
+ */
 export function NfcDoorCard({
   card,
   size,
@@ -59,22 +66,8 @@ export function NfcDoorCard({
         className="active:opacity-80"
       >
         <CardShell size={size} dragging={dragging} active={active}>
-          {active && runtimeLabel ? (
-            <View
-              className="mb-2 self-start rounded-full px-2.5 py-1"
-              style={{ backgroundColor: "rgba(248,209,92,0.96)" }}
-            >
-              <PretendardFont
-                weight="bold"
-                numberOfLines={1}
-                style={{ fontSize: 12.5, color: C.text }}
-              >
-                실행중 · {runtimeLabel}
-              </PretendardFont>
-            </View>
-          ) : null}
           <View className="flex-row items-start justify-between">
-            <Feather name={card.icon} size={20} color={C.text} />
+            <IconBadge icon={card.icon} on={Boolean(active)} />
 
             {editable && card.removable && onDelete && (
               <Pressable
@@ -85,14 +78,14 @@ export function NfcDoorCard({
                 hitSlop={8}
                 className="items-center justify-center rounded-full active:opacity-70"
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: 26,
+                  height: 26,
                   backgroundColor: "rgba(239, 68, 68, 0.92)",
                 }}
               >
                 <PretendardFont
                   weight="bold"
-                  style={{ fontSize: 20, color: C.white }}
+                  style={{ fontSize: 17, color: C.white, lineHeight: 17 }}
                 >
                   -
                 </PretendardFont>
@@ -100,27 +93,44 @@ export function NfcDoorCard({
             )}
           </View>
 
-          <View style={{ gap: 3 }}>
+          <View style={{ gap: 2 }}>
             <PretendardFont
-              weight="bold"
-              style={{ fontSize: 18, lineHeight: 23, color: C.text }}
+              weight="semibold"
+              numberOfLines={1}
+              style={{ fontSize: 14.5, lineHeight: 19, color: C.text }}
             >
               {card.title}
             </PretendardFont>
             <PretendardFont
-              weight="semibold"
+              weight="medium"
+              numberOfLines={1}
               style={{
-                fontSize: 12.5,
-                lineHeight: 17,
-                color: "#5A6270",
+                fontSize: 12,
+                lineHeight: 16,
+                color: active ? C.stIconBadgeOn : C.sec,
               }}
             >
-              {card.description}
+              {active && runtimeLabel ? runtimeLabel : active ? "실행중" : card.description}
             </PretendardFont>
           </View>
         </CardShell>
       </Pressable>
     </Animated.View>
+  );
+}
+
+function IconBadge({ icon, on }: { icon: keyof typeof Feather.glyphMap; on: boolean }) {
+  return (
+    <View
+      className="items-center justify-center rounded-full"
+      style={{
+        width: 40,
+        height: 40,
+        backgroundColor: on ? C.stIconBadgeOn : C.stIconBadgeOff,
+      }}
+    >
+      <Feather name={icon} size={18} color={on ? C.white : C.stIconOff} />
+    </View>
   );
 }
 
@@ -140,16 +150,18 @@ function CardShell({
       className="justify-between"
       style={{
         minHeight: size * 0.66,
-        borderRadius: 14,
+        borderRadius: 16,
         padding: 14,
-        backgroundColor: active ? "rgba(248,209,92,0.18)" : C.white,
-        borderWidth: active || dragging ? 2 : 1,
-        borderColor: active
-          ? "#F8D15C"
-          : dragging
-            ? C.primary
-            : "rgba(0,0,0,0.05)",
+        gap: 10,
+        backgroundColor: C.stCardBg,
+        borderWidth: dragging ? 2 : 0,
+        borderColor: dragging ? C.gatePrimary : "transparent",
         opacity: dragging ? 0.92 : 1,
+        shadowColor: C.shadow,
+        shadowOpacity: active ? 0.08 : 0.04,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: dragging ? 12 : 1,
       }}
     >
       {children}

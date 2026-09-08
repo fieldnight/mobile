@@ -110,13 +110,48 @@ function emptyPoint(label: string): DataPoint {
   };
 }
 
+const WEEKDAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
+
+/**
+ * "14:00", "14시" 등 다양한 시간 label 형식에서 앞쪽 시(0~23)만 뽑습니다.
+ * 뒤에 붙는 ":00"의 00까지 숫자로 잡아버리면(예: "14:00" -> 1400) 안 되므로
+ * 문자열 맨 앞의 연속된 숫자만 사용합니다.
+ */
+function hourOf(label: string) {
+  const match = label.match(/\d+/);
+  return match ? parseInt(match[0], 10) : NaN;
+}
+
+/**
+ * period별 label을 00시/월요일/1주차 순으로 정렬하기 위한 비교 함수를 만듭니다.
+ * 서버가 응답을 보내는 순서(예: 현재 시각부터 최근순)에 의존하지 않기 위함입니다.
+ */
+function compareLabels(period: Period) {
+  if (period === "일간") {
+    return (a: string, b: string) => (hourOf(a) || 0) - (hourOf(b) || 0);
+  }
+
+  if (period === "주간") {
+    return (a: string, b: string) => {
+      const indexOf = (label: string) =>
+        WEEKDAY_ORDER.findIndex((day) => label.includes(day));
+      return indexOf(a) - indexOf(b);
+    };
+  }
+
+  // 월간: "1주차", "2주차" 등 맨 앞 숫자로 정렬합니다.
+  return (a: string, b: string) => (hourOf(a) || 0) - (hourOf(b) || 0);
+}
+
 /**
  * 센서별로 따로 내려오는 telemetry 응답을 화면용 DataPoint 배열로 합칩니다.
  * 서버의 label은 x축, value는 해당 센서의 y축 값으로 그대로 사용합니다.
+ * labels는 서버 응답 순서와 무관하게 period 기준으로 정렬해 00시부터 차례대로 보여줍니다.
  */
 export function mergeTelemetryData(
   fallback: DataPoint[],
   responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
+  period: Period,
 ): DataPoint[] {
   const responseMaps = Object.fromEntries(
     HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
@@ -137,14 +172,23 @@ export function mergeTelemetryData(
   }
 
   const fallbackMap = new Map(fallback.map((point) => [point.label, point]));
-  const labels = Array.from(
+  let labels = Array.from(
     new Set([
       ...fallback.map((point) => point.label),
       ...HIVE_TELEMETRY_SENSORS.flatMap(({ sensorType }) => [
         ...responseMaps[sensorType].keys(),
       ]),
     ]),
-  );
+  ).sort(compareLabels(period));
+
+  // 일간은 아직 지나지 않은 미래 시간대를 빼고, 01시부터 현재 시각까지만 보여줍니다.
+  if (period === "일간") {
+    const currentHour = new Date().getHours();
+    labels = labels.filter((label) => {
+      const hour = hourOf(label);
+      return Number.isFinite(hour) && hour >= 1 && hour <= currentHour;
+    });
+  }
 
   const merged = labels.map((label) => {
     const fallbackPoint = fallbackMap.get(label) ?? emptyPoint(label);

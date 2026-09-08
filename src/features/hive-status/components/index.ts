@@ -4,3 +4,4 @@ export { ChartCards } from "./ChartCards";
 export { DataTable } from "./DataTable";
 export { HiveReplacementTable } from "./HiveReplacementTable";
 export { HiveReplacementCard } from "./HiveReplacementCard";
+export { LiveTelemetryTable } from "./LiveTelemetryTable";

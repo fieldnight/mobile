@@ -62,7 +62,7 @@ export default function HiveStatsScreen() {
   );
   const [addHiveVisible, setAddHiveVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
-    "combined",
+    "table",
   );
   const { onScroll, scrollEventThrottle } = useScrollHeader();
 

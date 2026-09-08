@@ -7,3 +7,7 @@ export { AddHiveCard } from "./AddHiveCard";
 export { AddNfcDoorCardModal } from "./AddNfcDoorCardModal";
 export { DraggableHiveSection } from "./DraggableHiveSection";
 export { NfcDoorCardSection } from "./NfcDoorCardSection";
+export { AddGateSheet } from "./AddGateSheet";
+export { GateModeSection } from "./GateModeSection";
+export { GateReportSection } from "./GateReportSection";
+export { GateSelectSheet } from "./GateSelectSheet";

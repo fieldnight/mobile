@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createHiveAutoControlSchedule,
@@ -10,7 +10,10 @@ import {
   type HiveAutoControlScheduleCreateRequest,
   type ManualControlRequest,
 } from "../api";
-import { subscribeHiveControlResult } from "../model/sseClient";
+import {
+  subscribeHiveEvents,
+  type HiveTelemetryEvent,
+} from "../model/sseClient";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
@@ -106,16 +109,48 @@ export function useHiveControlSse({
 }) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // onResult가 리렌더마다 새로 만들어져도 구독을 유지하기 위해 ref로 최신 콜백만 갱신합니다.
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
   useEffect(() => {
     if (!enabled || !isAuthenticated || !accessToken) return;
 
-    return subscribeHiveControlResult({
+    return subscribeHiveEvents({
       accessToken,
-      onResult,
+      onControlResult: (event) => onResultRef.current(event),
       onError: (error) => {
         console.error("[Hive Control SSE] hook 오류", error);
       },
     });
-  }, [accessToken, enabled, isAuthenticated, onResult]);
+  }, [accessToken, enabled, isAuthenticated]);
 }
+
+/** 로그인된 상태에서 벌통 센서 SSE 이벤트를 구독합니다. */
+export function useHiveTelemetrySse({
+  enabled,
+  onTelemetry,
+}: {
+  enabled: boolean;
+  onTelemetry: (event: HiveTelemetryEvent) => void;
+}) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // onTelemetry가 리렌더마다 새로 만들어져도 구독을 유지하기 위해 ref로 최신 콜백만 갱신합니다.
+  const onTelemetryRef = useRef(onTelemetry);
+  onTelemetryRef.current = onTelemetry;
+
+  useEffect(() => {
+    if (!enabled || !isAuthenticated || !accessToken) return;
+
+    return subscribeHiveEvents({
+      accessToken,
+      onTelemetry: (event) => onTelemetryRef.current(event),
+      onError: (error) => {
+        console.error("[Hive Telemetry SSE] hook 오류", error);
+      },
+    });
+  }, [accessToken, enabled, isAuthenticated]);
+}
+
+export type { HiveTelemetryEvent } from "../model/sseClient";

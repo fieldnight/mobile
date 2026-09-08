@@ -61,7 +61,7 @@ export function useHiveTelemetryData({
         });
       });
 
-      const merged = mergeTelemetryData(fallbackData, responses);
+      const merged = mergeTelemetryData(fallbackData, responses, period);
 
       console.log("[Hive Telemetry Hook] 센서 데이터 화면 반영 준비", {
         hiveId,

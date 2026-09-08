@@ -318,6 +318,7 @@ export default function HiveSettingsScreen() {
       <HiveWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
+        mode="change"
         initialDeviceId={selectedHive?.macAddress}
         onProvisioned={showSavedMessage}
       />

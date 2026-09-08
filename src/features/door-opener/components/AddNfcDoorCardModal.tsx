@@ -1,31 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  Pressable,
-  ScrollView,
-  Switch,
-  TextInput,
-  View,
-} from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, Switch, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { BottomSheet } from "@/components/BottomSheet";
+import { DualRangeSlider, SingleRangeSlider } from "@/components/DualRangeSlider";
 import { C } from "@/constants/hive-colors";
 import {
-  isBeeCountLimitFunction,
-  type BeeCountLimitFunction,
+  NO_REPEAT_DAYS,
+  isRepeatDaysEmpty,
+  isTimeWindowAllDay,
+  type BeeCountControlConfig,
+  type GateOpenState,
   type NfcDoorFunction,
+  type RepeatDays,
 } from "./nfcDoorCards";
 
-const MERIDIEM_VALUES = ["오전", "오후"] as const;
-const HOURS_12 = Array.from({ length: 12 }, (_, index) => index + 1);
-const MINUTES_10 = Array.from({ length: 6 }, (_, index) => index * 10);
-const WHEEL_ITEM_H = 42;
-const WHEEL_VISIBLE_ITEMS = 3;
-const WHEEL_PAD_COUNT = 1;
-/** TimeField(휠 3개) 자체 높이 + 세로 패딩(py-3 = 24px). 여닫기 시간대 필드가 열리고 닫힐 때
- * 이 값만큼 항상 공간을 예약해서, 휠이 나타나도 아래 "반복 활성화" 섹션 위치가 밀리지 않게 합니다. */
-const TIME_FIELD_H = WHEEL_ITEM_H * WHEEL_VISIBLE_ITEMS + 24;
+/** 마릿수 슬라이더 상한. 이 값에 도달하면 "무제한"으로 취급해요(그림의 ∞에 대응). */
+const COUNT_MAX = 99;
+/** 시간 슬라이더는 하루(0~24시)를 30분 단위로 다룹니다. 값의 단위는 "시(hour, 소수)". */
+const HOUR_MAX = 24;
+const HOUR_STEP = 0.5;
 
 const FUNCTION_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
   { value: "open_at", label: "열기 예약" },
@@ -36,59 +29,98 @@ const FUNCTION_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
 
 type ControlMode = "time" | "count";
 
-const COUNT_LIMIT_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
-  { value: "activity_boost", label: "활동량 강제증가" },
-  { value: "overpollination_guard", label: "과수정 방지" },
-  { value: "return_limit", label: "귀소량 제한" },
+const DAY_OPTIONS: Array<{ key: keyof RepeatDays; label: string }> = [
+  { key: "sun", label: "일" },
+  { key: "mon", label: "월" },
+  { key: "tue", label: "화" },
+  { key: "wed", label: "수" },
+  { key: "thu", label: "목" },
+  { key: "fri", label: "금" },
+  { key: "sat", label: "토" },
 ];
 
-/**
- * 벌 마릿수 제어 3종 기능이 기준 마릿수 전/후로 입구·출구를 어떻게 움직이는지
- * 팀원이 한눈에 비교할 수 있도록 정리한 표 데이터입니다.
- * (기준 카운터: COUNT_TARGET_BY_LIMIT_FUNCTION과 동일한 값)
- */
-const COUNT_LIMIT_TABLE: Record<
-  BeeCountLimitFunction,
-  {
-    counterLabel: string;
-    beforeThreshold: string;
-    atThreshold: string;
-  }
-> = {
-  activity_boost: {
-    counterLabel: "출구로 나간 벌 수",
-    beforeThreshold: "입구(들어오는 문) 닫힘 · 출구는 항상 열림",
-    atThreshold: "입구 열림 · 벌이 자유롭게 들어올 수 있어요",
-  },
-  overpollination_guard: {
-    counterLabel: "출구로 나간 벌 수",
-    beforeThreshold: "입구·출구 모두 열림",
-    atThreshold: "출구(나가는 문) 닫힘 · 입구는 계속 열려있어요",
-  },
-  return_limit: {
-    counterLabel: "입구로 들어온 벌 수",
-    beforeThreshold: "입구·출구 모두 열림",
-    atThreshold: "입구(들어오는 문) 닫힘 · 출구는 계속 열려있어요",
-  },
-};
-
 const FORM_PANEL_BG = "#EEF2F6";
-/** 여닫기 시작·종료 버튼 행의 높이 (px-3 py-2 버튼 + 위아래 여백 기준). */
-const TIME_RANGE_HEADER_H = 40;
-/**
- * "시간 설정" 영역은 기능(열기 예약 / 여닫기 / 24시간 교대 등)을 바꾸거나 여닫기의
- * 오전·오후 버튼을 눌러 휠을 펼쳐도 항상 같은 높이를 유지해야, 아래 "반복 활성화"
- * 섹션이 오르내리지 않습니다. 가장 큰 상태(여닫기 박스: 시작/종료 버튼 행 + 휠)를
- * 기준으로 전체를 고정 높이로 맞춥니다.
- */
-const TIME_SETTING_H =
-  32 /* TimeRangeField py-4 */ + TIME_RANGE_HEADER_H + 12 /* mt-3 */ + TIME_FIELD_H;
 
 function makeTime(hour: number, minute: number) {
   const date = new Date();
   date.setHours(hour, minute, 0, 0);
   return date;
 }
+
+/** Date -> 슬라이더가 다루는 "하루 중 시(0~24, 0.5 단위)" 값. */
+function dateToHourValue(date: Date) {
+  const hour = date.getHours() + date.getMinutes() / 60;
+  return Math.round(hour / HOUR_STEP) * HOUR_STEP;
+}
+
+/** 슬라이더의 시(hour) 값 -> Date (오늘 날짜 기준, 시·분만 의미 있음). */
+function hourValueToDate(hourValue: number) {
+  const clamped = Math.min(HOUR_MAX, Math.max(0, hourValue));
+  const hour = Math.floor(clamped);
+  const minute = Math.round((clamped - hour) * 60);
+  return makeTime(hour === HOUR_MAX ? 23 : hour, hour === HOUR_MAX ? 59 : minute);
+}
+
+function formatHourValueLabel(hourValue: number) {
+  const hour = Math.floor(hourValue);
+  const minute = Math.round((hourValue - hour) * 60);
+  return minute === 0 ? `${hour}시` : `${hour}시${minute}분`;
+}
+
+function formatHourEdgeLabel(hourValue: number) {
+  return `${hourValue}시`;
+}
+
+/** "HH:MM" 문자열 -> 슬라이더가 다루는 시(hour) 값. "24:00"(자정)은 24로 다룹니다. */
+function hhmmToHourValue(value: string) {
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText) + Number(minuteText ?? 0) / 60;
+  return Number.isFinite(hour) ? Math.round(hour / HOUR_STEP) * HOUR_STEP : 0;
+}
+
+/** 슬라이더의 시(hour) 값 -> "HH:MM" 문자열. 24는 "24:00"(다음날 자정)으로 그대로 남깁니다. */
+function hourValueToHHMM(hourValue: number) {
+  const clamped = Math.min(HOUR_MAX, Math.max(0, hourValue));
+  const hour = Math.floor(clamped);
+  const minute = Math.round((clamped - hour) * 60);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function formatCountLabel(value: number) {
+  return value >= COUNT_MAX ? `${COUNT_MAX}+` : `${value}`;
+}
+
+function toHourMinuteString(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatClock12(date: Date) {
+  const hours = date.getHours();
+  const meridiem = hours < 12 ? "오전" : "오후";
+  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+  return `${meridiem} ${displayHour}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function isSameClock(a: Date, b: Date) {
+  return a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes();
+}
+
+function describeRepeatDaysShort(days: RepeatDays) {
+  if (isRepeatDaysEmpty(days)) return "단발성";
+  const active = DAY_OPTIONS.filter((option) => days[option.key]).map((option) => option.label);
+  return active.length === 7 ? "매일" : active.join("");
+}
+
+const DEFAULT_COUNT_CONTROL: BeeCountControlConfig = {
+  low: 3,
+  high: 12,
+  below: { entranceOpen: false, exitOpen: true },
+  within: { entranceOpen: true, exitOpen: true },
+  above: { entranceOpen: true, exitOpen: false },
+  repeatDays: NO_REPEAT_DAYS,
+  timeWindowStart: "00:00",
+  timeWindowEnd: "24:00",
+};
 
 export function AddNfcDoorCardModal({
   visible,
@@ -104,10 +136,7 @@ export function AddNfcDoorCardModal({
     repeat: boolean;
     start: string;
     end: string;
-    threshold?: number;
-    timeWindowEnabled?: boolean;
-    timeWindowStart?: string;
-    timeWindowEnd?: string;
+    countControl?: BeeCountControlConfig;
   }) => void;
 }) {
   const [controlMode, setControlMode] = useState<ControlMode>("time");
@@ -116,28 +145,21 @@ export function AddNfcDoorCardModal({
   const [windowStart, setWindowStart] = useState(() => makeTime(9, 0));
   const [windowEnd, setWindowEnd] = useState(() => makeTime(14, 0));
   const [repeat, setRepeat] = useState(false);
-  const [threshold, setThreshold] = useState("50");
-  // 벌 마릿수 제어 고급 옵션 — 이 시간 구간 동안만 마릿수 제한 규칙을 적용합니다.
-  const [countTimeWindowEnabled, setCountTimeWindowEnabled] = useState(false);
-  const [countWindowStart, setCountWindowStart] = useState(() => makeTime(9, 0));
-  const [countWindowEnd, setCountWindowEnd] = useState(() => makeTime(18, 0));
-  const isCountLimit = isBeeCountLimitFunction(functionType);
+  const [countControl, setCountControl] = useState<BeeCountControlConfig>(DEFAULT_COUNT_CONTROL);
+  const isCountControl = controlMode === "count";
 
   const changeControlMode = (nextMode: ControlMode) => {
     setControlMode(nextMode);
-    setFunctionType(nextMode === "time" ? "open_at" : "activity_boost");
+    setFunctionType(nextMode === "time" ? "open_at" : "count_control");
     setRepeat(false);
   };
 
   const detail = useMemo(() => {
-    if (isCountLimit) {
-      const selected = COUNT_LIMIT_OPTIONS.find(
-        (option) => option.value === functionType,
-      );
-      const base = `${selected?.label ?? "벌 마릿수 제한"} · ${getThresholdValue(threshold)}마리 기준`;
-      return countTimeWindowEnabled
-        ? `${base} · ${formatClock12(countWindowStart)} ~ ${formatClock12(countWindowEnd)}`
-        : base;
+    if (isCountControl) {
+      const timeWindowText = isTimeWindowAllDay(countControl)
+        ? ""
+        : ` · ${countControl.timeWindowStart}~${countControl.timeWindowEnd}`;
+      return `현재 활동중인 벌 마릿수 · ${formatCountLabel(countControl.low)}~${formatCountLabel(countControl.high)}마리 구간 · ${describeRepeatDaysShort(countControl.repeatDays)}${timeWindowText}`;
     }
     if (functionType === "window") {
       if (isSameClock(windowStart, windowEnd))
@@ -150,25 +172,11 @@ export function AddNfcDoorCardModal({
         : "24시간 닫고 24시간 연 뒤 종료";
     }
     return formatClock12(time);
-  }, [
-    countTimeWindowEnabled,
-    countWindowEnd,
-    countWindowStart,
-    functionType,
-    isCountLimit,
-    repeat,
-    threshold,
-    time,
-    windowEnd,
-    windowStart,
-  ]);
+  }, [countControl, functionType, isCountControl, repeat, time, windowEnd, windowStart]);
 
   const autoTitle = useMemo(() => {
-    if (isCountLimit) {
-      const selected = COUNT_LIMIT_OPTIONS.find(
-        (option) => option.value === functionType,
-      );
-      return `${getThresholdValue(threshold)}마리 ${selected?.label ?? ""}`;
+    if (isCountControl) {
+      return `${formatCountLabel(countControl.low)}~${formatCountLabel(countControl.high)}마리 구간 제어`;
     }
     if (functionType === "window") {
       if (isSameClock(windowStart, windowEnd)) return "24시간 여닫기";
@@ -177,7 +185,7 @@ export function AddNfcDoorCardModal({
     if (functionType === "alternate_24h") return "24시간 교대";
     const label = functionType === "close_at" ? "닫기" : "열기";
     return `${toHourMinuteString(time)} ${label}`;
-  }, [functionType, isCountLimit, threshold, time, windowEnd, windowStart]);
+  }, [countControl, functionType, isCountControl, time, windowEnd, windowStart]);
 
   const resetAndClose = () => {
     setControlMode("time");
@@ -186,10 +194,7 @@ export function AddNfcDoorCardModal({
     setWindowStart(makeTime(9, 0));
     setWindowEnd(makeTime(14, 0));
     setRepeat(false);
-    setThreshold("50");
-    setCountTimeWindowEnabled(false);
-    setCountWindowStart(makeTime(9, 0));
-    setCountWindowEnd(makeTime(18, 0));
+    setCountControl(DEFAULT_COUNT_CONTROL);
     onClose();
   };
 
@@ -199,8 +204,8 @@ export function AddNfcDoorCardModal({
       title: autoTitle,
       functionType,
       detail,
-      repeat: isCountLimit ? false : repeat,
-      start: isCountLimit
+      repeat: isCountControl ? !isRepeatDaysEmpty(countControl.repeatDays) : repeat,
+      start: isCountControl
         ? ""
         : functionType === "close_at"
           ? ""
@@ -210,23 +215,12 @@ export function AddNfcDoorCardModal({
               ? "close_first"
               : selectedTime,
       end:
-        isCountLimit ||
-        functionType === "open_at" ||
-        functionType === "alternate_24h"
+        isCountControl || functionType === "open_at" || functionType === "alternate_24h"
           ? ""
           : functionType === "window"
             ? toHourMinuteString(windowEnd)
             : selectedTime,
-      threshold: isCountLimit ? getThresholdValue(threshold) : undefined,
-      timeWindowEnabled: isCountLimit ? countTimeWindowEnabled : undefined,
-      timeWindowStart:
-        isCountLimit && countTimeWindowEnabled
-          ? toHourMinuteString(countWindowStart)
-          : undefined,
-      timeWindowEnd:
-        isCountLimit && countTimeWindowEnabled
-          ? toHourMinuteString(countWindowEnd)
-          : undefined,
+      countControl: isCountControl ? countControl : undefined,
     });
     resetAndClose();
   };
@@ -260,54 +254,25 @@ export function AddNfcDoorCardModal({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 16 }}
       >
-      <SheetFieldLabel
-        label={
-          controlMode === "time" ? "시간 제어 기능" : "벌 마릿수 제어 기능"
-        }
-        noTopMargin
-      />
       {controlMode === "time" ? (
-        <View className="flex-row flex-wrap gap-2">
-          {FUNCTION_OPTIONS.map((option) => {
-            const selected = option.value === functionType;
-            return (
-              <Pressable
-                key={option.value}
-                onPress={() => setFunctionType(option.value)}
-                className="items-center rounded-2xl px-4 py-2.5 active:opacity-70"
-                style={{
-                  minWidth: "47%",
-                  backgroundColor: selected ? C.primary : FORM_PANEL_BG,
-                }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  style={{ fontSize: 16.5, color: selected ? C.white : C.sec }}
-                >
-                  {option.label}
-                </PretendardFont>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : (
-        <View className="gap-2.5">
+        <>
+          <SheetFieldLabel label="시간 제어 기능" noTopMargin />
           <View className="flex-row flex-wrap gap-2">
-            {COUNT_LIMIT_OPTIONS.map((option) => {
+            {FUNCTION_OPTIONS.map((option) => {
               const selected = option.value === functionType;
               return (
                 <Pressable
                   key={option.value}
                   onPress={() => setFunctionType(option.value)}
-                  className="items-center rounded-2xl px-4 py-3 active:opacity-70"
+                  className="items-center rounded-2xl px-4 py-2.5 active:opacity-70"
                   style={{
-                    minWidth: "31%",
-                    backgroundColor: selected ? C.primary : FORM_PANEL_BG,
+                    minWidth: "47%",
+                    backgroundColor: selected ? C.gatePrimary : FORM_PANEL_BG,
                   }}
                 >
                   <PretendardFont
                     weight="bold"
-                    style={{ fontSize: 14.5, color: selected ? C.white : C.sec }}
+                    style={{ fontSize: 16.5, color: selected ? C.white : C.sec }}
                   >
                     {option.label}
                   </PretendardFont>
@@ -316,91 +281,40 @@ export function AddNfcDoorCardModal({
             })}
           </View>
 
-          <CountLimitFunctionTable selected={functionType} />
-        </View>
-      )}
-
-      <SheetFieldLabel
-        label={controlMode === "time" ? "시간 설정" : "기준 마릿수"}
-      />
-
-      {isCountLimit ? (
-        <View
-          className="rounded-2xl px-4 py-4"
-          style={{ backgroundColor: C.bgAlt }}
-        >
-          <TextInput
-            value={threshold}
-            onChangeText={(value) => setThreshold(value.replace(/[^0-9]/g, ""))}
-            keyboardType="number-pad"
-            placeholder="50"
-            placeholderTextColor={C.ter}
-            className="h-14 rounded-2xl px-4"
-            style={{
-              backgroundColor: FORM_PANEL_BG,
-              color: C.text,
-              fontFamily: "Pretendard-Bold",
-              fontSize: 23,
-            }}
+          <SheetFieldLabel
+            label="시간 설정"
+            subtitle={functionType === "alternate_24h" ? "활성화 순간부터 24시간씩 교대" : undefined}
           />
-        </View>
-      ) : (
-        <View style={{ height: TIME_SETTING_H, justifyContent: "flex-start" }}>
           {functionType === "window" ? (
-            <TimeRangeField
+            <TimeRangeSliderField
               startValue={windowStart}
               endValue={windowEnd}
               onStartChange={setWindowStart}
               onEndChange={setWindowEnd}
             />
-          ) : functionType === "alternate_24h" ? (
-            <View
-              className="rounded-2xl px-4 py-4"
-              style={{ backgroundColor: C.bgAlt }}
-            >
-              <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 16, color: C.sec, lineHeight: 23 }}
-              >
-                활성화하는 순간부터 24시간 닫고, 다음 24시간은 엽니다.
-              </PretendardFont>
-            </View>
-          ) : (
-            <TimeField value={time} onChange={setTime} />
+          ) : functionType === "alternate_24h" ? null : (
+            <TimeSingleSliderField
+              value={time}
+              onChange={setTime}
+              activeSide={functionType === "close_at" ? "before" : "after"}
+            />
           )}
-        </View>
+
+          <View className="mt-3 flex-row items-center justify-between px-1 py-2">
+            <PretendardFont weight="semibold" style={{ fontSize: 17, color: C.text }}>
+              반복 활성화
+            </PretendardFont>
+            <Switch
+              value={repeat}
+              onValueChange={setRepeat}
+              trackColor={{ false: C.border, true: C.gatePrimary }}
+              thumbColor={C.white}
+            />
+          </View>
+        </>
+      ) : (
+        <CountControlForm value={countControl} onChange={setCountControl} />
       )}
-
-      {isCountLimit ? (
-        <CountLimitAdvancedOptions
-          enabled={countTimeWindowEnabled}
-          onToggle={setCountTimeWindowEnabled}
-          startValue={countWindowStart}
-          endValue={countWindowEnd}
-          onStartChange={setCountWindowStart}
-          onEndChange={setCountWindowEnd}
-        />
-      ) : null}
-
-      {!isCountLimit ? (
-        <View
-          className="mt-3 flex-row items-center justify-between rounded-2xl px-4 py-3"
-          style={{ backgroundColor: FORM_PANEL_BG }}
-        >
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 17, color: C.text }}
-          >
-            반복 활성화
-          </PretendardFont>
-          <Switch
-            value={repeat}
-            onValueChange={setRepeat}
-            trackColor={{ false: C.border, true: C.primary }}
-            thumbColor={C.white}
-          />
-        </View>
-      ) : null}
       </ScrollView>
 
       <View className="pt-4 pb-5 flex-row gap-2.5">
@@ -409,22 +323,16 @@ export function AddNfcDoorCardModal({
           className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
           style={{ backgroundColor: FORM_PANEL_BG }}
         >
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 17, color: C.textAlt }}
-          >
+          <PretendardFont weight="bold" style={{ fontSize: 17, color: C.textAlt }}>
             취소
           </PretendardFont>
         </Pressable>
         <Pressable
           onPress={submit}
           className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
-          style={{ backgroundColor: C.primary }}
+          style={{ backgroundColor: C.gatePrimary }}
         >
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 17, color: C.white }}
-          >
+          <PretendardFont weight="bold" style={{ fontSize: 17, color: C.white }}>
             추가
           </PretendardFont>
         </Pressable>
@@ -456,7 +364,7 @@ function ControlModeSegment({
             style={{
               height: 38,
               paddingHorizontal: 14,
-              backgroundColor: selected ? C.primary : FORM_PANEL_BG,
+              backgroundColor: selected ? C.gatePrimary : FORM_PANEL_BG,
             }}
           >
             <PretendardFont
@@ -474,85 +382,141 @@ function ControlModeSegment({
 }
 
 /**
- * 벌 마릿수 제어 3종 기능이 기준 마릿수 전/후로 입구·출구를 어떻게 여닫는지
- * 비교해서 보여주는 표. 지금 선택된 기능 행을 강조합니다.
+ * 벌 마릿수 제어 폼 전체 — 반복 요일 + 마릿수 구간 슬라이더 + 시간 구간 슬라이더 +
+ * 구간별 입출구 토글 표. "활동량 강제증가/과수정 방지/귀소량 제한" 3개 프리셋 기능 대신,
+ * "현재 활동중인 벌 마릿수"(출구로 나간 수 - 입구로 들어온 수) 하나를 기준으로
+ * 미만/사이/이상 3구간의 입구·출구 개폐를 사용자가 직접 조합하는 방식으로 통일했습니다.
+ * 요일 × 시간 구간 × 마릿수 구간이 모두 맞을 때만 이 규칙이 적용됩니다.
  */
-function CountLimitFunctionTable({
-  selected,
+function CountControlForm({
+  value,
+  onChange,
 }: {
-  selected: NfcDoorFunction;
+  value: BeeCountControlConfig;
+  onChange: (value: BeeCountControlConfig) => void;
 }) {
   return (
-    <View
-      className="overflow-hidden rounded-2xl"
-      style={{ borderWidth: 1, borderColor: "#E5E9ED" }}
-    >
-      <View
-        className="flex-row px-3 py-2"
-        style={{ backgroundColor: FORM_PANEL_BG }}
-      >
-        <PretendardFont
-          weight="bold"
-          style={{ flex: 1.1, fontSize: 12, color: C.textAlt }}
-        >
-          기능
+    <View className="gap-1">
+      <SheetFieldLabel
+        label="반복"
+        subtitle={
+          isRepeatDaysEmpty(value.repeatDays)
+            ? "지금 조건이 충족될 때 한 번만 적용"
+            : "선택한 요일마다 반복 적용"
+        }
+        noTopMargin
+      />
+      <RepeatDaysPicker
+        days={value.repeatDays}
+        onChange={(repeatDays) => onChange({ ...value, repeatDays })}
+      />
+
+      <SheetFieldLabel label="마릿수 구간" subtitle="현재 활동중인 벌 마릿수 기준" />
+      <View className="px-1 py-3">
+        <DualRangeSlider
+          min={0}
+          max={COUNT_MAX}
+          low={value.low}
+          high={value.high}
+          onChange={(low, high) => onChange({ ...value, low, high })}
+          formatEdgeLabel={formatCountLabel}
+          formatHandleLabel={formatCountLabel}
+        />
+      </View>
+
+      <SheetFieldLabel label="시간 구간 설정" subtitle="양 끝까지 밀면 하루 종일" />
+      <View className="px-1 py-3">
+        <DualRangeSlider
+          min={0}
+          max={HOUR_MAX}
+          step={HOUR_STEP}
+          low={hhmmToHourValue(value.timeWindowStart)}
+          high={hhmmToHourValue(value.timeWindowEnd)}
+          onChange={(low, high) =>
+            onChange({
+              ...value,
+              timeWindowStart: hourValueToHHMM(low),
+              timeWindowEnd: hourValueToHHMM(high),
+            })
+          }
+          formatEdgeLabel={formatHourEdgeLabel}
+          formatHandleLabel={formatHourValueLabel}
+        />
+      </View>
+
+      <SheetFieldLabel label="구간별 입구·출구 개폐" />
+      <CountRangeRuleTable value={value} onChange={onChange} />
+    </View>
+  );
+}
+
+const COUNT_RANGE_ROWS: Array<{
+  key: "below" | "within" | "above";
+  label: (value: BeeCountControlConfig) => string;
+}> = [
+  { key: "below", label: (value) => `${formatCountLabel(value.low)}마리 미만` },
+  {
+    key: "within",
+    label: (value) => `${formatCountLabel(value.low)}~${formatCountLabel(value.high)}마리`,
+  },
+  { key: "above", label: (value) => `${formatCountLabel(value.high)}마리 이상` },
+];
+
+function CountRangeRuleTable({
+  value,
+  onChange,
+}: {
+  value: BeeCountControlConfig;
+  onChange: (value: BeeCountControlConfig) => void;
+}) {
+  const toggle = (key: "below" | "within" | "above", field: keyof GateOpenState) => {
+    const current = value[key];
+    onChange({ ...value, [key]: { ...current, [field]: !current[field] } });
+  };
+
+  return (
+    <View>
+      <View className="flex-row px-1 py-1.5">
+        <PretendardFont weight="bold" style={{ flex: 1.3, fontSize: 12, color: C.textAlt }}>
+          구간
         </PretendardFont>
-        <PretendardFont
-          weight="bold"
-          style={{ flex: 1.3, fontSize: 12, color: C.textAlt }}
-        >
-          기준 마릿수 미달 시
+        <PretendardFont weight="bold" style={{ flex: 1, fontSize: 12, color: C.textAlt, textAlign: "center" }}>
+          입구 열림
         </PretendardFont>
-        <PretendardFont
-          weight="bold"
-          style={{ flex: 1.3, fontSize: 12, color: C.textAlt }}
-        >
-          기준 마릿수 도달 시
+        <PretendardFont weight="bold" style={{ flex: 1, fontSize: 12, color: C.textAlt, textAlign: "center" }}>
+          출구 열림
         </PretendardFont>
       </View>
 
-      {COUNT_LIMIT_OPTIONS.map((option, index) => {
-        if (!isBeeCountLimitFunction(option.value)) return null;
-        const row = COUNT_LIMIT_TABLE[option.value];
-        const isSelected = option.value === selected;
-
+      {COUNT_RANGE_ROWS.map((row, index) => {
+        const state = value[row.key];
         return (
           <View
-            key={option.value}
-            className="px-3 py-2.5"
+            key={row.key}
+            className="flex-row items-center px-1 py-2"
             style={{
               borderTopWidth: index === 0 ? 0 : 1,
-              borderTopColor: "#E5E9ED",
-              backgroundColor: isSelected ? "rgba(105,180,213,0.12)" : C.white,
+              borderTopColor: C.border,
             }}
           >
-            <View className="flex-row">
-              <View style={{ flex: 1.1 }}>
-                <PretendardFont
-                  weight="bold"
-                  style={{ fontSize: 13, lineHeight: 18, color: C.text }}
-                >
-                  {option.label}
-                </PretendardFont>
-                <PretendardFont
-                  weight="medium"
-                  style={{ marginTop: 1, fontSize: 10.5, color: C.ter }}
-                >
-                  {row.counterLabel}
-                </PretendardFont>
-              </View>
-              <PretendardFont
-                weight="medium"
-                style={{ flex: 1.3, fontSize: 12, lineHeight: 17, color: C.textAlt }}
-              >
-                {row.beforeThreshold}
-              </PretendardFont>
-              <PretendardFont
-                weight="medium"
-                style={{ flex: 1.3, fontSize: 12, lineHeight: 17, color: C.textAlt }}
-              >
-                {row.atThreshold}
-              </PretendardFont>
+            <PretendardFont weight="bold" style={{ flex: 1.3, fontSize: 13, color: C.text }}>
+              {row.label(value)}
+            </PretendardFont>
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <Switch
+                value={state.entranceOpen}
+                onValueChange={() => toggle(row.key, "entranceOpen")}
+                trackColor={{ false: C.border, true: C.gatePrimary }}
+                thumbColor={C.white}
+              />
+            </View>
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <Switch
+                value={state.exitOpen}
+                onValueChange={() => toggle(row.key, "exitOpen")}
+                trackColor={{ false: C.border, true: C.gatePrimary }}
+                thumbColor={C.white}
+              />
             </View>
           </View>
         );
@@ -561,141 +525,65 @@ function CountLimitFunctionTable({
   );
 }
 
-/**
- * 벌 마릿수 제어 고급 옵션 — 이 시간 구간 동안만 위 마릿수 제한 규칙을 적용합니다.
- * 서버·개폐기(ESP32)는 아직 이 값을 받는 자리가 없어, 지금은 카드에 표시용으로만
- * 저장되고 실제 개폐 동작에는 반영되지 않습니다.
- */
-function CountLimitAdvancedOptions({
-  enabled,
-  onToggle,
-  startValue,
-  endValue,
-  onStartChange,
-  onEndChange,
+/** 요일별 반복 선택. 아무 요일도 안 고르면 "단발성"(한 번만 적용)이 됩니다. */
+function RepeatDaysPicker({
+  days,
+  onChange,
 }: {
-  enabled: boolean;
-  onToggle: (value: boolean) => void;
-  startValue: Date;
-  endValue: Date;
-  onStartChange: (value: Date) => void;
-  onEndChange: (value: Date) => void;
+  days: RepeatDays;
+  onChange: (days: RepeatDays) => void;
 }) {
   return (
-    <View className="mt-4">
-      <PretendardFont weight="bold" style={{ fontSize: 14, color: C.textAlt }}>
-        고급 옵션
-      </PretendardFont>
-
-      <View
-        className="mt-2 flex-row items-center justify-between rounded-2xl px-4 py-3"
-        style={{ backgroundColor: FORM_PANEL_BG }}
-      >
-        <View style={{ flex: 1 }}>
-          <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.text }}>
-            시간 구간 설정
-          </PretendardFont>
-          <PretendardFont
-            weight="medium"
-            style={{ marginTop: 2, fontSize: 12.5, lineHeight: 17, color: C.ter }}
+    <View className="flex-row justify-between">
+      {DAY_OPTIONS.map((option) => {
+        const selected = days[option.key];
+        return (
+          <Pressable
+            key={option.key}
+            onPress={() => onChange({ ...days, [option.key]: !selected })}
+            className="items-center justify-center rounded-full active:opacity-70"
+            style={{
+              width: 36,
+              height: 36,
+              backgroundColor: selected ? C.gatePrimary : FORM_PANEL_BG,
+            }}
           >
-            켜면 아래 시간 구간 동안만 이 마릿수 제한이 적용돼요.
-          </PretendardFont>
-        </View>
-        <Switch
-          value={enabled}
-          onValueChange={onToggle}
-          trackColor={{ false: C.border, true: C.primary }}
-          thumbColor={C.white}
-        />
-      </View>
+            <PretendardFont weight="bold" style={{ fontSize: 13, color: selected ? C.white : C.sec }}>
+              {option.label}
+            </PretendardFont>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
-      {enabled ? (
-        <View className="mt-3">
-          <TimeRangeField
-            startValue={startValue}
-            endValue={endValue}
-            onStartChange={onStartChange}
-            onEndChange={onEndChange}
-          />
-        </View>
+/** NFC 카드 추가 모달 안에서만 쓰는 border 없는 폼 라벨입니다. subtitle은 별도 줄이 아니라 타이틀 옆에 붙습니다. */
+function SheetFieldLabel({
+  label,
+  subtitle,
+  noTopMargin,
+}: {
+  label: string;
+  subtitle?: string;
+  noTopMargin?: boolean;
+}) {
+  return (
+    <View className={`mb-2 ${noTopMargin ? "mt-0" : "mt-3"} flex-row items-baseline`} style={{ gap: 6 }}>
+      <PretendardFont weight="bold" style={{ fontSize: 16.5, color: C.text }}>
+        {label}
+      </PretendardFont>
+      {subtitle ? (
+        <PretendardFont weight="medium" style={{ fontSize: 12.5, color: C.ter, flexShrink: 1 }}>
+          {subtitle}
+        </PretendardFont>
       ) : null}
     </View>
   );
 }
 
-/** NFC 카드 추가 모달 안에서만 쓰는 border 없는 폼 라벨입니다. */
-function SheetFieldLabel({
-  label,
-  noTopMargin,
-}: {
-  label: string;
-  noTopMargin?: boolean;
-}) {
-  return (
-    <View className={`mb-2 ${noTopMargin ? "mt-0" : "mt-3"} flex-row items-center`}>
-      <PretendardFont weight="bold" style={{ fontSize: 16.5, color: C.text }}>
-        {label}
-      </PretendardFont>
-    </View>
-  );
-}
-
-/** 시각 하나를 오전/오후 · 시 · 분 스와이프 휠 3개로 고르는 필드입니다. */
-function TimeField({
-  value,
-  onChange,
-}: {
-  value: Date;
-  onChange: (value: Date) => void;
-}) {
-  const hours = value.getHours();
-  const meridiem: "오전" | "오후" = hours < 12 ? "오전" : "오후";
-  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
-  const minute = value.getMinutes();
-  const roundedMinute = MINUTES_10.reduce((best, item) =>
-    Math.abs(item - minute) < Math.abs(best - minute) ? item : best,
-  );
-
-  const applyChange = (
-    nextMeridiem: "오전" | "오후",
-    nextHour12: number,
-    nextMinute: number,
-  ) => {
-    const updated = new Date(value);
-    updated.setHours(to24Hour(nextMeridiem, nextHour12), nextMinute);
-    onChange(updated);
-  };
-
-  return (
-    <View
-      className="flex-row items-center justify-center rounded-2xl px-3 py-3"
-      style={{ backgroundColor: C.bgAlt }}
-    >
-      <WheelColumn
-        values={MERIDIEM_VALUES}
-        value={meridiem}
-        formatter={(item) => item}
-        onChange={(next) => applyChange(next, hour12, roundedMinute)}
-      />
-      <WheelColumn
-        values={HOURS_12}
-        value={hour12}
-        formatter={(item) => `${item}시`}
-        onChange={(next) => applyChange(meridiem, next, roundedMinute)}
-      />
-      <WheelColumn
-        values={MINUTES_10}
-        value={roundedMinute}
-        formatter={(item) => `${String(item).padStart(2, "0")}분`}
-        onChange={(next) => applyChange(meridiem, hour12, next)}
-      />
-    </View>
-  );
-}
-
-/** 시작·종료 시각 두 개를 고르는 구간 필드입니다. 요약 버튼을 누르면 해당 시각의 휠이 나타납니다. */
-function TimeRangeField({
+/** 여닫기처럼 시작~종료 두 시각을 핸들 2개짜리 슬라이더로 고르는 필드입니다. */
+function TimeRangeSliderField({
   startValue,
   endValue,
   onStartChange,
@@ -706,217 +594,50 @@ function TimeRangeField({
   onStartChange: (value: Date) => void;
   onEndChange: (value: Date) => void;
 }) {
-  const [editing, setEditing] = useState<"start" | "end" | null>("start");
-
   return (
-    <View
-      className="rounded-2xl px-3 py-4"
-      style={{ backgroundColor: C.bgAlt }}
-    >
-      <View className="flex-row items-center justify-center gap-2">
-        <Pressable
-          onPress={() => setEditing((prev) => (prev === "start" ? null : "start"))}
-          className="rounded-xl px-3 py-2 active:opacity-70"
-          style={{
-            backgroundColor: editing === "start" ? C.primary : FORM_PANEL_BG,
-          }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{
-              fontSize: 15,
-              color: editing === "start" ? C.white : C.text,
-            }}
-          >
-            {formatClock12(startValue)}
-          </PretendardFont>
-        </Pressable>
-        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.sec }}>
-          →
-        </PretendardFont>
-        <Pressable
-          onPress={() => setEditing((prev) => (prev === "end" ? null : "end"))}
-          className="rounded-xl px-3 py-2 active:opacity-70"
-          style={{
-            backgroundColor: editing === "end" ? C.primary : FORM_PANEL_BG,
-          }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{
-              fontSize: 15,
-              color: editing === "end" ? C.white : C.text,
-            }}
-          >
-            {formatClock12(endValue)}
-          </PretendardFont>
-        </Pressable>
-      </View>
-
-      <View className="mt-3" style={{ height: TIME_FIELD_H }}>
-        {editing === "start" ? (
-          <TimeField value={startValue} onChange={onStartChange} />
-        ) : editing === "end" ? (
-          <TimeField value={endValue} onChange={onEndChange} />
-        ) : null}
-      </View>
+    <View className="px-1 py-3">
+      <DualRangeSlider
+        min={0}
+        max={HOUR_MAX}
+        step={HOUR_STEP}
+        low={dateToHourValue(startValue)}
+        high={dateToHourValue(endValue)}
+        onChange={(low, high) => {
+          onStartChange(hourValueToDate(low));
+          onEndChange(hourValueToDate(high));
+        }}
+        formatEdgeLabel={formatHourEdgeLabel}
+        formatHandleLabel={formatHourValueLabel}
+      />
     </View>
   );
 }
 
 /**
- * 세로로 스와이프해 값을 고르는 휠 컬럼.
- * 네이티브 ScrollView의 snapToInterval로 스크롤/관성/스냅을 온전히 OS에 맡기고,
- * 스크롤 위치에서 가장 가까운 인덱스만 계산해 선택값을 반영합니다.
+ * 열기/닫기 예약처럼 시각 하나만 고르는 필드입니다. 핸들 1개짜리 슬라이더로,
+ * 그 시각을 기준으로 "이후가 열림"(열기 예약) 또는 "이전이 열림"(닫기 예약)을 색으로 보여줍니다.
  */
-function WheelColumn<T extends string | number>({
-  values,
+function TimeSingleSliderField({
   value,
-  formatter,
   onChange,
+  activeSide,
 }: {
-  values: readonly T[];
-  value: T;
-  formatter: (value: T) => string;
-  onChange: (value: T) => void;
+  value: Date;
+  onChange: (value: Date) => void;
+  activeSide: "before" | "after";
 }) {
-  const scrollRef = useRef<ScrollView>(null);
-  const selectedIndex = Math.max(
-    0,
-    values.findIndex((item) => item === value),
-  );
-  const lastReportedIndexRef = useRef(selectedIndex);
-  const isDraggingRef = useRef(false);
-
-  const clampIndex = (index: number) =>
-    Math.max(0, Math.min(values.length - 1, index));
-
-  // 부모에서 value가 바뀌면(다른 컬럼 변경 등) 스크롤 위치도 맞춰줍니다.
-  // 사용자가 손가락으로 드래그하는 동안에는 위치를 되돌리지 않습니다.
-  useEffect(() => {
-    if (isDraggingRef.current) return;
-    lastReportedIndexRef.current = selectedIndex;
-    scrollRef.current?.scrollTo({
-      y: selectedIndex * WHEEL_ITEM_H,
-      animated: false,
-    });
-  }, [selectedIndex]);
-
-  const commitIndexFromOffset = (offsetY: number) => {
-    const index = clampIndex(Math.round(offsetY / WHEEL_ITEM_H));
-    if (index !== lastReportedIndexRef.current) {
-      lastReportedIndexRef.current = index;
-      onChange(values[index]);
-    }
-    return index;
-  };
-
-  const handleScrollEnd = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
-    isDraggingRef.current = false;
-    const index = commitIndexFromOffset(event.nativeEvent.contentOffset.y);
-    scrollRef.current?.scrollTo({ y: index * WHEEL_ITEM_H, animated: true });
-  };
-
-  const paddedItems = Array.from(
-    { length: values.length + WHEEL_PAD_COUNT * 2 },
-    (_, paddedIndex) => paddedIndex - WHEEL_PAD_COUNT,
-  );
-
   return (
-    <View
-      className="items-center overflow-hidden"
-      style={{ width: 86, height: WHEEL_ITEM_H * WHEEL_VISIBLE_ITEMS }}
-    >
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          top: WHEEL_ITEM_H,
-          left: 7,
-          right: 7,
-          height: WHEEL_ITEM_H,
-          borderTopWidth: 2,
-          borderBottomWidth: 2,
-          borderColor: C.primary,
-          zIndex: 2,
-        }}
+    <View className="px-1 py-3">
+      <SingleRangeSlider
+        min={0}
+        max={HOUR_MAX}
+        step={HOUR_STEP}
+        value={dateToHourValue(value)}
+        onChange={(next) => onChange(hourValueToDate(next))}
+        activeSide={activeSide}
+        formatEdgeLabel={formatHourEdgeLabel}
+        formatHandleLabel={formatHourValueLabel}
       />
-
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={WHEEL_ITEM_H}
-        decelerationRate="fast"
-        nestedScrollEnabled
-        onScrollBeginDrag={() => {
-          isDraggingRef.current = true;
-        }}
-        onMomentumScrollEnd={handleScrollEnd}
-        onScrollEndDrag={(event) => {
-          // momentum이 거의 없는 짧은 드래그는 onMomentumScrollEnd가 오지 않을 수 있어 여기서도 커밋합니다.
-          if (event.nativeEvent.velocity?.y) return;
-          handleScrollEnd(event);
-        }}
-      >
-        {paddedItems.map((index) => {
-          const inRange = index >= 0 && index < values.length;
-          const distance = Math.abs(index - selectedIndex);
-          const selected = inRange && distance === 0;
-          return (
-            <Pressable
-              key={index}
-              disabled={!inRange}
-              onPress={() => {
-                scrollRef.current?.scrollTo({
-                  y: index * WHEEL_ITEM_H,
-                  animated: true,
-                });
-                commitIndexFromOffset(index * WHEEL_ITEM_H);
-              }}
-              className="items-center justify-center"
-              style={{ height: WHEEL_ITEM_H }}
-            >
-              {inRange ? (
-                <PretendardFont
-                  weight="bold"
-                  style={{
-                    fontSize: selected ? 20 : 17,
-                    color: selected ? C.text : distance <= 1 ? C.ter : "transparent",
-                  }}
-                >
-                  {formatter(values[index])}
-                </PretendardFont>
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
     </View>
   );
-}
-
-function isSameClock(a: Date, b: Date) {
-  return a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes();
-}
-
-function formatClock12(date: Date) {
-  const hours = date.getHours();
-  const meridiem = hours < 12 ? "오전" : "오후";
-  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${meridiem} ${displayHour}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function to24Hour(meridiem: "오전" | "오후", hour12: number) {
-  return meridiem === "오전" ? hour12 % 12 : (hour12 % 12) + 12;
-}
-
-function getThresholdValue(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 50;
-}
-
-function toHourMinuteString(date: Date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }

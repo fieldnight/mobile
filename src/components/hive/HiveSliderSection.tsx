@@ -132,7 +132,7 @@ function MetricPair({
           minimumFontScale={0.86}
           style={{ fontSize: 19.5, color: C.text }}
         >
-          온도 {temperature}°C · 습도 {humidity}%
+          온도 {temperature.toFixed(1)}°C · 습도 {humidity.toFixed(0)}%
         </PretendardFont>
       </View>
     </View>
@@ -249,7 +249,7 @@ function PanelMetric({
             style={{ backgroundColor: "rgba(237, 119, 57, 0.11)" }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartTemp }}>
-              {temperature}°C
+              {temperature.toFixed(1)}°C
             </PretendardFont>
           </View>
         </View>
@@ -262,7 +262,7 @@ function PanelMetric({
             style={{ backgroundColor: "rgba(37, 99, 235, 0.09)" }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartHumidity }}>
-              {humidity}%
+              {humidity.toFixed(0)}%
             </PretendardFont>
           </View>
         </View>

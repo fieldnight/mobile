@@ -18,4 +18,14 @@ export {
   HiveEnvironmentGuide,
   HiveReplacementTable,
   HiveReplacementCard,
+  LiveTelemetryTable,
 } from "./components";
+export {
+  appendHiveTelemetryLog,
+  getHiveTelemetryLog,
+  bucketizeTelemetryLog,
+  listAvailableDateKeys,
+  filterTelemetryLogByDateAndHour,
+  type HiveTelemetryLogRecord,
+  type TelemetryIntervalMinutes,
+} from "./model/telemetryLog";

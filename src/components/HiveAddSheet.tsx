@@ -11,6 +11,7 @@ import {
   HiveWifiSetupSheet,
   isValidHiveDeviceId,
   normalizeHiveDeviceId,
+  type HiveWifiSetupMode,
 } from "@/features/hive-wifi";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { C } from "@/constants/hive-colors";
@@ -141,6 +142,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 
   const submitting =
     createHiveMutation.isPending || updateHiveMutation.isPending;
+  const wifiSetupMode: HiveWifiSetupMode = editing ? "change" : "register";
   const normalizedFormMac = normalizeHiveDeviceId(form.macAddress);
   const validMacAddress = editing
     ? form.macAddress.trim() !== ""
@@ -166,8 +168,13 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
   const handleWifiProvisioned = (deviceId: string) => {
     const normalizedDeviceId = normalizeHiveDeviceId(deviceId);
     setProvisionedDeviceId(normalizedDeviceId);
-    updateField("macAddress", normalizedDeviceId);
-    showToast("벌통 Wi-Fi 웹 설정을 완료했어요", "success");
+    if (!editing) updateField("macAddress", normalizedDeviceId);
+    showToast(
+      editing
+        ? "새 Wi-Fi 정보가 저장됐어요. 벌통이 다시 연결될 때까지 기다려주세요"
+        : "벌통 Wi-Fi 웹 설정을 완료했어요",
+      "success",
+    );
   };
 
   const monitorFirstConnection = async (
@@ -336,17 +343,16 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
           style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
         >
           {editing
-            ? "등록된 벌통의 이름, 지역, 위치, 메모를 수정할 수 있어요."
+            ? "벌통 정보와 현장에서 사용하는 공유기 Wi-Fi를 변경할 수 있어요."
             : "처음 설치라면 벌통 Wi-Fi를 연결한 뒤 기본 정보를 입력해주세요."}
         </PretendardFont>
       </View>
 
-      {!editing && (
-        <WifiSetupCard
-          configuredDeviceId={provisionedDeviceId}
-          onPress={() => setWifiSetupVisible(true)}
-        />
-      )}
+      <WifiSetupCard
+        mode={wifiSetupMode}
+        completedDeviceId={provisionedDeviceId}
+        onPress={() => setWifiSetupVisible(true)}
+      />
 
       <FieldLabel label="벌통 번호" required hint={editing ? "수정 불가" : undefined} />
       <FormInput
@@ -417,6 +423,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
       <HiveWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
+        mode={wifiSetupMode}
         initialDeviceId={form.macAddress}
         onProvisioned={handleWifiProvisioned}
       />
@@ -447,48 +454,76 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 }
 
 function WifiSetupCard({
-  configuredDeviceId,
+  mode,
+  completedDeviceId,
   onPress,
 }: {
-  configuredDeviceId: string;
+  mode: HiveWifiSetupMode;
+  completedDeviceId: string;
   onPress: () => void;
 }) {
-  const configured = configuredDeviceId !== "";
+  const completed = completedDeviceId !== "";
+  const copy = getWifiSetupCardCopy(mode, completedDeviceId);
 
   return (
     <Pressable
       onPress={onPress}
       className="mt-4 flex-row items-center gap-3 rounded-2xl p-4 active:opacity-80"
       style={{
-        backgroundColor: configured ? "#E8F8F0" : C.bgAlt,
+        backgroundColor: completed ? "#E8F8F0" : C.bgAlt,
         borderWidth: 1,
-        borderColor: configured ? "#B7E4CD" : C.border,
+        borderColor: completed ? "#B7E4CD" : C.border,
       }}
     >
       <View
         className="h-10 w-10 items-center justify-center rounded-full bg-white"
       >
         <Feather
-          name={configured ? "check" : "wifi"}
+          name={completed ? "check" : "wifi"}
           size={19}
-          color={configured ? C.success : C.primary}
+          color={completed ? C.success : C.primary}
         />
       </View>
       <View className="flex-1">
         <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
-          {configured ? `${configuredDeviceId} Wi-Fi 웹 설정 완료` : "벌통 Wi-Fi 연결"}
+          {copy.title}
         </PretendardFont>
         <PretendardFont
           style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: C.sec }}
         >
-          {configured
-            ? "웹 설정 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요."
-            : "처음 설치하는 스마트벌통이라면 먼저 진행해주세요."}
+          {copy.description}
         </PretendardFont>
       </View>
       <Feather name="chevron-right" size={18} color={C.sec} />
     </Pressable>
   );
+}
+
+function getWifiSetupCardCopy(
+  mode: HiveWifiSetupMode,
+  completedDeviceId: string,
+) {
+  if (mode === "change") {
+    return completedDeviceId
+      ? {
+          title: "새 Wi-Fi 정보 저장 완료",
+          description: "벌통이 재부팅된 뒤 새 공유기로 다시 연결됩니다.",
+        }
+      : {
+          title: "연결 Wi-Fi 변경",
+          description: "공유기 교체나 설치 장소 이동 시 여기에서 다시 설정해요.",
+        };
+  }
+
+  return completedDeviceId
+    ? {
+        title: `${completedDeviceId} Wi-Fi 웹 설정 완료`,
+        description: "웹 설정 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요.",
+      }
+    : {
+        title: "벌통 Wi-Fi 연결",
+        description: "처음 설치하는 스마트벌통이라면 먼저 진행해주세요.",
+      };
 }
 
 /** Add 계열 모달에서 쓰는 border 없는 폼 라벨입니다. */

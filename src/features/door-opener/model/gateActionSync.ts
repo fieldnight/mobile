@@ -10,7 +10,7 @@ import {
 } from "../api";
 import {
   DEFAULT_NFC_DOOR_CARDS,
-  isBeeCountLimitFunction,
+  isCountControlMode,
   type NfcDoorCardConfig,
   type NfcDoorFunction,
   type NfcDoorMode,
@@ -30,9 +30,7 @@ const SUPPORTED_MODES = new Set<NfcDoorMode>([
   "alternate_24h",
   "lock_days",
   "count_status",
-  "activity_boost",
-  "overpollination_guard",
-  "return_limit",
+  "count_control",
 ]);
 
 type GateActionBacklogType = "create" | "update" | "delete";
@@ -336,6 +334,11 @@ function cardToGateActionRequest(card: NfcDoorCardConfig): GateActionRequest {
   };
 }
 
+/**
+ * 서버 API(GateActionType)는 아직 "미만/사이/이상 구간 + 입출구 토글" 모델을 받는 필드가
+ * 없어서, count_control 카드는 임시로 ACTIVITY_BOOST 하나에 매핑해 임계값(low)만 보냅니다.
+ * 구간·토글 세부값은 로컬(AsyncStorage)에만 저장되고 서버에는 아직 반영되지 않습니다.
+ */
 function modeToActionType(mode: NfcDoorMode): GateActionType {
   switch (mode) {
     case "open_at":
@@ -352,12 +355,8 @@ function modeToActionType(mode: NfcDoorMode): GateActionType {
       return "LOCK_DAYS";
     case "count_status":
       return "COUNT_STATUS";
-    case "activity_boost":
+    case "count_control":
       return "ACTIVITY_BOOST";
-    case "overpollination_guard":
-      return "OVERPOLLINATION_GUARD";
-    case "return_limit":
-      return "RETURN_LIMIT";
   }
 }
 
@@ -374,11 +373,9 @@ function actionTypeToMode(actionType: string): NfcDoorMode {
     case "COUNT_STATUS":
       return "count_status";
     case "ACTIVITY_BOOST":
-      return "activity_boost";
     case "OVERPOLLINATION_GUARD":
-      return "overpollination_guard";
     case "RETURN_LIMIT":
-      return "return_limit";
+      return "count_control";
     case "OPEN_ONLY":
     default:
       return "open_at";
@@ -386,12 +383,16 @@ function actionTypeToMode(actionType: string): NfcDoorMode {
 }
 
 function modeToFunctionType(mode: NfcDoorMode): NfcDoorFunction | undefined {
-  if (mode === "open_at" || mode === "close_at" || mode === "window" || mode === "alternate_24h") {
+  if (
+    mode === "open_at" ||
+    mode === "close_at" ||
+    mode === "window" ||
+    mode === "alternate_24h" ||
+    mode === "count_control"
+  ) {
     return mode;
   }
-  return isBeeCountLimitFunction(mode as NfcDoorFunction)
-    ? (mode as NfcDoorFunction)
-    : undefined;
+  return undefined;
 }
 
 function cardTimeToServerTime(card: NfcDoorCardConfig) {
@@ -428,9 +429,9 @@ function actionTypeLabel(actionType: string) {
     ALTERNATE_24H: "24시간 교대",
     LOCK_DAYS: "잠금",
     COUNT_STATUS: "카운트 확인",
-    ACTIVITY_BOOST: "활동량 강제증가",
-    OVERPOLLINATION_GUARD: "과수정 방지",
-    RETURN_LIMIT: "귀소량 제한",
+    ACTIVITY_BOOST: "벌 마릿수 구간 제어",
+    OVERPOLLINATION_GUARD: "벌 마릿수 구간 제어",
+    RETURN_LIMIT: "벌 마릿수 구간 제어",
   };
   return labels[actionType] ?? actionType;
 }

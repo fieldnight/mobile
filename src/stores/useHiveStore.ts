@@ -59,6 +59,15 @@ interface HiveStoreState {
   reorderHives: (nextHives: HiveData[]) => void;
   updateReplacedAt: (id: string, replacedAt?: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
+  updateHiveTelemetry: (
+    id: string,
+    telemetry: {
+      internalTemperature: number;
+      internalHumidity: number;
+      externalTemperature: number;
+      externalHumidity: number;
+    },
+  ) => void;
 }
 
 /**
@@ -74,14 +83,40 @@ export const useHiveStore = create<HiveStoreState>()(
       setHives: (hives) => {
         set((state) => {
           const nextControls = { ...state.hiveControls };
+          const prevHiveById = new Map(state.hives.map((hive) => [hive.id, hive]));
+
+          // 서버 목록을 다시 불러올 때 REST 응답에는 없는 SSE 실시간 온습도 값이
+          // 0으로 덮어써지지 않도록, 기존 store에 있던 값을 이어받습니다.
+          const mergedHives = hives.map((hive) => {
+            const prevHive = prevHiveById.get(hive.id);
+            if (!prevHive) return hive;
+
+            return {
+              ...hive,
+              status: prevHive.status === "online" ? prevHive.status : hive.status,
+              temperature:
+                prevHive.status === "online" ? prevHive.temperature : hive.temperature,
+              humidity: prevHive.status === "online" ? prevHive.humidity : hive.humidity,
+              externalTemperature:
+                prevHive.status === "online"
+                  ? prevHive.externalTemperature
+                  : hive.externalTemperature,
+              externalHumidity:
+                prevHive.status === "online"
+                  ? prevHive.externalHumidity
+                  : hive.externalHumidity,
+              lastUpdate: prevHive.status === "online" ? prevHive.lastUpdate : hive.lastUpdate,
+            };
+          });
+
           // 서버에서 새 벌통이 내려와도 제어 UI가 깨지지 않도록 기본 상태를 보강합니다.
-          hives.forEach((hive) => {
+          mergedHives.forEach((hive) => {
             if (!nextControls[hive.id]) {
               nextControls[hive.id] = createDefaultControlState();
             }
           });
 
-          return { hives, hiveControls: nextControls };
+          return { hives: mergedHives, hiveControls: nextControls };
         });
       },
       addHive: (input) => {
@@ -136,6 +171,23 @@ export const useHiveStore = create<HiveStoreState>()(
             ...state.hiveControls,
             [id]: nextState,
           },
+        }));
+      },
+      updateHiveTelemetry: (id, telemetry) => {
+        set((state) => ({
+          hives: state.hives.map((hive) =>
+            hive.id === id
+              ? {
+                  ...hive,
+                  status: "online",
+                  temperature: telemetry.internalTemperature,
+                  humidity: telemetry.internalHumidity,
+                  externalTemperature: telemetry.externalTemperature,
+                  externalHumidity: telemetry.externalHumidity,
+                  lastUpdate: "방금",
+                }
+              : hive,
+          ),
         }));
       },
     }),

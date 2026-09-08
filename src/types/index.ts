@@ -9,6 +9,7 @@ export * from "./news";
 export * from "./report";
 export * from "./farm";
 export * from "./hive-control";
+export * from "./gate-control";
 export * from "../constants/hive-stats";
 export * from "./hive-weather";
 export * from "./fruit-price";

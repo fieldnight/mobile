@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, ImageBackground, Platform, ScrollView } from "react-native";
+import { Dimensions, ImageBackground, Platform, Pressable, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { PretendardFont } from "@/components/PretendardFont";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { HiveControlSection } from "@/features/hive-control";
 import { HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
+import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useSyncHiveList } from "@/features/hive";
 
@@ -105,6 +108,25 @@ export default function HiveControlScreen() {
 
         {hasHives ? (
           <>
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+                router.push({
+                  pathname: "/hive-live",
+                  params: { selectedHiveId: controlHive },
+                });
+              }}
+              className="flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-80"
+              style={{ backgroundColor: C.text }}
+            >
+              <Feather name="activity" size={16} color={C.white} />
+              <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+                실시간 확인
+              </PretendardFont>
+            </Pressable>
+
             <HiveControlSection controlHive={controlHive} />
             <HiveReplacementCard hive={currentHive} />
           </>
