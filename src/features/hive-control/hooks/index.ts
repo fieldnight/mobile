@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createHiveAutoControlSchedule,
@@ -151,6 +151,39 @@ export function useHiveTelemetrySse({
       },
     });
   }, [accessToken, enabled, isAuthenticated]);
+}
+
+export type HiveSseConnectionStatus = "connected" | "reconnecting" | "disconnected";
+
+/**
+ * 벌통 SSE(실시간) 연결 상태를 노출하는 hook.
+ * - 최초 연결 전에는 "disconnected", 연결되면 "connected",
+ *   끊겨서 재연결을 시도하는 동안은 "reconnecting"으로 바뀝니다.
+ * - 화면에서 이 상태 전환을 보고 재연결 안내 토스트 등을 띄우는 데 사용합니다.
+ */
+export function useHiveSseConnectionStatus({ enabled }: { enabled: boolean }) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [status, setStatus] = useState<HiveSseConnectionStatus>("disconnected");
+
+  useEffect(() => {
+    if (!enabled || !isAuthenticated || !accessToken) {
+      setStatus("disconnected");
+      return;
+    }
+
+    return subscribeHiveEvents({
+      accessToken,
+      onOpen: () => setStatus("connected"),
+      onReconnecting: () => setStatus("reconnecting"),
+      onError: () => {
+        // onReconnecting이 곧바로 뒤따라 재연결 상태로 바뀌므로 여기서는 로그만 남깁니다.
+        console.error("[Hive SSE] 연결 상태 hook 오류");
+      },
+    });
+  }, [accessToken, enabled, isAuthenticated]);
+
+  return status;
 }
 
 export type { HiveTelemetryEvent } from "../model/sseClient";

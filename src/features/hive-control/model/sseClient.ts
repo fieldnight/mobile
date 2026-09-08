@@ -23,6 +23,12 @@ interface SubscribeHiveEventsOptions {
   onTelemetry?: (event: HiveTelemetryEvent) => void;
   onOpen?: () => void;
   onError?: (error: unknown) => void;
+  /** 연결이 끊겨 재연결을 시도하기 시작할 때 호출됩니다. */
+  onReconnecting?: () => void;
+}
+
+function notifyReconnecting() {
+  subscribers.forEach((subscriber) => subscriber.onReconnecting?.());
 }
 
 const subscribers = new Set<SubscribeHiveEventsOptions>();
@@ -83,6 +89,8 @@ function dispatchEvent(eventName: string, rawData: string) {
 
 function scheduleReconnect(accessToken: string) {
   if (reconnectTimer || subscribers.size === 0) return;
+
+  notifyReconnecting();
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -145,6 +153,10 @@ function startConnection(accessToken: string) {
   xhr.setRequestHeader("Accept", "text/event-stream");
   xhr.setRequestHeader("Cache-Control", "no-cache");
   xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+  // release 빌드에서 OkHttp가 gzip 압축 응답을 요청하면 전체 스트림이 끝날 때까지
+  // responseText가 채워지지 않아 SSE 이벤트가 실시간으로 도착하지 않습니다.
+  // 압축을 강제로 끄고 평문 스트림을 받도록 요청합니다.
+  xhr.setRequestHeader("Accept-Encoding", "identity");
 
   xhr.onreadystatechange = () => {
     if (activeXhr !== xhr) return;

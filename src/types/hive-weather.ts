@@ -17,11 +17,13 @@ export type HiveSensorDataKey =
 
 export interface DataPoint {
   label: string;
-  internalTemperature: number;
-  externalTemperature: number;
-  internalHumidity: number;
-  externalHumidity: number;
-  co2: number;
+  /** null은 미수신 값이며, 실제 측정값 0과 구분합니다. */
+  internalTemperature: number | null;
+  externalTemperature: number | null;
+  internalHumidity: number | null;
+  externalHumidity: number | null;
+  co2: number | null;
+  /** 센서 중 하나라도 측정값이 있는 행입니다. 각 센서의 유무는 해당 값으로 판단합니다. */
   hasData?: boolean;
 }
 

@@ -3,8 +3,9 @@
  * - 기간: 일간/주간/월간 데이터 범위를 고릅니다.
  * - 보기: 차트/통합/표 표시 방식을 고릅니다.
  */
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -37,13 +38,13 @@ function OptionRow({
   children: ReactNode;
 }) {
   return (
-    <View className="mb-3 flex-row items-stretch">
-      <View className="mr-3 items-center justify-center ">
+    <View className="mb-3">
+      <View className="mb-2">
         <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
           {label}
         </PretendardFont>
       </View>
-      <View className="flex-1 flex-row gap-3">{children}</View>
+      <View className="flex-row gap-2">{children}</View>
     </View>
   );
 }
@@ -62,13 +63,18 @@ function OptionButton({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
       className="flex-1 items-center rounded-lg py-2.5"
       style={{
+        minHeight: 44,
+        justifyContent: "center",
         backgroundColor: active ? C.text : C.white,
         borderWidth: 1,
         borderColor: active ? C.text : C.border,
       }}
-      data-testid={testID}
+      testID={testID}
     >
       <PretendardFont
         weight={active ? "bold" : "medium"}
@@ -92,13 +98,13 @@ export function PeriodCard({
   weatherContent,
   children,
 }: PeriodCardProps) {
+  const [weatherExpanded, setWeatherExpanded] = useState(false);
   return (
     <Card
       delay={25}
-      className="mx-[-14] pb-10 elevation-none"
-      style={{ backgroundColor: "rgba(255,255,255,0.643)" }}
+      style={{ backgroundColor: "#FFFFFF", elevation: 0 }}
     >
-      <OptionRow label="기간선택">
+      <OptionRow label="조회 기간">
         {PERIODS.map((item) => (
           <OptionButton
             key={item}
@@ -113,7 +119,7 @@ export function PeriodCard({
         ))}
       </OptionRow>
 
-      <OptionRow label="보기방식">
+      <OptionRow label="보기 방식">
         {VIEW_MODES.map((item) => (
           <OptionButton
             key={item.key}
@@ -128,10 +134,30 @@ export function PeriodCard({
         ))}
       </OptionRow>
 
-      <View className="mb-10 rounded-lg p-4" style={{ backgroundColor: C.bg }}>
-        {weatherContent}
-      </View>
       {children}
+      <View className="mt-4 border-t" style={{ borderColor: C.border }}>
+        <Pressable
+          onPress={() => setWeatherExpanded((expanded) => !expanded)}
+          accessibilityRole="button"
+          accessibilityLabel="지역 날씨"
+          accessibilityState={{ expanded: weatherExpanded }}
+          className="flex-row items-center justify-between"
+          style={{ minHeight: 48 }}
+        >
+          <View className="flex-row items-center gap-2">
+            <Feather name="cloud" size={16} color={C.sec} />
+            <PretendardFont weight="medium" style={{ fontSize: 14, color: C.sec }}>
+              지역 날씨 함께 보기
+            </PretendardFont>
+          </View>
+          <Feather name={weatherExpanded ? "chevron-up" : "chevron-down"} size={18} color={C.sec} />
+        </Pressable>
+        {weatherExpanded && (
+          <View className="rounded-lg p-3" style={{ backgroundColor: C.bg }}>
+            {weatherContent}
+          </View>
+        )}
+      </View>
     </Card>
   );
 }

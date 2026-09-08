@@ -1,9 +1,10 @@
 /**
  * 벌통 실시간 확인 화면
- * - 선택한 벌통의 SSE 온습도 데이터를 1/5/10분 간격 표로 보여줍니다.
- * - 로컬(AsyncStorage)에 최근 7일치만 저장하며, 저장 범위를 화면에 안내합니다.
+ * - 선택한 벌통의 특정 날짜/시간대 온습도를 1/5/10분 간격 표로 보여줍니다.
+ * - 데이터는 백엔드 API(period=HOUR)에서 조회하며, 현재 시간대를 보는 동안은
+ *   SSE로 새 값이 올 때마다 해당 조회를 다시 불러와 최신 상태를 유지합니다.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ImageBackground,
@@ -13,50 +14,61 @@ import {
   View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { Card } from "@/components/hive/hive-shared";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useSyncHiveList } from "@/features/hive";
 import { useHiveTelemetrySse, type HiveTelemetryEvent } from "@/features/hive-control/hooks";
 import {
   LiveTelemetryTable,
-  getHiveTelemetryLog,
-  bucketizeTelemetryLog,
-  filterTelemetryLogByDateAndHour,
-  type HiveTelemetryLogRecord,
-  type TelemetryIntervalMinutes,
+  useHiveTelemetryHourData,
+  HIVE_TELEMETRY_HOUR_QUERY_KEY,
+  type HiveTelemetryInterval,
 } from "@/features/hive-status";
 
 const BG_IMAGE = require("../../assets/df.jpg");
 
-const INTERVAL_OPTIONS: Array<{ value: TelemetryIntervalMinutes; label: string }> = [
-  { value: 1, label: "1분" },
-  { value: 5, label: "5분" },
-  { value: 10, label: "10분" },
+const INTERVAL_OPTIONS: Array<{ value: HiveTelemetryInterval; label: string }> = [
+  { value: "ONE_MIN", label: "1분" },
+  { value: "FIVE_MIN", label: "5분" },
+  { value: "TEN_MIN", label: "10분" },
 ];
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 function triggerHaptic() {
   if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
-function toDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function startOfDay(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
-/** 오늘부터 최근 7일치 날짜(yyyy-MM-dd)를 최신순으로 만듭니다. */
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** 오늘부터 최근 7일치 날짜를 최신순으로 만듭니다. */
 function buildRecentDateOptions() {
   const today = new Date();
   return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - index);
+    const date = startOfDay(today);
+    date.setDate(date.getDate() - index);
     return {
-      dateKey: toDateKey(date),
+      date,
       label: `${date.getMonth() + 1}/${date.getDate()}(${WEEKDAY_LABELS[date.getDay()]})`,
       isToday: index === 0,
     };
@@ -65,6 +77,8 @@ function buildRecentDateOptions() {
 
 export default function HiveLiveScreen() {
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
+  const { show: showToast } = useAppToast();
   useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const { selectedHiveId } = useLocalSearchParams<{ selectedHiveId?: string }>();
@@ -74,62 +88,62 @@ export default function HiveLiveScreen() {
       ? selectedHiveId
       : (hives[0]?.id ?? ""),
   );
-  const [interval, setIntervalValue] = useState<TelemetryIntervalMinutes>(1);
-  const [rawRecords, setRawRecords] = useState<HiveTelemetryLogRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [interval, setIntervalValue] = useState<HiveTelemetryInterval>("ONE_MIN");
   const dateOptions = useState(() => buildRecentDateOptions())[0];
-  const [selectedDateKey, setSelectedDateKey] = useState(dateOptions[0].dateKey);
+  const [selectedDate, setSelectedDate] = useState(dateOptions[0].date);
   const [selectedHour, setSelectedHour] = useState(() => new Date().getHours());
 
-  useEffect(() => {
-    if (hives.length && !hives.some((hive) => hive.id === hiveId)) {
-      setHiveId(hives[0].id);
-    }
-  }, [hives, hiveId]);
+  const isViewingCurrentHour = useMemo(() => {
+    const now = new Date();
+    return isSameDay(selectedDate, now) && selectedHour === now.getHours();
+  }, [selectedDate, selectedHour]);
 
-  const reload = useCallback(async () => {
-    if (!hiveId) {
-      setRawRecords([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const records = await getHiveTelemetryLog(hiveId);
-    setRawRecords(records);
-    setLoading(false);
-  }, [hiveId]);
+  const from = useMemo(() => {
+    const target = new Date(selectedDate);
+    target.setHours(selectedHour, 0, 0, 0);
+    return target;
+  }, [selectedDate, selectedHour]);
+
+  const telemetryQuery = useHiveTelemetryHourData({ hiveId, from, interval });
+  const records = telemetryQuery.data ?? [];
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    console.log("[Hive Live] 조회 조건 변경", {
+      hiveId,
+      date: selectedDate.toISOString(),
+      hour: selectedHour,
+      interval,
+    });
+  }, [hiveId, selectedDate, selectedHour, interval]);
 
-  // 화면이 열려 있는 동안 새 SSE 값이 오면 즉시 표에 반영합니다.
+  // 현재 보고 있는 시간대가 지금 이 시각을 포함할 때만, 새 SSE 값이 오면 해당 조회를 다시 불러옵니다.
   const handleTelemetry = useCallback(
     (event: HiveTelemetryEvent) => {
-      if (String(event.hiveId) !== hiveId) return;
-      setRawRecords((prev) => [
-        ...prev,
-        {
-          recordedAt: event.recordedAt,
-          internalTemperature: event.internalTemperature,
-          internalHumidity: event.internalHumidity,
-          externalTemperature: event.externalTemperature,
-          externalHumidity: event.externalHumidity,
-        },
-      ]);
+      if (String(event.hiveId) !== hiveId || !isViewingCurrentHour) return;
+      console.log("[Hive Live] SSE 수신, 현재 시간대 다시 조회", {
+        hiveId,
+        recordedAt: event.recordedAt,
+      });
+      queryClient.invalidateQueries({
+        queryKey: [HIVE_TELEMETRY_HOUR_QUERY_KEY, hiveId],
+      });
     },
-    [hiveId],
+    [hiveId, isViewingCurrentHour, queryClient],
   );
 
   useHiveTelemetrySse({ enabled: true, onTelemetry: handleTelemetry });
 
-  const hourFilteredRecords = filterTelemetryLogByDateAndHour(
-    rawRecords,
-    selectedDateKey,
-    selectedHour,
-  );
-  const displayRecords = bucketizeTelemetryLog(hourFilteredRecords, interval);
   const currentHive = hives.find((hive) => hive.id === hiveId);
+
+  if (telemetryQuery.isError && !telemetryQuery.isFetching) {
+    console.error("[Hive Live] 온습도 데이터 조회 실패", {
+      hiveId,
+      from: from.toISOString(),
+      interval,
+      error: telemetryQuery.error,
+    });
+    showToast("온습도 데이터를 불러오지 못했어요", "error");
+  }
 
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
@@ -202,7 +216,7 @@ export default function HiveLiveScreen() {
         <Card style={{ backgroundColor: "rgba(255,255,255,0.9)" }}>
           <View className="mb-3 flex-row items-center justify-between">
             <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
-              {currentHive?.name ?? "벌통"} 실시간 온습도
+              {currentHive?.name ?? "벌통"} 온습도
             </PretendardFont>
             <View className="flex-row items-center gap-1.5">
               <View
@@ -210,11 +224,16 @@ export default function HiveLiveScreen() {
                   width: 6,
                   height: 6,
                   borderRadius: 3,
-                  backgroundColor: currentHive?.status === "online" ? C.success : C.ter,
+                  backgroundColor:
+                    isViewingCurrentHour && currentHive?.status === "online"
+                      ? C.success
+                      : C.ter,
                 }}
               />
               <PretendardFont weight="medium" style={{ fontSize: 12, color: C.sec }}>
-                {currentHive?.status === "online" ? "실시간 수신 중" : "오프라인"}
+                {isViewingCurrentHour && currentHive?.status === "online"
+                  ? "실시간 수신 중"
+                  : "지난 기록"}
               </PretendardFont>
             </View>
           </View>
@@ -230,13 +249,13 @@ export default function HiveLiveScreen() {
             style={{ marginBottom: 12 }}
           >
             {dateOptions.map((option) => {
-              const active = option.dateKey === selectedDateKey;
+              const active = isSameDay(option.date, selectedDate);
               return (
                 <Pressable
-                  key={option.dateKey}
+                  key={option.date.toISOString()}
                   onPress={() => {
                     triggerHaptic();
-                    setSelectedDateKey(option.dateKey);
+                    setSelectedDate(option.date);
                   }}
                   className="items-center rounded-full px-3.5 py-2 active:opacity-70"
                   style={{
@@ -266,7 +285,7 @@ export default function HiveLiveScreen() {
             contentContainerStyle={{ gap: 6, paddingBottom: 4 }}
             style={{ marginBottom: 12 }}
           >
-            {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => {
+            {HOURS.map((hour) => {
               const active = hour === selectedHour;
               return (
                 <Pressable
@@ -324,26 +343,12 @@ export default function HiveLiveScreen() {
             })}
           </View>
 
-          <View
-            className="mb-4 flex-row items-start gap-2 rounded-lg p-3"
-            style={{ backgroundColor: C.bg }}
-          >
-            <Feather name="info" size={14} color={C.sec} style={{ marginTop: 1 }} />
-            <PretendardFont
-              weight="medium"
-              style={{ fontSize: 12, color: C.sec, flex: 1, lineHeight: 18 }}
-            >
-              실시간 데이터는 휴대폰에 최근 7일치만 저장돼요. 7일이 지난 데이터는 자동으로
-              삭제됩니다.
-            </PretendardFont>
-          </View>
-
-          {loading ? (
+          {telemetryQuery.isLoading ? (
             <View className="items-center py-10">
               <ActivityIndicator size="small" color={C.primary} />
             </View>
           ) : (
-            <LiveTelemetryTable records={displayRecords} />
+            <LiveTelemetryTable records={records} />
           )}
         </Card>
       </ScrollView>

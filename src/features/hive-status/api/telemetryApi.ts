@@ -7,7 +7,8 @@ interface ApiResponse<T> {
   data: T;
 }
 
-export type HiveTelemetryPeriod = "DAY" | "WEEK" | "MONTH";
+export type HiveTelemetryPeriod = "HOUR" | "DAY" | "WEEK" | "MONTH";
+export type HiveTelemetryInterval = "ONE_MIN" | "FIVE_MIN" | "TEN_MIN";
 export type HiveTelemetrySensorType =
   | "INTERNAL_TEMPERATURE"
   | "EXTERNAL_TEMPERATURE"
@@ -17,7 +18,7 @@ export type HiveTelemetrySensorType =
 
 export interface HiveTelemetryPoint {
   label: string;
-  value: number;
+  value: number | null;
 }
 
 export interface HiveTelemetryResponse {
@@ -94,6 +95,73 @@ export async function getHiveTelemetry({
   }
 }
 
+/** 로컬 Date를 서버가 기대하는 타임존 없는 ISO-8601(yyyy-MM-ddTHH:mm:ss) 문자열로 변환합니다. */
+function toLocalIsoString(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
+}
+
+interface GetHiveTelemetryHourParams {
+  hiveId: string | number;
+  sensorType: HiveTelemetrySensorType;
+  from: Date;
+  interval: HiveTelemetryInterval;
+}
+
+/** 특정 날짜의 특정 시(0~23시) 구간을 1/5/10분 간격으로 집계한 센서 데이터를 조회합니다. */
+export async function getHiveTelemetryHour({
+  hiveId,
+  sensorType,
+  from,
+  interval,
+}: GetHiveTelemetryHourParams): Promise<HiveTelemetryResponse> {
+  const fromParam = toLocalIsoString(from);
+
+  console.log("[Hive Telemetry API] 시간대별 센서 데이터 조회 요청", {
+    hiveId,
+    endpoint: `/api/v1/hives/${hiveId}/telemetry`,
+    period: "HOUR",
+    sensorType,
+    from: fromParam,
+    interval,
+  });
+
+  try {
+    const res = await api.get<ApiResponse<HiveTelemetryResponse>>(
+      `/api/v1/hives/${hiveId}/telemetry`,
+      {
+        params: {
+          period: "HOUR",
+          sensorType,
+          from: fromParam,
+          interval,
+        },
+      },
+    );
+
+    console.log("[Hive Telemetry API] 시간대별 센서 데이터 조회 성공", {
+      hiveId,
+      sensorType: res.data.data.sensorType,
+      count: res.data.data.data.length,
+      sample: res.data.data.data[0],
+    });
+
+    return res.data.data;
+  } catch (error) {
+    console.error("[Hive Telemetry API] 시간대별 센서 데이터 조회 실패", {
+      hiveId,
+      sensorType,
+      from: fromParam,
+      interval,
+      error,
+    });
+    throw error;
+  }
+}
+
 function toPointMap(response?: HiveTelemetryResponse) {
   return new Map(response?.data.map((point) => [point.label, point.value]) ?? []);
 }
@@ -101,11 +169,11 @@ function toPointMap(response?: HiveTelemetryResponse) {
 function emptyPoint(label: string): DataPoint {
   return {
     label,
-    internalTemperature: 0,
-    externalTemperature: 0,
-    internalHumidity: 0,
-    externalHumidity: 0,
-    co2: 0,
+    internalTemperature: null,
+    externalTemperature: null,
+    internalHumidity: null,
+    externalHumidity: null,
+    co2: null,
     hasData: false,
   };
 }
@@ -147,6 +215,7 @@ function compareLabels(period: Period) {
  * 센서별로 따로 내려오는 telemetry 응답을 화면용 DataPoint 배열로 합칩니다.
  * 서버의 label은 x축, value는 해당 센서의 y축 값으로 그대로 사용합니다.
  * labels는 서버 응답 순서와 무관하게 period 기준으로 정렬해 00시부터 차례대로 보여줍니다.
+ * fallback은 빈 시간대 label에만 사용하고, 미수신 센서 값은 null로 유지합니다.
  */
 export function mergeTelemetryData(
   fallback: DataPoint[],
@@ -158,20 +227,7 @@ export function mergeTelemetryData(
       sensorType,
       toPointMap(responses[sensorType]),
     ]),
-  ) as Record<HiveTelemetrySensorType, Map<string, number>>;
-
-  const hasAnyApiData = HIVE_TELEMETRY_SENSORS.some(
-    ({ sensorType }) => responseMaps[sensorType].size > 0,
-  );
-
-  if (!hasAnyApiData) {
-    console.log("[Hive Telemetry API] 센서 데이터 없음, mock fallback 사용", {
-      fallbackCount: fallback.length,
-    });
-    return fallback;
-  }
-
-  const fallbackMap = new Map(fallback.map((point) => [point.label, point]));
+  ) as Record<HiveTelemetrySensorType, Map<string, number | null>>;
   let labels = Array.from(
     new Set([
       ...fallback.map((point) => point.label),
@@ -181,31 +237,25 @@ export function mergeTelemetryData(
     ]),
   ).sort(compareLabels(period));
 
-  // 일간은 아직 지나지 않은 미래 시간대를 빼고, 01시부터 현재 시각까지만 보여줍니다.
+  // 일간은 아직 지나지 않은 미래 시간대를 빼고, 00시부터 현재 시각까지만 보여줍니다.
   if (period === "일간") {
     const currentHour = new Date().getHours();
     labels = labels.filter((label) => {
       const hour = hourOf(label);
-      return Number.isFinite(hour) && hour >= 1 && hour <= currentHour;
+      return Number.isFinite(hour) && hour >= 0 && hour <= currentHour;
     });
   }
 
   const merged = labels.map((label) => {
-    const fallbackPoint = fallbackMap.get(label) ?? emptyPoint(label);
-    const r = (v: number) => Math.round(v * 10) / 10;
-    const point: DataPoint = {
-      label,
-      internalTemperature: r(responseMaps.INTERNAL_TEMPERATURE.get(label) ?? fallbackPoint.internalTemperature),
-      externalTemperature: r(responseMaps.EXTERNAL_TEMPERATURE.get(label) ?? fallbackPoint.externalTemperature),
-      internalHumidity: r(responseMaps.INTERNAL_HUMIDITY.get(label) ?? fallbackPoint.internalHumidity),
-      externalHumidity: r(responseMaps.EXTERNAL_HUMIDITY.get(label) ?? fallbackPoint.externalHumidity),
-      co2: r(responseMaps.CO2.get(label) ?? fallbackPoint.co2),
-      hasData: HIVE_TELEMETRY_SENSORS.some(({ sensorType }) =>
-        responseMaps[sensorType].has(label),
-      )
-        ? true
-        : fallbackPoint.hasData,
-    };
+    const point = emptyPoint(label);
+
+    HIVE_TELEMETRY_SENSORS.forEach(({ sensorType, dataKey }) => {
+      const value = responseMaps[sensorType].get(label);
+      if (typeof value === "number" && Number.isFinite(value)) {
+        point[dataKey] = Math.round(value * 10) / 10;
+        point.hasData = true;
+      }
+    });
 
     return point;
   });

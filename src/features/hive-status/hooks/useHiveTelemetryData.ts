@@ -30,6 +30,7 @@ export function useHiveTelemetryData({
     queryKey: [HIVE_TELEMETRY_QUERY_KEY, hiveId, period],
     enabled: hiveId !== "",
     retry: 1,
+    refetchInterval: period === "일간" ? 60_000 : false,
     queryFn: async () => {
       console.log("[Hive Telemetry Hook] 센서 데이터 병렬 조회 시작", {
         hiveId,
@@ -42,6 +43,10 @@ export function useHiveTelemetryData({
           getHiveTelemetry({ hiveId, period, sensorType }),
         ),
       );
+
+      if (results.every((result) => result.status === "rejected")) {
+        throw new Error("센서 기록을 불러오지 못했습니다.");
+      }
 
       const responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>> = {};
 

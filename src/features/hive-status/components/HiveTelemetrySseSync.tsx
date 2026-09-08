@@ -5,7 +5,6 @@ import {
   type HiveTelemetryEvent,
 } from "@/features/hive-control/hooks";
 import { useHiveStore } from "@/stores/useHiveStore";
-import { appendHiveTelemetryLog } from "../model/telemetryLog";
 
 /**
  * 앱이 로그인된 동안 센서 SSE를 구독하고 공용 벌통 상태와 통계 캐시를 동기화합니다.
@@ -32,9 +31,6 @@ export function HiveTelemetrySseSync() {
         queryKey: ["hive-telemetry", hiveId],
         refetchType: "active",
       });
-
-      // 실시간 확인 화면에서 볼 수 있도록 최근 7일치 원본 로그를 휴대폰에 남깁니다.
-      appendHiveTelemetryLog(event);
     },
     [queryClient, updateHiveTelemetry],
   );

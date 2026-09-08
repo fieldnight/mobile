@@ -85,7 +85,12 @@ function buildPoints(
   const step = totalSlots > 1 ? usableWidth / (totalSlots - 1) : 0;
 
   return data.map((point, index) => {
-    const value = point[dataKey];
+    const sensorValue = point[dataKey];
+    const hasData =
+      point.hasData !== false &&
+      typeof sensorValue === "number" &&
+      Number.isFinite(sensorValue);
+    const value = hasData ? sensorValue : 0;
     const x = CHART_PADDING_H / 2 + step * index;
     const y =
       CHART_PADDING_V / 2 + USABLE_HEIGHT * (1 - (value - minVal) / range);
@@ -95,7 +100,7 @@ function buildPoints(
       y,
       value,
       label: point.label,
-      hasData: point.hasData !== false,
+      hasData,
     };
   });
 }
