@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Switch, View } from "react-native";
+import { Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { BottomSheet } from "@/components/BottomSheet";
 import { DualRangeSlider, SingleRangeSlider } from "@/components/DualRangeSlider";
@@ -136,6 +136,7 @@ export function AddNfcDoorCardModal({
     start: string;
     end: string;
     countControl?: BeeCountControlConfig;
+    memo?: string;
   }) => void;
 }) {
   const [controlMode, setControlMode] = useState<ControlMode>("time");
@@ -145,6 +146,7 @@ export function AddNfcDoorCardModal({
   const [windowEnd, setWindowEnd] = useState(() => makeTime(14, 0));
   const [repeat, setRepeat] = useState(false);
   const [countControl, setCountControl] = useState<BeeCountControlConfig>(DEFAULT_COUNT_CONTROL);
+  const [memo, setMemo] = useState("");
   const isCountControl = controlMode === "count";
 
   const changeControlMode = (nextMode: ControlMode) => {
@@ -194,6 +196,7 @@ export function AddNfcDoorCardModal({
     setWindowEnd(makeTime(14, 0));
     setRepeat(false);
     setCountControl(DEFAULT_COUNT_CONTROL);
+    setMemo("");
     onClose();
   };
 
@@ -203,6 +206,7 @@ export function AddNfcDoorCardModal({
       title: autoTitle,
       functionType,
       detail,
+      memo: memo.trim() || undefined,
       repeat: isCountControl ? !isRepeatDaysEmpty(countControl.repeatDays) : repeat,
       start: isCountControl
         ? ""
@@ -253,9 +257,25 @@ export function AddNfcDoorCardModal({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 16 }}
       >
+      <SheetFieldLabel label="메모" subtitle="선택 · 카드 제목은 설정에 맞춰 자동으로 붙어요" noTopMargin />
+      <TextInput
+        value={memo}
+        onChangeText={setMemo}
+        placeholder="예: 남쪽 과수원 아침 개방"
+        placeholderTextColor={C.ter}
+        maxLength={40}
+        className="rounded-2xl px-4 py-3 text-[14px]"
+        style={{
+          minHeight: 48,
+          backgroundColor: FORM_PANEL_BG,
+          color: C.text,
+          fontFamily: "Pretendard-Medium",
+        }}
+      />
+
       {controlMode === "time" ? (
         <>
-          <SheetFieldLabel label="시간 제어 기능" noTopMargin />
+          <SheetFieldLabel label="시간 제어 기능" />
           <View className="flex-row flex-wrap gap-2">
             {FUNCTION_OPTIONS.map((option) => {
               const selected = option.value === functionType;
@@ -403,7 +423,6 @@ function CountControlForm({
             ? "지금 조건이 충족될 때 한 번만 적용"
             : "선택한 요일마다 반복 적용"
         }
-        noTopMargin
       />
       <RepeatDaysPicker
         days={value.repeatDays}

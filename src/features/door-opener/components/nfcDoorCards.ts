@@ -90,6 +90,8 @@ export interface NfcDoorCardConfig {
   repeat?: boolean;
   countControl?: BeeCountControlConfig;
   serverActionId?: number;
+  /** 카드 추가 때 사용자가 직접 적어둔 한 줄 메모. */
+  memo?: string;
 }
 
 export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
@@ -204,6 +206,7 @@ export function createCustomDoorCard({
   start,
   end,
   countControl,
+  memo,
 }: {
   title: string;
   functionType: NfcDoorFunction;
@@ -212,6 +215,7 @@ export function createCustomDoorCard({
   start: string;
   end: string;
   countControl?: BeeCountControlConfig;
+  memo?: string;
 }): NfcDoorCardConfig {
   if (functionType === "count_control" && countControl) {
     const { low, high, timeWindowStart, timeWindowEnd } = countControl;
@@ -231,6 +235,7 @@ export function createCustomDoorCard({
       detail,
       repeat: !isRepeatDaysEmpty(countControl.repeatDays),
       countControl,
+      memo,
     };
   }
 
@@ -267,6 +272,7 @@ export function createCustomDoorCard({
     end: normalizedEnd,
     detail,
     repeat,
+    memo,
   };
 }
 

@@ -291,7 +291,7 @@ export function NfcDoorCardModal({
                   marginTop: 3,
                 }}
               >
-                {card.description}
+                {card.removable ? card.memo || card.description : card.description}
               </PretendardFont>
 
               {card.detail ? (

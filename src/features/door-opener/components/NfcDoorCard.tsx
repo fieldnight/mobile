@@ -103,14 +103,20 @@ export function NfcDoorCard({
             </PretendardFont>
             <PretendardFont
               weight="medium"
-              numberOfLines={1}
+              numberOfLines={2}
               style={{
-                fontSize: 12,
-                lineHeight: 16,
+                fontSize: 14,
+                lineHeight: 18,
                 color: active ? C.stIconBadgeOn : C.sec,
               }}
             >
-              {active && runtimeLabel ? runtimeLabel : active ? "실행중" : card.description}
+              {active && runtimeLabel
+                ? runtimeLabel
+                : active
+                  ? "실행중"
+                  : card.removable
+                    ? card.memo || card.description
+                    : card.description}
             </PretendardFont>
           </View>
         </CardShell>
