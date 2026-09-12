@@ -179,7 +179,7 @@ function CardShell({
     <View
       className="justify-between"
       style={{
-        minHeight: size * 0.66,
+        minHeight: size * 0.759,
         borderRadius: 16,
         padding: 14,
         gap: 10,
