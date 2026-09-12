@@ -8,7 +8,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
-import type { NfcDoorCardConfig } from "./nfcDoorCards";
+import { isCountControlMode, type NfcDoorCardConfig } from "./nfcDoorCards";
 
 /**
  * 삼성 스마트싱스 앱의 방(room)별 기기 카드 그리드를 참고한 스타일.
@@ -47,6 +47,8 @@ export function NfcDoorCard({
       ? [...dragOffset.getTranslateTransform(), { scale: 1.06 }]
       : undefined;
 
+  const showOneTimeTag = isCountControlMode(card.mode) && !card.repeat;
+
   return (
     <Animated.View
       {...panHandlers}
@@ -68,6 +70,8 @@ export function NfcDoorCard({
         <CardShell size={size} dragging={dragging} active={active}>
           <View className="flex-row items-start justify-between">
             <IconBadge icon={card.icon} on={Boolean(active)} />
+
+            {showOneTimeTag && !(editable && card.removable && onDelete) && <OneTimeTag />}
 
             {editable && card.removable && onDelete && (
               <Pressable
@@ -122,6 +126,26 @@ export function NfcDoorCard({
         </CardShell>
       </Pressable>
     </Animated.View>
+  );
+}
+
+/** 반복 요일을 하나도 선택하지 않은 벌 마릿수 제어 카드(단발성)에 붙는 태그입니다. */
+function OneTimeTag() {
+  return (
+    <View
+      className="items-center justify-center rounded-full"
+      style={{
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        backgroundColor: C.white,
+        borderWidth: 1,
+        borderColor: C.border,
+      }}
+    >
+      <PretendardFont weight="bold" style={{ fontSize: 10.5, lineHeight: 13, color: C.textAlt }}>
+        단일
+      </PretendardFont>
+    </View>
   );
 }
 
