@@ -623,6 +623,7 @@ function TimeRangeSliderField({
           onStartChange(hourValueToDate(low));
           onEndChange(hourValueToDate(high));
         }}
+        minGap={1}
         formatEdgeLabel={formatHourEdgeLabel}
         formatHandleLabel={formatHourValueLabel}
       />
