@@ -75,7 +75,7 @@ export function DoorOpenerHiveCard({
             padding: 14,
             backgroundColor: C.white,
             borderWidth: dragging ? 2 : 1,
-            borderColor: dragging ? C.primary : "rgba(0,0,0,0.05)",
+            borderColor: dragging ? C.gatePrimary : "rgba(0,0,0,0.05)",
             opacity: dragging ? 0.92 : 1,
           }}
         >

@@ -1,5 +1,4 @@
 import { Image, ImageSourcePropType, Platform, Pressable, ScrollView, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -328,7 +327,6 @@ function ComingSoonCard({ item, isLast }: { item: ComingSoonItem; isLast: boolea
 }
 
 export default function FeatureGuideScreen() {
-  const navigation = useNavigation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -345,7 +343,7 @@ export default function FeatureGuideScreen() {
 
   return (
     <View className="flex-1 bg-[#F4F5F7]">
-      <AppHeader title="기능 가이드" onBack={() => navigation.goBack()} isScrolled={false} />
+      <AppHeader title="기능 가이드" onBack={() => router.back()} isScrolled={false} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

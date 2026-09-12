@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, ImageBackground, Platform, ScrollView } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { useLocalSearchParams } from "expo-router";
+import { Dimensions, ImageBackground, Platform, Pressable, ScrollView } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
+import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
-import { HiveControlSection } from "@/features/hive-control";
+import { HiveControlSection, useHiveSseConnectionStatus } from "@/features/hive-control";
 import { HiveReplacementCard } from "@/features/hive-status";
 import { Spacing } from "../constants";
+import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useSyncHiveList } from "@/features/hive";
 
@@ -22,10 +25,26 @@ const BG_IMAGE = require("../../assets/df.jpg");
  */
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const { show: showToast } = useAppToast();
   useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
   const hiveControls = useHiveStore((state) => state.hiveControls);
+
+  // 실시간(SSE) 연결이 끊겨 온습도가 0으로 보일 수 있는 상황을 사용자에게 안내합니다.
+  const sseStatus = useHiveSseConnectionStatus({ enabled: true });
+  const prevSseStatusRef = useRef(sseStatus);
+
+  useEffect(() => {
+    const prevStatus = prevSseStatusRef.current;
+    prevSseStatusRef.current = sseStatus;
+    if (prevStatus === sseStatus) return;
+
+    if (sseStatus === "reconnecting") {
+      showToast("실시간 연결이 끊겼어요. 다시 연결하고 있어요", "error");
+    } else if (sseStatus === "connected" && prevStatus === "reconnecting") {
+      showToast("실시간 연결이 복구됐어요", "success");
+    }
+  }, [sseStatus, showToast]);
 
   // IoT 화면에서 특정 벌통을 눌러 진입하면 해당 벌통을 먼저 보여줍니다.
   const { selectedHiveId } = useLocalSearchParams<{
@@ -61,15 +80,11 @@ export default function HiveControlScreen() {
     }
   }, [hives, controlHive, selectedIndex]);
 
-  const handleRefresh = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  };
-
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
       <HiveTabBar />
 
-      <PullToRefresh
+      <BounceScrollView
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
@@ -79,7 +94,6 @@ export default function HiveControlScreen() {
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onRefresh={handleRefresh}
       >
         <HiveSliderSection
           hives={hives}
@@ -92,7 +106,10 @@ export default function HiveControlScreen() {
             if (Platform.OS !== "web") {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
-            (navigation as any).navigate("hive-stats", { selectedHiveId: id });
+            router.push({
+              pathname: "/hive-stats",
+              params: { selectedHiveId: id },
+            });
           }}
           onSlideEnd={(idx) => {
             const nextIndex = Math.max(0, Math.min(idx, hives.length - 1));
@@ -105,11 +122,30 @@ export default function HiveControlScreen() {
 
         {hasHives ? (
           <>
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+                router.push({
+                  pathname: "/hive-live",
+                  params: { selectedHiveId: controlHive },
+                });
+              }}
+              className="flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-80"
+              style={{ backgroundColor: C.text }}
+            >
+              <Feather name="activity" size={16} color={C.white} />
+              <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
+                실시간 확인
+              </PretendardFont>
+            </Pressable>
+
             <HiveControlSection controlHive={controlHive} />
             <HiveReplacementCard hive={currentHive} />
           </>
         ) : null}
-      </PullToRefresh>
+      </BounceScrollView>
     </ImageBackground>
   );
 }

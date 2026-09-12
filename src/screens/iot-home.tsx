@@ -5,8 +5,8 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
+  PanResponder,
   Pressable,
-  RefreshControl,
   ScrollView,
   View,
 } from "react-native";
@@ -17,12 +17,16 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   Extrapolation,
 } from "react-native-reanimated";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import Svg, { Circle, G, Line, Polyline } from "react-native-svg";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { useGateStore } from "@/stores/useGateStore";
+import { useGateModeStore } from "@/stores/useGateModeStore";
 import { useSyncHiveList } from "@/features/hive";
 import {
   createDoorActivityReport,
@@ -38,6 +42,8 @@ import {
   DoorOpenerHeroBanner,
   DoorOpenerHeroVisual,
   EMPTY_BEE_TRAFFIC_COUNTS,
+  GateModeSection,
+  GateReportSection,
   NfcDoorCardSection,
 } from "@/features/door-opener";
 import type { NfcDoorCardConfig } from "@/features/door-opener/components/nfcDoorCards";
@@ -230,6 +236,8 @@ function getKnownApduDeviceId(deviceId: string | undefined) {
 export default function DoorOpenerScreen() {
   const insets = useSafeAreaInsets();
   const hives = useHiveStore((s) => s.hives);
+  const gates = useGateStore((s) => s.gates);
+  const gateMode = useGateModeStore((s) => s.mode);
   const [deleting, setDeleting] = useState(false);
   const [trafficCounts, setTrafficCounts] = useState<BeeTrafficCounts>(
     EMPTY_BEE_TRAFFIC_COUNTS,
@@ -239,8 +247,6 @@ export default function DoorOpenerScreen() {
   const [appConnectionStatus, setAppConnectionStatus] =
     useState<GateActionAppConnectionStatus>("idle");
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<DoorOpenerTab>("control");
   const [statsState, setStatsState] = useState<DoorStatsState>({ devices: {} });
   const [statsCacheHydrated, setStatsCacheHydrated] = useState(false);
@@ -518,24 +524,41 @@ export default function DoorOpenerScreen() {
     };
   }, [activeTab]);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    if (activeTab === "stats") {
-      setRefreshing(false);
-      return;
-    }
-    setRefreshKey((value) => value + 1);
-  }, [activeTab]);
-
-  const handleRefreshEnd = useCallback(() => {
-    setRefreshing(false);
-  }, []);
-
+  // DoorOpenerTabs 실측 높이(탭 바 + GateModeSection). 개폐기 탭 히어로 배너가
+  // 이 아래에서 시작하도록 onLayout으로 갱신합니다. 드롭다운은 오버레이라 이 값에
+  // 영향을 주지 않습니다.
+  const [tabsHeight, setTabsHeight] = useState(50);
   const scrollY = useSharedValue(0);
   const controlScrollRef = useRef<Animated.ScrollView>(null);
   const controlScrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
+
+  // 당겨서 새로고침 대신, 최상단에서 아래로 당기면 콘텐츠가 늘어났다가
+  // 손을 떼면 스프링으로 튕겨 돌아오는 순수 시각 효과입니다.
+  const controlStretch = useSharedValue(0);
+  const controlPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        scrollY.value <= 0 && gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => {
+        if (scrollY.value > 0) return;
+        controlStretch.value = Math.min(48, Math.max(0, gesture.dy) * 0.45);
+      },
+      onPanResponderRelease: () => {
+        controlStretch.value = withSpring(0, { damping: 14, stiffness: 180 });
+      },
+      onPanResponderTerminate: () => {
+        controlStretch.value = withSpring(0, { damping: 14, stiffness: 180 });
+      },
+    }),
+  ).current;
+  const controlStretchStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: controlStretch.value * 0.5 },
+      { scaleY: 1 + controlStretch.value / 400 },
+    ],
+  }));
 
   // 리포트 화면 등으로 이동했다가 다시 돌아왔을 때 항상 스크롤 최상단(초기 상태)에서
   // 시작하도록, 화면이 포커스를 얻을 때마다 스크롤 위치와 히어로 애니메이션 값을 초기화합니다.
@@ -583,7 +606,11 @@ export default function DoorOpenerScreen() {
           ]}
         />
       ) : null}
-      <DoorOpenerTabs activeTab={activeTab} onChange={setActiveTab} />
+      <DoorOpenerTabs
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        onHeightChange={setTabsHeight}
+      />
 
       {activeTab === "control" ? (
         <>
@@ -591,7 +618,7 @@ export default function DoorOpenerScreen() {
             style={[
               {
                 position: "absolute",
-                top: 50,
+                top: tabsHeight,
                 left: 0,
                 right: 0,
                 height: HERO_BANNER_H,
@@ -617,19 +644,14 @@ export default function DoorOpenerScreen() {
             showsVerticalScrollIndicator={false}
             onScroll={controlScrollHandler}
             scrollEventThrottle={16}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={C.white}
-                colors={[C.primary]}
-                progressBackgroundColor="rgba(255,255,255,0.92)"
-              />
-            }
+            {...controlPanResponder.panHandlers}
           >
-            <View
+            <Animated.View
               className="rounded-t-[28px] px-[18px] pt-5 gap-4"
-              style={{ marginTop: -220 }}
+              style={[
+                { marginTop: -220 - (tabsHeight - 50) },
+                controlStretchStyle,
+              ]}
             >
               <Animated.View entering={FadeInDown.delay(110).duration(380)}>
                 <NfcDoorCardSection
@@ -641,32 +663,27 @@ export default function DoorOpenerScreen() {
                   runtimeText={runtimeText}
                   hiveId={activeHive?.id}
                   onSyncStatusChange={setAppConnectionStatus}
-                  refreshKey={refreshKey}
-                  onRefreshEnd={handleRefreshEnd}
+                  gateMode={gateMode}
+                  gates={gates}
                 />
               </Animated.View>
 
-            </View>
+            </Animated.View>
           </Animated.ScrollView>
         </>
       ) : (
-        <ScrollView
+        <BounceScrollView
           contentContainerStyle={{
             paddingHorizontal: H_PAD,
             paddingTop: 18,
             paddingBottom: insets.bottom + 96,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={C.white}
-              colors={[C.primary]}
-              progressBackgroundColor="rgba(255,255,255,0.92)"
-            />
-          }
         >
+          <Animated.View entering={FadeInDown.delay(95).duration(380)}>
+            <GateReportSection />
+          </Animated.View>
+
           <Animated.View entering={FadeInDown.delay(110).duration(380)}>
             <DoorStatsPanel
               stats={statsState}
@@ -678,27 +695,34 @@ export default function DoorOpenerScreen() {
               gateConnected={gateConnected}
             />
           </Animated.View>
-        </ScrollView>
+        </BounceScrollView>
       )}
     </View>
   );
 }
 
+/**
+ * 탭 바(개폐기/리포트) + 오프라인·온라인 모드 토글(GateModeSection)을 삼성
+ * 스마트싱스 상단바를 참고해 배경 박스 없이 붙여서 보여줍니다. 배경은 완전
+ * 투명이라 뒤의 DoorOpenerBackground 이미지가 그대로 비치고, 선택 상태는
+ * 배경색이 아니라 글자 굵기·색으로만 구분합니다.
+ * 예전에는 GateModeSection이 각 탭 콘텐츠 맨 위에 둥근 카드로 따로 떠 있어
+ * 탭을 바꿀 때마다 다시 나타나는 것처럼 보였는데, 지금은 탭 바 자체의 일부가
+ * 되어 탭을 넘나들어도 항상 같은 자리에 고정됩니다.
+ * 온라인 모드 드롭다운을 펼치면 이 블록 전체 높이가 늘어나므로, onLayout으로
+ * 실측한 높이를 부모(iot-home)에 보고해 개폐기 탭의 히어로 배너 위치를 맞춥니다.
+ */
 function DoorOpenerTabs({
   activeTab,
   onChange,
+  onHeightChange,
 }: {
   activeTab: DoorOpenerTab;
   onChange: (tab: DoorOpenerTab) => void;
+  onHeightChange?: (height: number) => void;
 }) {
   return (
-    <View
-      className="bg-white"
-      style={{
-        borderBottomWidth: 1,
-        borderBottomColor: "#EEF0F2",
-      }}
-    >
+    <View onLayout={(event) => onHeightChange?.(event.nativeEvent.layout.height)}>
       <View className="h-16 flex-row items-end px-2">
         {(
           [
@@ -716,7 +740,7 @@ function DoorOpenerTabs({
             >
               <PretendardFont
                 weight={active ? "bold" : "semibold"}
-                style={{ fontSize: 17, color: active ? C.text : C.ter }}
+                style={{ fontSize: 17, color: active ? C.white : "rgba(255,255,255,0.5)" }}
               >
                 {label}
               </PretendardFont>
@@ -725,13 +749,15 @@ function DoorOpenerTabs({
                 className="absolute bottom-0 h-[3px] rounded-full"
                 style={{
                   width: active ? 68 : 0,
-                  backgroundColor: active ? C.text : "transparent",
+                  backgroundColor: active ? C.white : "transparent",
                 }}
               />
             </Pressable>
           );
         })}
       </View>
+
+      <GateModeSection />
     </View>
   );
 }

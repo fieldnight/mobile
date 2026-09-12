@@ -37,6 +37,14 @@ export const C = {
   error: "#DC2626", // 에러 / 오프라인
   cardBorder: "rgba(200,210,220,0.35)", // IoT 카드 테두리 - 회색 반투명
   cardBorderDragging: "rgba(255,255,255,0.9)", // IoT 카드 드래그 중 테두리
+  // 삼성 스마트싱스 스타일 개폐기(door-opener) 화면 전용 팔레트.
+  // 다른 화면의 브랜드 컬러(C.primary, 하늘색)와 분리된 다크 네이비/슬레이트 톤입니다.
+  gatePrimary: "#334155", // 개폐기 화면 강조색 (버튼/토글/아이콘배지/슬라이더) - 다크 슬레이트
+  gatePrimarySoft: "rgba(51,65,85,0.08)", // 강조 소프트 배경
+  stCardBg: "#F5F6F8", // 카드 배경 (화면 배경보다 살짝 짙은 톤)
+  stIconBadgeOn: "#334155", // 아이콘 배지 - 켜짐/실행중 (gatePrimary와 동일)
+  stIconBadgeOff: "#E4E7EC", // 아이콘 배지 - 꺼짐
+  stIconOff: "#9AA3AF", // 꺼짐 배지 위 아이콘 색
 } as const;
 
 export type HiveColor = keyof typeof C;

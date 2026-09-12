@@ -113,7 +113,11 @@ export function DataTable({ data, period }: DataTableProps) {
                 weight="medium"
                 style={{ fontSize: 13, color: C.text }}
               >
-                {col.format(point[col.key])}
+                {point.hasData !== false &&
+                typeof point[col.key] === "number" &&
+                Number.isFinite(point[col.key])
+                  ? col.format(point[col.key] as number)
+                  : "-"}
               </PretendardFont>
             </View>
           ))}

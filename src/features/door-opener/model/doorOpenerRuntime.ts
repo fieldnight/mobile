@@ -93,10 +93,8 @@ export function getDoorOpenerRuntimeText(
       return getAlternateText(state, now);
     case "lock_days":
       return getLockDaysText(state, now);
-    case "activity_boost":
-    case "overpollination_guard":
-    case "return_limit":
-      return `${state.end ?? "0"}마리 기준 적용 중`;
+    case "count_control":
+      return `${state.end ?? "0"}마리 구간 제어 적용 중`;
     default:
       return null;
   }

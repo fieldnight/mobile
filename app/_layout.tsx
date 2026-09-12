@@ -25,6 +25,7 @@ import { ToastProvider } from "@/components/ToastContext";
 import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { FcmTokenSync } from "@/features/notification/components/FcmTokenSync";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { HiveTelemetrySseSync } from "@/features/hive-status/components/HiveTelemetrySseSync";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -237,6 +238,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Providers>
+      <HiveTelemetrySseSync />
       <FcmTokenSync />
       <ToastProvider>
         <View style={{ flex: 1, backgroundColor: "#000" }}>

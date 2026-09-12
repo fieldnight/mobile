@@ -1,73 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  View,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { ActivityIndicator, PanResponder, View } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useQueryClient } from "@tanstack/react-query";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { Card } from "@/components/hive/hive-shared";
 import { BoxColor as C } from "@/types";
-import { useHiveControlSettings, useHiveControlSse, useRequestManualControl } from "../hooks";
+import {
+  HIVE_CONTROL_QUERY_KEYS,
+  useHiveControlSettings,
+  useHiveControlSse,
+  useRequestManualControl,
+} from "../hooks";
 import type { ControlResultEvent, ManualControlRequest } from "../api";
 
 const THUMB_SIZE = 30;
 const SSE_TIMEOUT_MS = 15000;
 
-const OPERATING_MODES = [
-  {
-    id: "saving",
-    icon: "moon" as const,
-    label: "절전 모드",
-    temperature: 24,
-    humidity: 58,
-  },
-  {
-    id: "ai",
-    icon: "cpu" as const,
-    label: "AI 모드",
-    temperature: 25,
-    humidity: 62,
-  },
-  {
-    id: "breeding",
-    icon: "heart" as const,
-    label: "사육 모드",
-    temperature: 26,
-    humidity: 65,
-  },
-  {
-    id: "normal",
-    icon: "sun" as const,
-    label: "일반 모드",
-    temperature: 25,
-    humidity: 60,
-  },
-] as const;
-
-type OperatingModeId = (typeof OPERATING_MODES)[number]["id"];
-
 interface HiveControlSectionProps {
   controlHive: string;
 }
 
-type SettingKind = "temperature" | "humidity";
+type SettingKind = "temperature";
 
 export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
   const { show: showToast } = useAppToast();
+  const queryClient = useQueryClient();
   const { data: controlSettings } = useHiveControlSettings(controlHive || undefined);
   const { mutate: mutateManualControl } = useRequestManualControl();
 
   const [targetTemperature, setTargetTemperature] = useState(25);
-  const [targetHumidity, setTargetHumidity] = useState(62);
-  const [mode, setMode] = useState<OperatingModeId | null>("ai");
   const [pending, setPending] = useState<Record<SettingKind, boolean>>({
     temperature: false,
-    humidity: false,
   });
   const timers = useRef<Partial<Record<SettingKind, ReturnType<typeof setTimeout>>>>(
     {},
@@ -90,9 +54,7 @@ export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
     initializedHiveRef.current = controlHive;
 
     const tempEntry = controlSettings.controls.find((c) => c.type === "TEMPERATURE");
-    const humEntry = controlSettings.controls.find((c) => c.type === "HUMIDITY");
     if (tempEntry?.targetValue != null) setTargetTemperature(tempEntry.targetValue);
-    if (humEntry?.targetValue != null) setTargetHumidity(humEntry.targetValue);
   }, [controlSettings, controlHive]);
 
   const handleSseResult = useCallback(
@@ -103,29 +65,25 @@ export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
         delete timers.current.temperature;
         setPending((c) => ({ ...c, temperature: false }));
         if (event.success) setTargetTemperature(event.targetTemperature!);
-      }
-      if (event.targetHumidity != null) {
-        clearTimeout(timers.current.humidity);
-        delete timers.current.humidity;
-        setPending((c) => ({ ...c, humidity: false }));
-        if (event.success) setTargetHumidity(event.targetHumidity!);
-      }
-      // 필드가 없으면 (실패 응답 등) 모두 해제
-      if (event.targetTemperature == null && event.targetHumidity == null) {
+      } else {
+        // 필드가 없으면 (실패 응답 등) 모두 해제
         clearTimeout(timers.current.temperature);
-        clearTimeout(timers.current.humidity);
         delete timers.current.temperature;
-        delete timers.current.humidity;
-        setPending({ temperature: false, humidity: false });
+        setPending({ temperature: false });
       }
 
       if (event.success) {
         showToast("반영되었습니다!", "success");
+        // 확정된 목표값을 서버 캐시에도 반영해, 화면을 나갔다 돌아와도
+        // 방금 적용한 값이 그대로 보이도록 합니다.
+        queryClient.invalidateQueries({
+          queryKey: HIVE_CONTROL_QUERY_KEYS.settings(controlHive),
+        });
       } else {
         showToast(event.message ?? "제어 명령이 실패했어요", "error");
       }
     },
-    [showToast],
+    [controlHive, queryClient, showToast],
   );
 
   useHiveControlSse({
@@ -139,8 +97,7 @@ export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPending((current) => ({ ...current, [kind]: true }));
 
-    const body: ManualControlRequest =
-      kind === "temperature" ? { targetTemperature } : { targetHumidity };
+    const body: ManualControlRequest = { targetTemperature };
 
     mutateManualControl(
       { hiveId: controlHive, body },
@@ -165,106 +122,14 @@ export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
     }, SSE_TIMEOUT_MS);
   };
 
-  const applyMode = (nextMode: OperatingModeId) => {
-    const next = OPERATING_MODES.find((item) => item.id === nextMode);
-    if (!next) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMode(nextMode);
-    setTargetTemperature(next.temperature);
-    setTargetHumidity(next.humidity);
-    showToast(`${next.label}로 설정했어요`, "success");
-  };
-
   return (
     <Card
       style={{
-        borderRadius: 24,
-        backgroundColor: "rgba(255, 255, 255, 0.72)",
-        elevation: 0,
         marginHorizontal: -14,
-        padding: 14,
+        backgroundColor: "rgba(255,255,255,0.72)",
+        elevation: 0,
       }}
     >
-      <View className="mb-4 flex-row items-center justify-between">
-        <View>
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 19, color: C.textAlt }}
-          >
-            온도 · 습도 설정
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            className="mt-1"
-            style={{ fontSize: 12.5, color: C.sec }}
-          >
-            값을 놓으면 잠시 후 자동으로 반영돼요
-          </PretendardFont>
-        </View>
-      </View>
-
-      <View className="mb-3">
-        <View className="mb-2 flex-row items-center justify-between">
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 14, color: C.textAlt }}
-          >
-            운영 모드
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 11, color: C.ter }}
-          >
-            모드를 고르면 권장값이 적용돼요
-          </PretendardFont>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 7, paddingRight: 6 }}
-        >
-          {OPERATING_MODES.map((item) => {
-            const active = item.id === mode;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => applyMode(item.id)}
-                className="flex-row items-center rounded-xl px-3 py-2 active:opacity-75"
-                style={{
-                  gap: 6,
-                  minWidth: 104,
-                  borderWidth: 1,
-                  borderColor: active
-                    ? "rgba(105, 180, 213, 0.85)"
-                    : "rgba(15, 23, 42, 0.07)",
-                  backgroundColor: active
-                    ? "rgba(105, 180, 213, 0.16)"
-                    : "rgba(255,255,255,0.7)",
-                }}
-              >
-                <Feather
-                  name={item.icon}
-                  size={14}
-                  color={active ? C.primary : C.ter}
-                />
-                <PretendardFont
-                  weight={active ? "bold" : "medium"}
-                  numberOfLines={1}
-                  style={{
-                    fontSize: 12,
-                    color: active ? C.primary : C.sec,
-                  }}
-                >
-                  {item.label}
-                </PretendardFont>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <SettingCard
         label="목표 온도"
         helper="16~36°C · 수정벌 권장 구간 24~27°C"
@@ -277,28 +142,9 @@ export function HiveControlSection({ controlHive }: HiveControlSectionProps) {
         optimalMax={27}
         disabled={pending.temperature}
         onChange={(value) => {
-          setMode(null);
           setTargetTemperature(value);
         }}
         onSlidingComplete={() => applySetting("temperature")}
-      />
-
-      <SettingCard
-        label="목표 습도"
-        helper="40~90% · 권장 구간 50~70%"
-        value={targetHumidity}
-        valueLabel={`${targetHumidity}%`}
-        min={40}
-        max={90}
-        step={1}
-        optimalMin={50}
-        optimalMax={70}
-        disabled={pending.humidity}
-        onChange={(value) => {
-          setMode(null);
-          setTargetHumidity(value);
-        }}
-        onSlidingComplete={() => applySetting("humidity")}
       />
     </Card>
   );
@@ -332,20 +178,9 @@ function SettingCard({
   onSlidingComplete: () => void;
 }) {
   return (
-    <View
-      className="mb-2.5 rounded-[18px] px-3 py-3"
-      style={{
-        backgroundColor: "rgba(255,255,255,0.82)",
-        borderWidth: 1,
-        borderColor: "rgba(15, 23, 42, 0.06)",
-        opacity: disabled ? 0.56 : 1,
-      }}
-    >
+    <View style={{ opacity: disabled ? 0.56 : 1 }}>
       <View className="mb-1 flex-row items-center justify-between">
-        <PretendardFont
-          weight="semibold"
-          style={{ fontSize: 14, color: C.textAlt }}
-        >
+        <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
           {label}
         </PretendardFont>
         {disabled ? (
@@ -505,7 +340,7 @@ function SegmentSlider({
           className="absolute h-2.5 rounded-full"
           style={{
             width: activeWidth,
-            backgroundColor: "rgba(105, 180, 213, 0.7)",
+            backgroundColor: C.primary,
           }}
         />
         <View
