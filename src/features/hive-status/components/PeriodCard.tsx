@@ -102,7 +102,11 @@ export function PeriodCard({
   return (
     <Card
       delay={25}
-      style={{ backgroundColor: "#FFFFFF", elevation: 0 }}
+      style={{
+        marginHorizontal: -14,
+        backgroundColor: "rgba(255,255,255,0.72)",
+        elevation: 0,
+      }}
     >
       <OptionRow label="조회 기간">
         {PERIODS.map((item) => (

@@ -162,8 +162,13 @@ export async function getHiveTelemetryHour({
   }
 }
 
-function toPointMap(response?: HiveTelemetryResponse) {
-  return new Map(response?.data.map((point) => [point.label, point.value]) ?? []);
+function toPointMap(response?: HiveTelemetryResponse, normalizeLabel?: (label: string) => string) {
+  return new Map(
+    response?.data.map((point) => [
+      normalizeLabel ? normalizeLabel(point.label) : point.label,
+      point.value,
+    ]) ?? [],
+  );
 }
 
 function emptyPoint(label: string): DataPoint {
@@ -188,6 +193,16 @@ const WEEKDAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 function hourOf(label: string) {
   const match = label.match(/\d+/);
   return match ? parseInt(match[0], 10) : NaN;
+}
+
+/**
+ * 일간 label을 "HH시"로 정규화합니다.
+ * 센서마다 "14:00" / "14시" 등 형식이 달라 그대로 합치면 같은 시간이 서로 다른
+ * label로 갈라져 값이 비어 보이고 그래프 선이 끊기므로, 합치기 전에 통일합니다.
+ */
+function normalizeDailyLabel(label: string) {
+  const hour = hourOf(label);
+  return Number.isFinite(hour) ? `${hour}시` : label;
 }
 
 /**
@@ -222,15 +237,16 @@ export function mergeTelemetryData(
   responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
   period: Period,
 ): DataPoint[] {
+  const normalizeLabel = period === "일간" ? normalizeDailyLabel : undefined;
   const responseMaps = Object.fromEntries(
     HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
       sensorType,
-      toPointMap(responses[sensorType]),
+      toPointMap(responses[sensorType], normalizeLabel),
     ]),
   ) as Record<HiveTelemetrySensorType, Map<string, number | null>>;
   let labels = Array.from(
     new Set([
-      ...fallback.map((point) => point.label),
+      ...fallback.map((point) => (normalizeLabel ? normalizeLabel(point.label) : point.label)),
       ...HIVE_TELEMETRY_SENSORS.flatMap(({ sensorType }) => [
         ...responseMaps[sensorType].keys(),
       ]),
