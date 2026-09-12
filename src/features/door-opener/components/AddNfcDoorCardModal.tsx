@@ -114,7 +114,6 @@ function describeRepeatDaysShort(days: RepeatDays) {
 const DEFAULT_COUNT_CONTROL: BeeCountControlConfig = {
   low: 3,
   high: 12,
-  below: { entranceOpen: false, exitOpen: true },
   within: { entranceOpen: true, exitOpen: true },
   above: { entranceOpen: true, exitOpen: false },
   repeatDays: NO_REPEAT_DAYS,
@@ -451,10 +450,9 @@ function CountControlForm({
 }
 
 const COUNT_RANGE_ROWS: Array<{
-  key: "below" | "within" | "above";
+  key: "within" | "above";
   label: (value: BeeCountControlConfig) => string;
 }> = [
-  { key: "below", label: (value) => `${formatCountLabel(value.low)}마리 미만` },
   {
     key: "within",
     label: (value) => `${formatCountLabel(value.low)}~${formatCountLabel(value.high)}마리`,
@@ -469,7 +467,7 @@ function CountRangeRuleTable({
   value: BeeCountControlConfig;
   onChange: (value: BeeCountControlConfig) => void;
 }) {
-  const toggle = (key: "below" | "within" | "above", field: keyof GateOpenState) => {
+  const toggle = (key: "within" | "above", field: keyof GateOpenState) => {
     const current = value[key];
     onChange({ ...value, [key]: { ...current, [field]: !current[field] } });
   };

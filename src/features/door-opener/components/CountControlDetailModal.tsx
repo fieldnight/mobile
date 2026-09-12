@@ -144,10 +144,6 @@ export function CountControlDetailModal({
                 </PretendardFont>
                 <View style={{ gap: 6 }}>
                   <DetailTableRow
-                    label={`${countControl.low}마리 미만`}
-                    value={describeGateOpenState(countControl.below)}
-                  />
-                  <DetailTableRow
                     label={`${countControl.low}~${countControl.high}마리`}
                     value={describeGateOpenState(countControl.within)}
                   />
