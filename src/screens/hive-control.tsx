@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, ImageBackground, Platform, Pressable, ScrollView } from "react-native";
+import { ImageBackground, Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
@@ -20,15 +20,14 @@ const BG_IMAGE = require("../../assets/df.jpg");
 
 /**
  * 스마트벌통 제어 화면
- * - 상단 슬라이더에서 벌통을 고르고, 하단에서 자동/수동 제어를 변경합니다.
- * - 제어 설정은 현재 화면에서 로컬 상태로만 반영합니다.
+ * - 상단 슬라이더에서 벌통을 고르고, 목표 온도를 조절한 뒤 적용합니다.
+ * - 전송한 설정은 해당 벌통의 제어 설정을 다시 조회해 확인합니다.
  */
 export default function HiveControlScreen() {
   const insets = useSafeAreaInsets();
   const { show: showToast } = useAppToast();
   useSyncHiveList();
   const hives = useHiveStore((state) => state.hives);
-  const hiveControls = useHiveStore((state) => state.hiveControls);
 
   // 실시간(SSE) 연결이 끊겨 온습도가 0으로 보일 수 있는 상황을 사용자에게 안내합니다.
   const sseStatus = useHiveSseConnectionStatus({ enabled: true });
@@ -62,15 +61,27 @@ export default function HiveControlScreen() {
   const [controlHive, setControlHive] = useState(initialId);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const hiveSliderRef = useRef<ScrollView>(null);
+  const appliedRouteHiveRef = useRef<string | undefined>(undefined);
 
-  const windowWidth = Dimensions.get("window").width;
+  const { width: windowWidth } = useWindowDimensions();
   const itemWidth = windowWidth - 32;
 
   const hasHives = hives.length > 0;
   const currentHive = hives.find((hive) => hive.id === controlHive);
 
   useEffect(() => {
-    if (!hives.length) return;
+    if (!hives.length) {
+      setControlHive("");
+      setSelectedIndex(0);
+      return;
+    }
+    const requestedIndex = hives.findIndex((hive) => hive.id === selectedHiveId);
+    if (selectedHiveId && requestedIndex !== -1 && appliedRouteHiveRef.current !== selectedHiveId) {
+      appliedRouteHiveRef.current = selectedHiveId;
+      setControlHive(selectedHiveId);
+      setSelectedIndex(requestedIndex);
+      return;
+    }
     const currentIndex = hives.findIndex((hive) => hive.id === controlHive);
     if (currentIndex === -1) {
       setControlHive(hives[0].id);
@@ -78,7 +89,14 @@ export default function HiveControlScreen() {
     } else if (currentIndex !== selectedIndex) {
       setSelectedIndex(currentIndex);
     }
-  }, [hives, controlHive, selectedIndex]);
+  }, [hives, controlHive, selectedIndex, selectedHiveId]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      hiveSliderRef.current?.scrollTo({ x: selectedIndex * itemWidth, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedIndex, itemWidth, hives.length]);
 
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
@@ -97,7 +115,6 @@ export default function HiveControlScreen() {
       >
         <HiveSliderSection
           hives={hives}
-          hiveControls={hiveControls}
           allView={false}
           selectedIndex={selectedIndex}
           itemWidth={itemWidth}
@@ -118,11 +135,14 @@ export default function HiveControlScreen() {
             setSelectedIndex(nextIndex);
             setControlHive(nextHive.id);
           }}
+          onAddHive={() => router.push("/hive-add")}
         />
 
         {hasHives ? (
           <>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${currentHive?.name ?? "선택한 벌통"} 실시간 센서값 보기`}
               onPress={() => {
                 if (Platform.OS !== "web") {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -137,11 +157,17 @@ export default function HiveControlScreen() {
             >
               <Feather name="activity" size={16} color={C.white} />
               <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>
-                실시간 확인
+                실시간 센서값 보기
               </PretendardFont>
             </Pressable>
 
-            <HiveControlSection controlHive={controlHive} />
+            {sseStatus === "reconnecting" ? (
+              <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "#FFF7ED" }}>
+                <Feather name="wifi-off" size={16} color={C.warning} />
+                <PretendardFont style={{ flex: 1, fontSize: 13, lineHeight: 19, color: C.textAlt }}>실시간 연결을 다시 시도하고 있어요. 설정 확인이 늦어질 수 있어요.</PretendardFont>
+              </View>
+            ) : null}
+            <HiveControlSection controlHive={controlHive} hiveName={currentHive?.name} />
             <HiveReplacementCard hive={currentHive} />
           </>
         ) : null}
