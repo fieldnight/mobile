@@ -78,9 +78,31 @@ export function CountControlDetailModal({
                 <Feather name="sliders" size={18} color={active ? C.white : C.stIconOff} />
               </View>
               <View style={{ flex: 1 }}>
-                <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 17, color: C.text }}>
-                  {card.title}
-                </PretendardFont>
+                <View className="flex-row items-center" style={{ gap: 6 }}>
+                  <PretendardFont
+                    weight="bold"
+                    numberOfLines={1}
+                    style={{ flexShrink: 1, fontSize: 17, color: C.text }}
+                  >
+                    {card.title}
+                  </PretendardFont>
+                  {isRepeatDaysEmpty(countControl.repeatDays) ? (
+                    <View
+                      className="items-center justify-center rounded-full"
+                      style={{
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                        backgroundColor: C.stCardBg,
+                        borderWidth: 1,
+                        borderColor: C.border,
+                      }}
+                    >
+                      <PretendardFont weight="bold" style={{ fontSize: 10.5, color: C.textAlt }}>
+                        단일
+                      </PretendardFont>
+                    </View>
+                  ) : null}
+                </View>
                 <PretendardFont
                   weight="medium"
                   numberOfLines={1}
@@ -143,10 +165,6 @@ export function CountControlDetailModal({
                   구간별 입구·출구 개폐
                 </PretendardFont>
                 <View style={{ gap: 6 }}>
-                  <DetailTableRow
-                    label={`${countControl.low}마리 미만`}
-                    value={describeGateOpenState(countControl.below)}
-                  />
                   <DetailTableRow
                     label={`${countControl.low}~${countControl.high}마리`}
                     value={describeGateOpenState(countControl.within)}

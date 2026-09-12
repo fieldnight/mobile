@@ -102,6 +102,8 @@ export interface DualRangeSliderProps {
   low: number;
   high: number;
   onChange: (low: number, high: number) => void;
+  /** 두 핸들이 이보다 가까이 붙지 못하게 하는 최소 간격. 기본값은 0(제한 없음). */
+  minGap?: number;
   /** 트랙 양 끝(min, max) 아래에 표시할 라벨. 기본값은 min/max 숫자. */
   formatEdgeLabel?: (value: number) => string;
   /** 핸들 위 원 안에 표시할 값 라벨. 기본값은 값 숫자. */
@@ -115,13 +117,14 @@ export function DualRangeSlider({
   low,
   high,
   onChange,
+  minGap = 0,
   formatEdgeLabel = (value) => String(value),
   formatHandleLabel = (value) => String(value),
 }: DualRangeSliderProps) {
   const { trackWidth, onTrackLayout } = useTrackWidth();
 
-  const latest = useRef({ min, max, step, trackWidth, low, high, onChange });
-  latest.current = { min, max, step, trackWidth, low, high, onChange };
+  const latest = useRef({ min, max, step, trackWidth, low, high, onChange, minGap });
+  latest.current = { min, max, step, trackWidth, low, high, onChange, minGap };
 
   const dragRef = useRef<{ handle: "low" | "high"; startX: number } | null>(null);
 
@@ -139,12 +142,12 @@ export function DualRangeSlider({
       onPanResponderMove: (_, gesture) => {
         const drag = dragRef.current;
         if (!drag) return;
-        const { min, max, step, trackWidth, low, high, onChange } = latest.current;
+        const { min, max, step, trackWidth, low, high, onChange, minGap } = latest.current;
         const nextValue = xToValueWith(min, max, step, trackWidth, drag.startX + gesture.dx);
         if (drag.handle === "low") {
-          onChange(Math.min(nextValue, high), high);
+          onChange(Math.min(nextValue, high - minGap), high);
         } else {
-          onChange(low, Math.max(nextValue, low));
+          onChange(low, Math.max(nextValue, low + minGap));
         }
       },
       onPanResponderRelease: () => {
@@ -284,9 +287,10 @@ function SliderHandle({
         style={{
           position: "absolute",
           top: -22,
+          left: HANDLE_SIZE / 2 - 28,
+          width: 56,
           fontSize: 12,
           color: C.gatePrimary,
-          minWidth: 32,
           textAlign: "center",
         }}
       >

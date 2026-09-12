@@ -24,7 +24,7 @@ import {
 
 const SCREEN_W = Dimensions.get("window").width;
 const ACTIVE_CARD_W = SCREEN_W - 42;
-const ACTIVE_CARD_H = 276;
+const ACTIVE_CARD_H = 359;
 const LABEL_BG = "#EEF2F6";
 
 export function NfcDoorCardModal({
@@ -291,7 +291,7 @@ export function NfcDoorCardModal({
                   marginTop: 3,
                 }}
               >
-                {card.description}
+                {card.removable ? card.memo || card.description : card.description}
               </PretendardFont>
 
               {card.detail ? (

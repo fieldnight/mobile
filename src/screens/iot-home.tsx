@@ -77,6 +77,8 @@ const GAP = 16;
 const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2 - 1;
 const HERO_BANNER_H = SCREEN_H * 0.34;
 const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.62, 260);
+/** 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도. 기존 220에서 20% 줄여 배경이 더 보이게 합니다. */
+const CARD_SHEET_OVERLAP = 220 * 0.8;
 const STATS_PANEL_PAD = 16;
 const STATS_PAGE_GAP = 12;
 const STATS_PAGE_W = SCREEN_W - H_PAD * 2 - STATS_PANEL_PAD * 2;
@@ -576,12 +578,12 @@ export default function DoorOpenerScreen() {
       Extrapolation.CLAMP,
     ),
   }));
-  // 카드 시트(marginTop: -220)가 히어로 이미지(top: 50) 상단까지 완전히
+  // 카드 시트(marginTop: -CARD_SHEET_OVERLAP)가 히어로 이미지(top: 50) 상단까지 완전히
   // 덮는 스크롤 위치를 기준으로 이미지가 서서히 투명해지도록 맞춥니다.
   const heroImageStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       scrollY.value,
-      [0, Math.max(40, HERO_BANNER_H - 270)],
+      [0, Math.max(40, HERO_BANNER_H - (CARD_SHEET_OVERLAP + 50))],
       [1, 0],
       Extrapolation.CLAMP,
     ),
@@ -649,7 +651,7 @@ export default function DoorOpenerScreen() {
             <Animated.View
               className="rounded-t-[28px] px-[18px] pt-5 gap-4"
               style={[
-                { marginTop: -220 - (tabsHeight - 50) },
+                { marginTop: -CARD_SHEET_OVERLAP - (tabsHeight - 50) },
                 controlStretchStyle,
               ]}
             >

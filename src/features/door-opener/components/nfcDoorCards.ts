@@ -42,7 +42,7 @@ export function isRepeatDaysEmpty(days: RepeatDays) {
   return !Object.values(days).some(Boolean);
 }
 
-/** 마릿수 구간 하나(미만/사이/이상)에서 입구·출구를 열지 여부. */
+/** 마릿수 구간 하나(사이/이상)에서 입구·출구를 열지 여부. */
 export interface GateOpenState {
   entranceOpen: boolean;
   exitOpen: boolean;
@@ -50,7 +50,7 @@ export interface GateOpenState {
 
 /**
  * 벌 마릿수 제어 카드의 설정. "현재 활동중인 벌 마릿수"(출구로 나간 수 - 입구로 들어온 수,
- * 즉 밖에 나가있는 벌 수)를 기준으로 low 미만 / low~high 사이 / high 이상, 3개 구간으로
+ * 즉 밖에 나가있는 벌 수)를 기준으로 low~high 사이 / high 이상, 2개 구간으로
  * 나눠 각 구간마다 입구·출구를 열지 닫을지를 개별적으로 정합니다.
  * 요일(repeatDays)과 시간 구간(timeWindowStart~timeWindowEnd)을 함께 지정하면, 그 요일의
  * 그 시간대에만 마릿수 규칙을 감시합니다. timeWindowStart가 "00:00"이고 timeWindowEnd가
@@ -60,7 +60,6 @@ export interface GateOpenState {
 export interface BeeCountControlConfig {
   low: number;
   high: number;
-  below: GateOpenState;
   within: GateOpenState;
   above: GateOpenState;
   repeatDays: RepeatDays;
@@ -91,6 +90,8 @@ export interface NfcDoorCardConfig {
   repeat?: boolean;
   countControl?: BeeCountControlConfig;
   serverActionId?: number;
+  /** 카드 추가 때 사용자가 직접 적어둔 한 줄 메모. */
+  memo?: string;
 }
 
 export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
@@ -205,6 +206,7 @@ export function createCustomDoorCard({
   start,
   end,
   countControl,
+  memo,
 }: {
   title: string;
   functionType: NfcDoorFunction;
@@ -213,6 +215,7 @@ export function createCustomDoorCard({
   start: string;
   end: string;
   countControl?: BeeCountControlConfig;
+  memo?: string;
 }): NfcDoorCardConfig {
   if (functionType === "count_control" && countControl) {
     const { low, high, timeWindowStart, timeWindowEnd } = countControl;
@@ -232,6 +235,7 @@ export function createCustomDoorCard({
       detail,
       repeat: !isRepeatDaysEmpty(countControl.repeatDays),
       countControl,
+      memo,
     };
   }
 
@@ -268,6 +272,7 @@ export function createCustomDoorCard({
     end: normalizedEnd,
     detail,
     repeat,
+    memo,
   };
 }
 
