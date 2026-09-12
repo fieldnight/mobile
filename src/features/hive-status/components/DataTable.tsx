@@ -38,13 +38,6 @@ const TABLE_COLS: Array<{
     color: C.text,
     format: (value) => String(value),
   },
-  {
-    key: "co2",
-    label: "CO2",
-    unit: "ppm",
-    color: C.ter,
-    format: (value) => String(value),
-  },
 ];
 
 interface DataTableProps {

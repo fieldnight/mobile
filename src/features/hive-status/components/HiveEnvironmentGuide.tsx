@@ -14,17 +14,12 @@ const GUIDE_ITEMS = [
     value: "50~70%",
     desc: "너무 건조하거나 습하면 밀랍 관리가 어려워요",
   },
-  {
-    label: "CO₂",
-    value: "500ppm 이하",
-    desc: "환기가 잘 되고 있다면 안심이에요",
-  },
 ];
 
 /**
  * HiveEnvironmentGuide
  * - 벌통 통계 화면에서 적정 환경 가이드를 카드로 표시합니다.
- * - 온도 / 습도 / CO₂ 기준을 한눈에 보여줍니다.
+ * - 온도 / 습도 기준을 한눈에 보여줍니다.
  */
 export function HiveEnvironmentGuide() {
   return (

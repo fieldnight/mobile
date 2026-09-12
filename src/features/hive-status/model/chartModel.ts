@@ -84,7 +84,7 @@ export function panViewport(viewport: ChartViewport, dx: number, dy: number, wid
 /** Keep the pinch focal point fixed in both the time and value axes. */
 export function zoomViewport(viewport: ChartViewport, factor: number, count: number, anchorX = 0.5, anchorY = 0.5) {
   const safeFactor = Math.max(0.1, Math.min(10, factor));
-  const span = viewport.span / safeFactor;
+  const span = Math.max(1, Math.min(Math.max(count - 1, 1), viewport.span / safeFactor));
   const range = Math.max(0.1, Math.min(1e8, (viewport.max - viewport.min) / safeFactor));
   const value = viewport.max - anchorY * (viewport.max - viewport.min);
   return clampViewport({
