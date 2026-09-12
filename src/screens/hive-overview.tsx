@@ -19,7 +19,6 @@ import { Spacing } from "../constants";
 import { useHiveStore } from "@/stores/useHiveStore";
 import {
   useDeleteHive,
-  useHiveConnectionStatuses,
   useSyncHiveList,
 } from "@/features/hive";
 import { useHiveLatestReplacementMap } from "@/features/hive-status";
@@ -41,8 +40,6 @@ export default function HiveOverviewScreen() {
   const deleteHiveMutation = useDeleteHive();
   const { show: showToast } = useAppToast();
   const hives = useHiveStore((state) => state.hives);
-  useHiveConnectionStatuses(hives.map((hive) => hive.id));
-  const hiveControls = useHiveStore((state) => state.hiveControls);
   const latestReplacementMap = useHiveLatestReplacementMap(hives.map((hive) => hive.id));
   const [addHiveVisible, setAddHiveVisible] = useState(false);
   const [editingHive, setEditingHive] = useState<HiveData | null>(null);
@@ -121,7 +118,6 @@ export default function HiveOverviewScreen() {
 
         <HiveSliderSection
           hives={displayHives}
-          hiveControls={hiveControls}
           allView={true}
           selectedIndex={0}
           itemWidth={ITEM_WIDTH}

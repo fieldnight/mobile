@@ -242,12 +242,14 @@ export function toHiveData(hive: HiveListItem | HiveDetail): HiveData {
     memo: hive.memo ?? "",
     registeredAt: formatDateLabel(hive.createdAt),
     status: online ? "online" : "offline",
-    temperature: online ? 34.5 : 0,
-    humidity: online ? 62 : 0,
-    externalTemperature: online ? 22.1 : 0,
-    externalHumidity: online ? 48 : 0,
+    // REST 연결 상태는 센서 측정값이 아닙니다. 실측 전에는 UI에서 수신 대기를 표시합니다.
+    temperature: 0,
+    humidity: 0,
+    externalTemperature: 0,
+    externalHumidity: 0,
+    connectionCheckedAt: "connectionStatus" in hive && hive.connectionStatus != null ? Date.now() : undefined,
     weight: 28,
     beeActivity: online ? "medium" : "low",
-    lastUpdate: online ? "방금" : "오프라인",
+    lastUpdate: "측정값 수신 대기",
   };
 }

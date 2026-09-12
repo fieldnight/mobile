@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { HiveControlState, HiveData, HiveFormInput } from "@/types/hive-control";
 import { initialControls } from "@/types";
+import { mergeHive, refreshPresence } from "./hivePresence";
 
 /** 화면 표시용 오늘 날짜를 yyyy-MM-dd로 만듭니다. */
 function todayLabel() {
@@ -59,6 +60,8 @@ interface HiveStoreState {
   reorderHives: (nextHives: HiveData[]) => void;
   updateReplacedAt: (id: string, replacedAt?: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
+  refreshPresence: () => void;
+  updateConnections: (updates: { id: string; connected: boolean; checkedAt: number }[]) => void;
   updateHiveTelemetry: (
     id: string,
     telemetry: {
@@ -66,6 +69,7 @@ interface HiveStoreState {
       internalHumidity: number;
       externalTemperature: number;
       externalHumidity: number;
+      recordedAt?: string;
     },
   ) => void;
 }
@@ -85,29 +89,7 @@ export const useHiveStore = create<HiveStoreState>()(
           const nextControls = { ...state.hiveControls };
           const prevHiveById = new Map(state.hives.map((hive) => [hive.id, hive]));
 
-          // 서버 목록을 다시 불러올 때 REST 응답에는 없는 SSE 실시간 온습도 값이
-          // 0으로 덮어써지지 않도록, 기존 store에 있던 값을 이어받습니다.
-          const mergedHives = hives.map((hive) => {
-            const prevHive = prevHiveById.get(hive.id);
-            if (!prevHive) return hive;
-
-            return {
-              ...hive,
-              status: prevHive.status === "online" ? prevHive.status : hive.status,
-              temperature:
-                prevHive.status === "online" ? prevHive.temperature : hive.temperature,
-              humidity: prevHive.status === "online" ? prevHive.humidity : hive.humidity,
-              externalTemperature:
-                prevHive.status === "online"
-                  ? prevHive.externalTemperature
-                  : hive.externalTemperature,
-              externalHumidity:
-                prevHive.status === "online"
-                  ? prevHive.externalHumidity
-                  : hive.externalHumidity,
-              lastUpdate: prevHive.status === "online" ? prevHive.lastUpdate : hive.lastUpdate,
-            };
-          });
+          const mergedHives = hives.map((hive) => mergeHive(prevHiveById.get(hive.id), hive));
 
           // 서버에서 새 벌통이 내려와도 제어 UI가 깨지지 않도록 기본 상태를 보강합니다.
           mergedHives.forEach((hive) => {
@@ -173,19 +155,41 @@ export const useHiveStore = create<HiveStoreState>()(
           },
         }));
       },
+      refreshPresence: () => set((state) => {
+        const hives = state.hives.map((hive) => refreshPresence(hive));
+        return hives.every((hive, i) => hive === state.hives[i]) ? state : { hives };
+      }),
+      updateConnections: (updates) => set((state) => {
+        const byId = new Map(updates.map((update) => [update.id, update]));
+        const hives = state.hives.map((hive) => {
+          const update = byId.get(hive.id);
+          // 캐시된 이전 조회 결과가 새 SSE 상태를 되돌리지 않게 합니다.
+          if (!update || update.checkedAt <= Math.max(hive.connectionCheckedAt ?? 0, hive.telemetryReceivedAt ?? 0)) return hive;
+          return refreshPresence({ ...hive, status: update.connected ? "online" : "offline",
+            connectionCheckedAt: update.checkedAt,
+            disconnectedAt: update.connected ? hive.disconnectedAt : update.checkedAt });
+        });
+        return hives.every((hive, i) => hive === state.hives[i]) ? state : { hives };
+      }),
       updateHiveTelemetry: (id, telemetry) => {
+        const now = Date.now();
+        const parsed = telemetry.recordedAt ? Date.parse(telemetry.recordedAt) : now;
+        const measuredAt = Number.isFinite(parsed) ? Math.min(parsed, now) : now;
         set((state) => ({
           hives: state.hives.map((hive) =>
-            hive.id === id
-              ? {
+            hive.id === id && measuredAt > (hive.measuredAt ?? 0)
+              ? refreshPresence({
                   ...hive,
-                  status: "online",
+                  status: measuredAt <= (hive.disconnectedAt ?? 0) ? "offline" : "online",
                   temperature: telemetry.internalTemperature,
                   humidity: telemetry.internalHumidity,
                   externalTemperature: telemetry.externalTemperature,
                   externalHumidity: telemetry.externalHumidity,
                   lastUpdate: "방금",
-                }
+                  measuredAt,
+                  // 과거 이벤트 재전송은 현재 연결의 증거로 사용하지 않습니다.
+                  telemetryReceivedAt: measuredAt,
+                }, now)
               : hive,
           ),
         }));
@@ -195,6 +199,12 @@ export const useHiveStore = create<HiveStoreState>()(
       name: "webee-hive-store",
       storage: createJSONStorage(() => AsyncStorage),
       version: 7,
+      // 재실행 때 저장된 온라인 상태를 실시간 연결로 취급하지 않습니다.
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<HiveStoreState> | undefined;
+        return { ...current, hiveControls: saved?.hiveControls ?? {}, hives: (saved?.hives ?? []).map((hive) =>
+          refreshPresence({ ...hive, status: "offline", connectionCheckedAt: undefined, telemetryReceivedAt: undefined })) };
+      },
       migrate: () => {
         // hives는 항상 서버에서 받아오므로 버전 업 시 초기화합니다.
         return { hives: [], hiveControls: {} } as unknown as HiveStoreState;
