@@ -22,6 +22,12 @@ export interface HiveData {
   weight: number;
   beeActivity: "high" | "medium" | "low";
   lastUpdate: string;
+  /** 실측 시각과 앱 수신 시각은 연결 확인 시각과 별도로 보관합니다. */
+  measuredAt?: number;
+  telemetryReceivedAt?: number;
+  connectionCheckedAt?: number;
+  /** 마지막으로 서버가 오프라인을 확인한 시각. 늦게 도착한 SSE를 구분합니다. */
+  disconnectedAt?: number;
   location?: string;
   memo?: string;
   registeredAt?: string;

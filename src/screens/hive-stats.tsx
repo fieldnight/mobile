@@ -59,7 +59,6 @@ export default function HiveStatsScreen() {
   const sliderItemWidth = width - 32;
   const { selectedHiveId } = useLocalSearchParams<{ selectedHiveId?: string }>();
   const hives = useHiveStore((state) => state.hives);
-  const hiveControls = useHiveStore((state) => state.hiveControls);
   useSyncHiveList();
 
   const [period, setPeriod] = useState<Period>("일간");
@@ -68,7 +67,7 @@ export default function HiveStatsScreen() {
   );
   const [addHiveVisible, setAddHiveVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
-    "chart",
+    "combined",
   );
   const [chartSession, setChartSession] = useState(0);
   const [chartInteracting, setChartInteracting] = useState(false);
@@ -155,7 +154,6 @@ export default function HiveStatsScreen() {
       >
         <HiveSliderSection
           hives={hives}
-          hiveControls={hiveControls}
           allView={false}
           selectedIndex={selectedIndex}
           itemWidth={sliderItemWidth}
