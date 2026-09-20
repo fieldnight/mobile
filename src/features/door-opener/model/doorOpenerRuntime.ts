@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { NfcDoorCardConfig, NfcDoorMode } from "../components/nfcDoorCards";
+import type { BeeCountControlConfig, NfcDoorCardConfig, NfcDoorMode } from "../components/nfcDoorCards";
 import type { BeeTrafficCounts, HceResultEvent } from "./webeeHce";
 
 const DOOR_OPENER_RUNTIME_STORAGE_KEY = "ourbee:door-opener-runtime:v1";
@@ -16,6 +16,7 @@ export interface DoorOpenerRuntimeState {
   start?: string;
   end?: string;
   repeat: boolean;
+  countControl?: BeeCountControlConfig;
   activatedAt: number;
   result: string;
   status: HceResultEvent["status"];
@@ -37,6 +38,7 @@ export function buildDoorOpenerRuntimeState(
     start: card.start,
     end: card.end,
     repeat: card.repeat ?? false,
+    countControl: card.countControl,
     activatedAt: Date.now(),
     result: event.result,
     status: event.status,
@@ -93,10 +95,8 @@ export function getDoorOpenerRuntimeText(
       return getAlternateText(state, now);
     case "lock_days":
       return getLockDaysText(state, now);
-    case "activity_boost":
-    case "overpollination_guard":
-    case "return_limit":
-      return `${state.end ?? "0"}마리 기준 적용 중`;
+    case "count_control":
+      return `${state.end ?? "0"}마리 구간 제어 적용 중`;
     default:
       return null;
   }
@@ -184,6 +184,7 @@ function getLockDaysText(state: DoorOpenerRuntimeState, now: Date) {
 }
 
 function parseTime(value: string | undefined) {
+  if (value === "24:00") return { hour: 24, minute: 0 };
   const match = value?.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
   if (!match) return null;
   return { hour: Number(match[1]), minute: Number(match[2]) };

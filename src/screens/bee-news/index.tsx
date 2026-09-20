@@ -6,7 +6,6 @@ import {
   FlatList,
   Linking,
   ScrollView,
-  RefreshControl,
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -103,21 +102,11 @@ function RssNewsList({
   scrollEventThrottle: number;
 }) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: news = [], isLoading, error, refetch } = useNews(keyword);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [keyword]);
-
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [refetch]);
 
   const totalPages = Math.max(1, Math.ceil(news.length / PAGE_SIZE));
   const pagedNews = news.slice(
@@ -191,14 +180,6 @@ function RssNewsList({
       )}
       keyExtractor={(item) => item.link}
       showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          tintColor={C.primary}
-          colors={[C.primary]}
-        />
-      }
       onScroll={onScroll}
       scrollEventThrottle={scrollEventThrottle}
       contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 20 }}

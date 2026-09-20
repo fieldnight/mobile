@@ -23,7 +23,7 @@
  */
 
 import { memo, useState, useCallback, useMemo } from "react";
-import { View, FlatList, RefreshControl } from "react-native";
+import { View, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRouter } from "expo-router";
 import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
@@ -93,7 +93,6 @@ export default function CommunityScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isRefetching,
   } = usePostList("desc");
 
   // 모든 페이지를 하나로 펼침
@@ -156,15 +155,6 @@ export default function CommunityScreen() {
           ListFooterComponent={<LoadMoreFooter loading={isFetchingNextPage} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor="#EA580C"
-              progressBackgroundColor="#FFFFFF"
-              colors={["#EA580C", "#F59E0B"]}
-            />
-          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: HEADER_HEIGHT, paddingBottom: 100 }}
           onScroll={onScroll}

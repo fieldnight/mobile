@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { registerTokenCallbacks } from '@/lib/tokenManager';
 import { queryClient } from '@/providers';
 import { unregisterCurrentDeviceFcmToken } from '@/features/notification/model/fcmTokenService';
+import { useHiveStore } from '@/stores/useHiveStore';
 import type { User, LoginRequest, RegisterRequest, ApiResponse, SignInResponseData, OAuthSignInResponse } from '@/types';
 
 function getResponseHeader(headers: unknown, name: string): string | null {
@@ -105,6 +106,12 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 로그인 실패', {
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
@@ -144,6 +151,13 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 소셜 로그인 실패', {
+            platform,
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
@@ -187,6 +201,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
+          useHiveStore.getState().setHives([]);
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
       },
@@ -197,6 +212,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           delete api.defaults.headers.common['Authorization'];
           queryClient.clear();
+          useHiveStore.getState().setHives([]);
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
       },
@@ -220,6 +236,8 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         delete api.defaults.headers.common['Authorization'];
+        queryClient.clear();
+        useHiveStore.getState().setHives([]);
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
       },
     }),

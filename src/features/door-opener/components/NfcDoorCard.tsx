@@ -8,8 +8,15 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
-import type { NfcDoorCardConfig } from "./nfcDoorCards";
+import { isCountControlMode, type NfcDoorCardConfig } from "./nfcDoorCards";
 
+/**
+ * 삼성 스마트싱스 앱의 방(room)별 기기 카드 그리드를 참고한 스타일.
+ * - 카드 배경은 화면 배경보다 살짝 짙은 단색(stCardBg), 그림자는 거의 없음.
+ * - 아이콘은 원형 배지 안에 들어가고, 실행중이면 컬러(stIconBadgeOn)로 채워지고
+ *   아니면 회색(stIconBadgeOff)으로 바뀝니다 — 텍스트보다 이 배지 색이 on/off를
+ *   먼저 보여주는 1차 신호입니다.
+ */
 export function NfcDoorCard({
   card,
   size,
@@ -40,6 +47,8 @@ export function NfcDoorCard({
       ? [...dragOffset.getTranslateTransform(), { scale: 1.06 }]
       : undefined;
 
+  const showOneTimeTag = isCountControlMode(card.mode) && !card.repeat;
+
   return (
     <Animated.View
       {...panHandlers}
@@ -59,22 +68,10 @@ export function NfcDoorCard({
         className="active:opacity-80"
       >
         <CardShell size={size} dragging={dragging} active={active}>
-          {active && runtimeLabel ? (
-            <View
-              className="mb-2 self-start rounded-full px-2.5 py-1"
-              style={{ backgroundColor: "rgba(248,209,92,0.96)" }}
-            >
-              <PretendardFont
-                weight="bold"
-                numberOfLines={1}
-                style={{ fontSize: 12.5, color: C.text }}
-              >
-                실행중 · {runtimeLabel}
-              </PretendardFont>
-            </View>
-          ) : null}
           <View className="flex-row items-start justify-between">
-            <Feather name={card.icon} size={20} color={C.white} />
+            <IconBadge icon={card.icon} on={Boolean(active)} />
+
+            {showOneTimeTag && !(editable && card.removable && onDelete) && <OneTimeTag />}
 
             {editable && card.removable && onDelete && (
               <Pressable
@@ -85,14 +82,14 @@ export function NfcDoorCard({
                 hitSlop={8}
                 className="items-center justify-center rounded-full active:opacity-70"
                 style={{
-                  width: 30,
-                  height: 30,
-                  backgroundColor: "rgba(255,255,255,0.22)",
+                  width: 26,
+                  height: 26,
+                  backgroundColor: "rgba(239, 68, 68, 0.92)",
                 }}
               >
                 <PretendardFont
                   weight="bold"
-                  style={{ fontSize: 20, color: C.white }}
+                  style={{ fontSize: 17, color: C.white, lineHeight: 17 }}
                 >
                   -
                 </PretendardFont>
@@ -100,23 +97,37 @@ export function NfcDoorCard({
             )}
           </View>
 
-          <View style={{ gap: 3 }}>
+          <View style={{ gap: 2 }}>
             <PretendardFont
-              weight="bold"
-              style={{ fontSize: 16, lineHeight: 21, color: C.white }}
+              weight="semibold"
+              numberOfLines={1}
+              style={{ fontSize: 14.5, lineHeight: 19, color: C.text }}
             >
               {card.title}
             </PretendardFont>
-            <PretendardFont
-              weight="medium"
-              style={{
-                fontSize: 13.5,
-                lineHeight: 18,
-                color: "rgba(255,255,255,0.8)",
-              }}
-            >
-              {card.description}
-            </PretendardFont>
+            {(() => {
+              const text = active && runtimeLabel
+                ? runtimeLabel
+                : active
+                  ? "실행중"
+                  : card.removable
+                    ? card.memo ?? ""
+                    : card.description;
+              if (!text) return null;
+              return (
+                <PretendardFont
+                  weight="medium"
+                  numberOfLines={2}
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 18,
+                    color: active ? C.stIconBadgeOn : C.sec,
+                  }}
+                >
+                  {text}
+                </PretendardFont>
+              );
+            })()}
           </View>
         </CardShell>
       </Pressable>
@@ -124,31 +135,38 @@ export function NfcDoorCard({
   );
 }
 
-export function AddNfcDoorCardButton({
-  size,
-  onPress,
-}: {
-  size: number;
-  onPress: () => void;
-}) {
+/** 반복 요일을 하나도 선택하지 않은 벌 마릿수 제어 카드(단발성)에 붙는 태그입니다. */
+function OneTimeTag() {
   return (
-    <Pressable
-      onPress={onPress}
-      className="active:opacity-70"
-      style={{ width: size }}
+    <View
+      className="items-center justify-center rounded-full"
+      style={{
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        backgroundColor: C.white,
+        borderWidth: 1,
+        borderColor: C.border,
+      }}
     >
-      <CardShell size={size} dashed>
-        <View className="flex-1 items-center justify-center">
-          <Feather name="plus" size={26} color={C.white} />
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 14.5, color: C.white, marginTop: 6 }}
-          >
-            추가하기
-          </PretendardFont>
-        </View>
-      </CardShell>
-    </Pressable>
+      <PretendardFont weight="bold" style={{ fontSize: 10.5, lineHeight: 13, color: C.textAlt }}>
+        단일
+      </PretendardFont>
+    </View>
+  );
+}
+
+function IconBadge({ icon, on }: { icon: keyof typeof Feather.glyphMap; on: boolean }) {
+  return (
+    <View
+      className="items-center justify-center rounded-full"
+      style={{
+        width: 40,
+        height: 40,
+        backgroundColor: on ? C.stIconBadgeOn : C.stIconBadgeOff,
+      }}
+    >
+      <Feather name={icon} size={18} color={on ? C.white : C.stIconOff} />
+    </View>
   );
 }
 
@@ -156,35 +174,30 @@ function CardShell({
   size,
   dragging,
   active,
-  dashed,
   children,
 }: {
   size: number;
   dragging?: boolean;
   active?: boolean;
-  dashed?: boolean;
   children: ReactNode;
 }) {
   return (
     <View
-      className={dashed ? "items-center justify-center" : "justify-between"}
+      className="justify-between"
       style={{
-        minHeight: size * 0.66,
-        borderRadius: 14,
+        minHeight: size * 0.759,
+        borderRadius: 16,
         padding: 14,
-        backgroundColor: active
-          ? "rgba(255,255,255,0.22)"
-          : "rgba(255,255,255,0.16)",
-        borderWidth: active || dragging ? 2 : dashed ? 1.5 : 1,
-        borderStyle: dashed ? "dashed" : "solid",
-        borderColor: active
-          ? "#F8D15C"
-          : dragging
-            ? C.cardBorderDragging
-            : dashed
-              ? "rgba(255,255,255,0.55)"
-              : C.cardBorder,
+        gap: 10,
+        backgroundColor: C.stCardBg,
+        borderWidth: dragging ? 2 : 0,
+        borderColor: dragging ? C.gatePrimary : "transparent",
         opacity: dragging ? 0.92 : 1,
+        shadowColor: C.shadow,
+        shadowOpacity: active ? 0.08 : 0.04,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: dragging ? 12 : 1,
       }}
     >
       {children}

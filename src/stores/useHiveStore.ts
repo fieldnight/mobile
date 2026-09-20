@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { HiveControlState, HiveData, HiveFormInput } from "@/types/hive-control";
 import { initialControls } from "@/types";
+import { mergeHive, refreshPresence } from "./hivePresence";
 
 /** 화면 표시용 오늘 날짜를 yyyy-MM-dd로 만듭니다. */
 function todayLabel() {
@@ -21,13 +22,6 @@ function createDefaultControlState(): HiveControlState {
   };
 }
 
-/** 벌통 목록에 맞춰 제어 상태 맵을 초기화합니다. */
-function createInitialHiveControls(hives: HiveData[]) {
-  return hives.reduce<Record<string, HiveControlState>>((acc, hive) => {
-    acc[hive.id] = createDefaultControlState();
-    return acc;
-  }, {});
-}
 
 /** 등록 폼 입력값을 기존 화면에서 쓰는 HiveData 형태로 변환합니다. */
 function createHiveData(input: HiveFormInput): HiveData {
@@ -44,76 +38,17 @@ function createHiveData(input: HiveFormInput): HiveData {
     memo: input.memo ?? "",
     registeredAt: todayLabel(),
     replacedAt: input.replacedAt,
-    status: "online",
-    temperature: 34,
-    humidity: 60,
-    externalTemperature: 22,
-    externalHumidity: 48,
+    status: "offline",
+    temperature: 0,
+    humidity: 0,
+    externalTemperature: 0,
+    externalHumidity: 0,
     weight: 28,
-    beeActivity: "medium",
-    lastUpdate: "방금",
+    beeActivity: "low",
+    lastUpdate: "연결 확인 중",
   };
 }
 
-/**
- * 개발/서버 실패 fallback용 기본 벌통 목록
- * - 요청대로 맥주소, 이름, 지역, 위치, 메모가 있는 벌통 2개만 유지합니다.
- */
-export const HIVE_DEMO_MODE = true;
-
-export const DEMO_HIVES: HiveData[] = [
-  {
-    id: "1",
-    macAddress: "AA:BB:CC:DD:EE:FF",
-    name: "딸기벌통 1호",
-    region: "충청북도 청주시 오창읍",
-    location: "딸기 하우스",
-    memo: "스마트벌통 데모",
-    registeredAt: "2024-03-15",
-    status: "online",
-    temperature: 25,
-    humidity: 62,
-    externalTemperature: 32,
-    externalHumidity: 80,
-    weight: 28.3,
-    beeActivity: "high",
-    lastUpdate: "방금",
-  },
-  {
-    id: "2",
-    macAddress: "11:22:33:44:55:66",
-    name: "딸기벌통 2호",
-    region: "충청북도 청주시 오창읍",
-    location: "딸기 하우스 2동",
-    memo: "스마트벌통 데모",
-    registeredAt: "2024-03-16",
-    status: "online",
-    temperature: 24.5,
-    humidity: 64,
-    externalTemperature: 31.5,
-    externalHumidity: 78,
-    weight: 29.1,
-    beeActivity: "medium",
-    lastUpdate: "방금",
-  },
-  {
-    id: "3",
-    macAddress: "22:33:44:55:66:77",
-    name: "딸기벌통 3호",
-    region: "충청북도 청주시 오창읍",
-    location: "딸기 하우스 3동",
-    memo: "스마트벌통 데모",
-    registeredAt: "2024-03-17",
-    status: "online",
-    temperature: 26,
-    humidity: 60,
-    externalTemperature: 33,
-    externalHumidity: 82,
-    weight: 27.8,
-    beeActivity: "high",
-    lastUpdate: "방금",
-  },
-];
 
 interface HiveStoreState {
   hives: HiveData[];
@@ -125,29 +60,45 @@ interface HiveStoreState {
   reorderHives: (nextHives: HiveData[]) => void;
   updateReplacedAt: (id: string, replacedAt?: string) => void;
   updateHiveControls: (id: string, nextState: HiveControlState) => void;
+  refreshPresence: () => void;
+  updateConnections: (updates: { id: string; connected: boolean; checkedAt: number }[]) => void;
+  updateHiveTelemetry: (
+    id: string,
+    telemetry: {
+      internalTemperature: number;
+      internalHumidity: number;
+      externalTemperature: number;
+      externalHumidity: number;
+      recordedAt?: string;
+    },
+  ) => void;
 }
 
 /**
  * 벌통 화면 공용 store
  * - 기존 스마트벌통/개폐기 화면이 모두 이 store를 바라봅니다.
- * - API 조회 성공 시 setHives로 서버 목록을 주입하고, 실패 시 기본 목록을 유지합니다.
+ * - API 조회 성공 시 setHives로 서버 목록을 주입합니다.
  */
 export const useHiveStore = create<HiveStoreState>()(
   persist(
     (set) => ({
-      hives: DEMO_HIVES,
-      hiveControls: createInitialHiveControls(DEMO_HIVES),
+      hives: [],
+      hiveControls: {},
       setHives: (hives) => {
         set((state) => {
           const nextControls = { ...state.hiveControls };
+          const prevHiveById = new Map(state.hives.map((hive) => [hive.id, hive]));
+
+          const mergedHives = hives.map((hive) => mergeHive(prevHiveById.get(hive.id), hive));
+
           // 서버에서 새 벌통이 내려와도 제어 UI가 깨지지 않도록 기본 상태를 보강합니다.
-          hives.forEach((hive) => {
+          mergedHives.forEach((hive) => {
             if (!nextControls[hive.id]) {
               nextControls[hive.id] = createDefaultControlState();
             }
           });
 
-          return { hives, hiveControls: nextControls };
+          return { hives: mergedHives, hiveControls: nextControls };
         });
       },
       addHive: (input) => {
@@ -204,40 +155,59 @@ export const useHiveStore = create<HiveStoreState>()(
           },
         }));
       },
+      refreshPresence: () => set((state) => {
+        const hives = state.hives.map((hive) => refreshPresence(hive));
+        return hives.every((hive, i) => hive === state.hives[i]) ? state : { hives };
+      }),
+      updateConnections: (updates) => set((state) => {
+        const byId = new Map(updates.map((update) => [update.id, update]));
+        const hives = state.hives.map((hive) => {
+          const update = byId.get(hive.id);
+          // 캐시된 이전 조회 결과가 새 SSE 상태를 되돌리지 않게 합니다.
+          if (!update || update.checkedAt <= Math.max(hive.connectionCheckedAt ?? 0, hive.telemetryReceivedAt ?? 0)) return hive;
+          return refreshPresence({ ...hive, status: update.connected ? "online" : "offline",
+            connectionCheckedAt: update.checkedAt,
+            disconnectedAt: update.connected ? hive.disconnectedAt : update.checkedAt });
+        });
+        return hives.every((hive, i) => hive === state.hives[i]) ? state : { hives };
+      }),
+      updateHiveTelemetry: (id, telemetry) => {
+        const now = Date.now();
+        const parsed = telemetry.recordedAt ? Date.parse(telemetry.recordedAt) : now;
+        const measuredAt = Number.isFinite(parsed) ? Math.min(parsed, now) : now;
+        set((state) => ({
+          hives: state.hives.map((hive) =>
+            hive.id === id && measuredAt > (hive.measuredAt ?? 0)
+              ? refreshPresence({
+                  ...hive,
+                  status: measuredAt <= (hive.disconnectedAt ?? 0) ? "offline" : "online",
+                  temperature: telemetry.internalTemperature,
+                  humidity: telemetry.internalHumidity,
+                  externalTemperature: telemetry.externalTemperature,
+                  externalHumidity: telemetry.externalHumidity,
+                  lastUpdate: "방금",
+                  measuredAt,
+                  // 과거 이벤트 재전송은 현재 연결의 증거로 사용하지 않습니다.
+                  telemetryReceivedAt: measuredAt,
+                }, now)
+              : hive,
+          ),
+        }));
+      },
     }),
     {
       name: "webee-hive-store",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 4,
-      migrate: (persistedState: unknown, version) => {
-        const state = persistedState as Partial<HiveStoreState> | undefined;
-        // v4 데모에서는 기존 저장값과 관계없이 딸기벌통 1호만 표시합니다.
-        const safeHives =
-          HIVE_DEMO_MODE || version < 4
-            ? DEMO_HIVES
-            : (state?.hives ?? DEMO_HIVES);
-        const prevControls = state?.hiveControls ?? {};
-        const fresh = initialControls.map((control) => ({ ...control }));
-        const nextControls: Record<string, HiveControlState> = {};
-
-        safeHives.forEach((hive) => {
-          const prev = prevControls[hive.id];
-          nextControls[hive.id] = prev
-            ? {
-                ...prev,
-                controls: fresh.map((control) => {
-                  const existing = prev.controls.find((item) => item.id === control.id);
-                  return existing ? { ...control, enabled: existing.enabled } : { ...control };
-                }),
-              }
-            : createDefaultControlState();
-        });
-
-        return {
-          ...state,
-          hives: safeHives,
-          hiveControls: nextControls,
-        } as HiveStoreState;
+      version: 7,
+      // 재실행 때 저장된 온라인 상태를 실시간 연결로 취급하지 않습니다.
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<HiveStoreState> | undefined;
+        return { ...current, hiveControls: saved?.hiveControls ?? {}, hives: (saved?.hives ?? []).map((hive) =>
+          refreshPresence({ ...hive, status: "offline", connectionCheckedAt: undefined, telemetryReceivedAt: undefined })) };
+      },
+      migrate: () => {
+        // hives는 항상 서버에서 받아오므로 버전 업 시 초기화합니다.
+        return { hives: [], hiveControls: {} } as unknown as HiveStoreState;
       },
     },
   ),

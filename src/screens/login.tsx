@@ -107,6 +107,13 @@ export default function LoginScreen() {
       });
       router.replace(getLoginDestination());
     } catch (error: any) {
+      console.error('[Login] 로그인 실패', {
+        username: credentials.username,
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+        error,
+      });
       const message = getLoginErrorMessage(error, fallbackMessage);
       Alert.alert('로그인 실패', message);
     }
@@ -143,6 +150,13 @@ export default function LoginScreen() {
         router.replace(getLoginDestination());
       }
     } catch (error: any) {
+      console.error('[Login] 소셜 로그인 실패', {
+        provider,
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+        error,
+      });
       const message = getLoginErrorMessage(error, '소셜 로그인에 실패했습니다');
       Alert.alert('로그인 실패', message);
     }

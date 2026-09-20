@@ -218,7 +218,14 @@ export function DraggableHiveSection({
   };
 
   return (
-    <View>
+    <View
+      className="rounded-[20px] p-4"
+      style={{
+        borderWidth: 1,
+        borderColor: "rgba(0,0,0,0.05)",
+        backgroundColor: "rgba(255, 255, 255, 0.474)",
+      }}
+    >
       <DoorOpenerSectionHeader
         title="벌통 현황"
         count={hives.length}

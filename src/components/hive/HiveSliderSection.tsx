@@ -8,19 +8,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
-import type {
-  ActiveTag,
-  HiveControlState,
-  HiveData,
-} from "@/types/hive-control";
-import { buildActiveTags } from "@/types/hive-control";
+import type { HiveData } from "@/types/hive-control";
 
 const HIVE_IMAGE = require("../../../assets/images/beehive3.png");
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface HiveSliderSectionProps {
   hives: HiveData[];
-  hiveControls: Record<string, HiveControlState>;
   allView: boolean;
   selectedIndex: number;
   itemWidth: number;
@@ -30,14 +24,6 @@ interface HiveSliderSectionProps {
   onAddHive?: () => void;
   onEditHive?: (hive: HiveData) => void;
   onDeleteHive?: (hive: HiveData) => void;
-}
-
-function getActiveTags(
-  hiveControls: Record<string, HiveControlState>,
-  hiveId: string,
-) {
-  const control = hiveControls[hiveId];
-  return control ? buildActiveTags(control) : [];
 }
 
 // ---- 공통 상태 배지 ---------------------------------------------------------
@@ -132,79 +118,8 @@ function MetricPair({
           minimumFontScale={0.86}
           style={{ fontSize: 19.5, color: C.text }}
         >
-          온도 {temperature}°C · 습도 {humidity}%
+          온도 {temperature.toFixed(1)}°C · 습도 {humidity.toFixed(0)}%
         </PretendardFont>
-      </View>
-    </View>
-  );
-}
-
-// 켜진 자동·수동 제어 기능을 태그 pill로 나열합니다.
-// maxVisible 초과분은 +N 으로 표시합니다.
-function TagRow({
-  tags,
-  maxVisible,
-}: {
-  tags: ActiveTag[];
-  maxVisible: number;
-}) {
-  const visibleTags = tags.slice(0, maxVisible);
-  const hiddenCount = Math.max(tags.length - visibleTags.length, 0);
-
-  return (
-    <View>
-      <PretendardFont
-        weight="bold"
-        className="mb-[5px]"
-        style={{ fontSize: 13, color: C.text }}
-      >
-        제어 기능
-      </PretendardFont>
-      <View className="flex-row flex-wrap gap-1.5">
-        {tags.length > 0 ? (
-          <>
-            {visibleTags.map((tag, index) => (
-                <View
-                key={`${tag.label}-${index}`}
-                className="rounded-lg px-2.5 py-1"
-                style={{ backgroundColor: "rgba(233, 240, 255, 0.68)" }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                  style={{ fontSize: 14, color: C.text }}
-                >
-                  {tag.label}
-                </PretendardFont>
-              </View>
-            ))}
-            {hiddenCount > 0 && (
-              <View
-                className="rounded-lg p-2"
-                style={{ backgroundColor: "rgba(233, 240, 255, 0.68)" }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  style={{ fontSize: 10, color: C.text }}
-                >
-                  +{hiddenCount}
-                </PretendardFont>
-              </View>
-            )}
-          </>
-        ) : (
-          <PretendardFont
-            weight="semibold"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.86}
-            style={{ fontSize: 13, color: C.textSx }}
-          >
-            켜진 기능 없음
-          </PretendardFont>
-        )}
       </View>
     </View>
   );
@@ -249,7 +164,7 @@ function PanelMetric({
             style={{ backgroundColor: "rgba(237, 119, 57, 0.11)" }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartTemp }}>
-              {temperature}°C
+              {temperature.toFixed(1)}°C
             </PretendardFont>
           </View>
         </View>
@@ -262,7 +177,7 @@ function PanelMetric({
             style={{ backgroundColor: "rgba(37, 99, 235, 0.09)" }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartHumidity }}>
-              {humidity}%
+              {humidity.toFixed(0)}%
             </PretendardFont>
           </View>
         </View>
@@ -271,22 +186,21 @@ function PanelMetric({
   );
 }
 
-// 슬라이더 카드 오른쪽 반투명 패널 — 온습도 + 제어 태그
+// 슬라이더 카드 오른쪽 반투명 패널 — 온습도와 마지막 측정 시각
 function SensorPanel({
   hive,
-  activeTags,
 }: {
   hive: HiveData;
-  activeTags: ActiveTag[];
 }) {
   return (
     <View
       className="flex-1 p-4 rounded-xl gap-3"
       style={{
         backgroundColor: "rgba(255, 255, 255, 0.312)",
-        minHeight: 190,
       }}
     >
+      <PretendardFont style={{ fontSize: 12, color: C.sec }}>{hive.lastUpdate}</PretendardFont>
+      {hive.measuredAt != null && <>
       <PanelMetric
         title="내부"
         temperature={hive.temperature}
@@ -297,9 +211,7 @@ function SensorPanel({
         temperature={hive.externalTemperature ?? hive.temperature}
         humidity={hive.externalHumidity ?? hive.humidity}
       />
-      <View className="pb-1">
-        <TagRow tags={activeTags} maxVisible={2} />
-      </View>
+      </>}
     </View>
   );
 }
@@ -307,15 +219,13 @@ function SensorPanel({
 // 슬라이더 한 페이지 — 오른쪽 62% 영역에 헤더 + 센서 패널 배치
 function HiveHeroSlide({
   hive,
-  activeTags,
 }: {
   hive: HiveData;
-  activeTags: ActiveTag[];
 }) {
   return (
     <View className="h-full self-start px-3" style={{ width: "68%" }}>
       <HeroHeader hive={hive} />
-      <SensorPanel hive={hive} activeTags={activeTags} />
+      <SensorPanel hive={hive} />
     </View>
   );
 }
@@ -364,7 +274,7 @@ function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
             weight="semibold"
             style={{ marginTop: 8, fontSize: 14, lineHeight: 21, color: C.sec }}
           >
-            벌통을 등록하면 이곳에 내부·외부 온습도와 제어 상태가 표시돼요.
+            벌통을 등록하면 이곳에 내부·외부 온습도가 표시돼요.
           </PretendardFont>
 
           {onAddHive ? (
@@ -386,7 +296,6 @@ function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
 
 export function HiveSliderSection({
   hives,
-  hiveControls,
   allView,
   selectedIndex,
   itemWidth,
@@ -420,7 +329,6 @@ export function HiveSliderSection({
             <HiveBeeBoxCard
               hive={hive}
               onPress={() => onHivePress(hive.id)}
-              activeTags={getActiveTags(hiveControls, hive.id)}
               onEdit={onEditHive ? () => onEditHive(hive) : undefined}
               onDelete={onDeleteHive ? () => onDeleteHive(hive) : undefined}
             />
@@ -430,7 +338,7 @@ export function HiveSliderSection({
     );
   }
 
-  const SLIDER_HEIGHT = 280;
+  const SLIDER_HEIGHT = 240;
 
   return (
     <View className="mb-5">
@@ -451,8 +359,18 @@ export function HiveSliderSection({
           }}
           resizeMode="contain"
         />
-        {/* 연결 상태 배지 + 위치 — 이미지 위에 absolute 고정 */}
-        <View style={{ position: "absolute", top: 35, right: 30, zIndex: 10 }}>
+        {/* 페이지 인디케이터 + 연결 상태 배지 + 위치 — 이미지 위에 absolute 고정 */}
+        <View style={{ position: "absolute", top: 12, right: 30, zIndex: 10, alignItems: "flex-end" }}>
+          {hives.length > 1 ? (
+            <View
+              className="mb-2 rounded-full px-3 py-1"
+              style={{ backgroundColor: "rgba(25, 31, 40, 0.12)" }}
+            >
+              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt }}>
+                {selectedIndex + 1}/{hives.length}
+              </PretendardFont>
+            </View>
+          ) : null}
           <StatusBadge
             status={hives[selectedIndex]?.status ?? "offline"}
             location={hives[selectedIndex]?.location}
@@ -496,23 +414,10 @@ export function HiveSliderSection({
             >
               <HiveHeroSlide
                 hive={hive}
-                activeTags={getActiveTags(hiveControls, hive.id)}
               />
             </Pressable>
           ))}
         </ScrollView>
-      </View>
-
-      {/* 페이지 인디케이터 */}
-      <View className="mt-3 ml-[-280] items-center">
-        <View
-          className="rounded-full px-3 py-1"
-          style={{ backgroundColor: "rgba(25, 31, 40, 0.12)" }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt }}>
-            {selectedIndex + 1}/{hives.length}
-          </PretendardFont>
-        </View>
       </View>
     </View>
   );
@@ -523,13 +428,11 @@ export function HiveSliderSection({
 function HiveBeeBoxCard({
   hive,
   onPress,
-  activeTags,
   onEdit,
   onDelete,
 }: {
   hive: HiveData;
   onPress: () => void;
-  activeTags: ActiveTag[];
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -592,9 +495,10 @@ function HiveBeeBoxCard({
           <InfoTile label="벌 교체일" value={hive.replacedAt ?? "-"} />
         </View>
 
-        {/* 온라인이면 온습도 + 제어 태그, 오프라인이면 안내 메시지 */}
-        {hive.status === "online" ? (
+        {/* 수신한 온습도와 측정 시각을 표시합니다. */}
+        {hive.measuredAt != null ? (
           <>
+            <PretendardFont style={{ fontSize: 12, color: C.sec, marginBottom: 8 }}>{hive.lastUpdate}</PretendardFont>
             <MetricPair
               title="내부"
               temperature={hive.temperature}
@@ -605,7 +509,6 @@ function HiveBeeBoxCard({
               temperature={hive.externalTemperature ?? hive.temperature}
               humidity={hive.externalHumidity ?? hive.humidity}
             />
-            <TagRow tags={activeTags} maxVisible={6} />
           </>
         ) : (
           <View className="items-center justify-center py-3">
@@ -613,7 +516,7 @@ function HiveBeeBoxCard({
             <PretendardFont
               style={{ marginTop: 4, fontSize: 12, color: C.ter }}
             >
-              연결 확인 필요
+              {hive.status === "offline" ? "오프라인 · 측정값 수신 대기" : "측정값 수신 대기"}
             </PretendardFont>
           </View>
         )}

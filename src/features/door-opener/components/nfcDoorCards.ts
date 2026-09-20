@@ -1,20 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 
-export type BeeTrafficCounterKey =
-  | "entrance_in"
-  | "entrance_out"
-  | "exit_in"
-  | "exit_out";
-export type BeeCountLimitFunction =
-  | "activity_boost"
-  | "overpollination_guard"
-  | "return_limit";
 export type NfcDoorFunction =
   | "open_at"
   | "close_at"
   | "window"
   | "alternate_24h"
-  | BeeCountLimitFunction;
+  | "count_control";
 export type NfcDoorMode =
   | "open_now"
   | "close_now"
@@ -24,21 +15,65 @@ export type NfcDoorMode =
   | "window"
   | "lock_days"
   | "count_status"
-  | BeeCountLimitFunction;
+  | "count_control";
 
-export const COUNT_TARGET_BY_LIMIT_FUNCTION: Record<
-  BeeCountLimitFunction,
-  BeeTrafficCounterKey
-> = {
-  activity_boost: "exit_out",
-  overpollination_guard: "exit_out",
-  return_limit: "entrance_in",
+/** 요일 반복 설정. 전부 false면 "단발성"(한 번만 적용)을 뜻합니다. */
+export interface RepeatDays {
+  sun: boolean;
+  mon: boolean;
+  tue: boolean;
+  wed: boolean;
+  thu: boolean;
+  fri: boolean;
+  sat: boolean;
+}
+
+export const NO_REPEAT_DAYS: RepeatDays = {
+  sun: false,
+  mon: false,
+  tue: false,
+  wed: false,
+  thu: false,
+  fri: false,
+  sat: false,
 };
 
-export function isBeeCountLimitFunction(
-  value: NfcDoorFunction,
-): value is BeeCountLimitFunction {
-  return value in COUNT_TARGET_BY_LIMIT_FUNCTION;
+export function isRepeatDaysEmpty(days: RepeatDays) {
+  return !Object.values(days).some(Boolean);
+}
+
+/** 마릿수 구간 하나(사이/이상)에서 입구·출구를 열지 여부. */
+export interface GateOpenState {
+  entranceOpen: boolean;
+  exitOpen: boolean;
+}
+
+/**
+ * 벌 마릿수 제어 카드의 설정. "현재 활동중인 벌 마릿수"(출구로 나간 수 - 입구로 들어온 수,
+ * 즉 밖에 나가있는 벌 수)를 기준으로 low~high 사이 / high 이상, 2개 구간으로
+ * 나눠 각 구간마다 입구·출구를 열지 닫을지를 개별적으로 정합니다.
+ * 요일(repeatDays)과 시간 구간(timeWindowStart~timeWindowEnd)을 함께 지정하면, 그 요일의
+ * 그 시간대에만 마릿수 규칙을 감시합니다. timeWindowStart가 "00:00"이고 timeWindowEnd가
+ * "24:00"이면(슬라이더 양 끝) 하루 종일 감시하는 것과 같습니다 — 별도 on/off 스위치 없이
+ * 슬라이더 핸들을 끝까지 밀면 자연스럽게 하루 종일이 되는 방식입니다.
+ */
+export interface BeeCountControlConfig {
+  low: number;
+  high: number;
+  within: GateOpenState;
+  above: GateOpenState;
+  repeatDays: RepeatDays;
+  timeWindowStart: string;
+  timeWindowEnd: string;
+}
+
+/** timeWindowStart~timeWindowEnd가 슬라이더 전체 범위(00:00~24:00)를 덮는지, 즉 "하루 종일"인지. */
+export function isTimeWindowAllDay(config: Pick<BeeCountControlConfig, "timeWindowStart" | "timeWindowEnd">) {
+  return config.timeWindowStart === "00:00" && config.timeWindowEnd === "24:00";
+}
+
+export function isCountControlMode(mode: NfcDoorMode): mode is "count_control" {
+  return mode === "count_control";
 }
 
 export interface NfcDoorCardConfig {
@@ -53,9 +88,12 @@ export interface NfcDoorCardConfig {
   end?: string;
   detail?: string;
   repeat?: boolean;
-  threshold?: number;
-  countTarget?: BeeTrafficCounterKey;
+  countControl?: BeeCountControlConfig;
   serverActionId?: number;
+  /** 카드 추가 때 사용자가 직접 적어둔 한 줄 메모. */
+  memo?: string;
+  /** 온라인 모드에서 이 카드가 저장된 서버 카드 ID(PR #195 기준 사용자 소유 공용 카드). */
+  serverCardId?: number;
 }
 
 export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
@@ -140,6 +178,28 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   },
 ];
 
+function describeGateOpenState(state: GateOpenState) {
+  if (state.entranceOpen && state.exitOpen) return "입구·출구 모두 열림";
+  if (state.entranceOpen) return "입구만 열림";
+  if (state.exitOpen) return "출구만 열림";
+  return "입구·출구 모두 닫힘";
+}
+
+function describeRepeatDays(days: RepeatDays) {
+  if (isRepeatDaysEmpty(days)) return "단발성";
+  const labels: Array<[keyof RepeatDays, string]> = [
+    ["sun", "일"],
+    ["mon", "월"],
+    ["tue", "화"],
+    ["wed", "수"],
+    ["thu", "목"],
+    ["fri", "금"],
+    ["sat", "토"],
+  ];
+  const active = labels.filter(([key]) => days[key]).map(([, label]) => label);
+  return active.length === 7 ? "매일 반복" : `${active.join("")} 반복`;
+}
+
 export function createCustomDoorCard({
   title,
   functionType,
@@ -147,7 +207,8 @@ export function createCustomDoorCard({
   repeat,
   start,
   end,
-  threshold,
+  countControl,
+  memo,
 }: {
   title: string;
   functionType: NfcDoorFunction;
@@ -155,31 +216,28 @@ export function createCustomDoorCard({
   repeat: boolean;
   start: string;
   end: string;
-  threshold?: number;
+  countControl?: BeeCountControlConfig;
+  memo?: string;
 }): NfcDoorCardConfig {
-  if (isBeeCountLimitFunction(functionType)) {
-    const countTarget = COUNT_TARGET_BY_LIMIT_FUNCTION[functionType];
-    const safeThreshold = Math.max(1, Math.floor(threshold ?? 50));
-    const functionLabel = {
-      activity_boost: "활동량 강제증가",
-      overpollination_guard: "과수정 방지",
-      return_limit: "귀소량 제한",
-    }[functionType];
-
+  if (functionType === "count_control" && countControl) {
+    const { low, high, timeWindowStart, timeWindowEnd } = countControl;
+    const timeWindowText = isTimeWindowAllDay(countControl)
+      ? ""
+      : ` · ${timeWindowStart}~${timeWindowEnd}`;
     return {
       id: `custom-door-card-${Date.now()}`,
       title,
-      description: `${functionLabel} · ${safeThreshold}마리 기준`,
+      description: `현재 활동중인 벌 마릿수 · ${low}~${high}마리 구간 · ${describeRepeatDays(countControl.repeatDays)}${timeWindowText}`,
       icon: "sliders",
       removable: true,
       functionType,
-      mode: functionType,
-      start: countTarget,
-      end: String(safeThreshold),
+      mode: "count_control",
+      start: "",
+      end: `${low}-${high}`,
       detail,
-      repeat: false,
-      threshold: safeThreshold,
-      countTarget,
+      repeat: !isRepeatDaysEmpty(countControl.repeatDays),
+      countControl,
+      memo,
     };
   }
 
@@ -197,7 +255,7 @@ export function createCustomDoorCard({
     close_at: "닫기 예약",
     window: "시간대 운영",
     alternate_24h: "24시간 교대",
-  }[functionType];
+  }[functionType as "open_at" | "close_at" | "window" | "alternate_24h"];
 
   return {
     id: `custom-door-card-${Date.now()}`,
@@ -216,5 +274,54 @@ export function createCustomDoorCard({
     end: normalizedEnd,
     detail,
     repeat,
+    memo,
   };
 }
+
+function sameRepeatDays(a: RepeatDays, b: RepeatDays) {
+  return (
+    a.sun === b.sun &&
+    a.mon === b.mon &&
+    a.tue === b.tue &&
+    a.wed === b.wed &&
+    a.thu === b.thu &&
+    a.fri === b.fri &&
+    a.sat === b.sat
+  );
+}
+
+function sameGateOpenState(a: GateOpenState, b: GateOpenState) {
+  return a.entranceOpen === b.entranceOpen && a.exitOpen === b.exitOpen;
+}
+
+function sameCountControl(a?: BeeCountControlConfig, b?: BeeCountControlConfig) {
+  if (!a || !b) return a === b;
+  return (
+    a.low === b.low &&
+    a.high === b.high &&
+    a.timeWindowStart === b.timeWindowStart &&
+    a.timeWindowEnd === b.timeWindowEnd &&
+    sameRepeatDays(a.repeatDays, b.repeatDays) &&
+    sameGateOpenState(a.within, b.within) &&
+    sameGateOpenState(a.above, b.above)
+  );
+}
+
+/**
+ * 두 카드의 "설정값"(메모·제목 제외)이 완전히 같은지 비교합니다.
+ * 카드 추가 시 이미 동일한 설정의 카드가 있으면 중복 추가를 막는 데 씁니다.
+ */
+export function isSameCardSettings(a: NfcDoorCardConfig, b: NfcDoorCardConfig) {
+  if (a.mode !== b.mode) return false;
+  if (a.mode === "count_control") {
+    return sameCountControl(a.countControl, b.countControl);
+  }
+  return (
+    a.functionType === b.functionType &&
+    (a.start ?? "") === (b.start ?? "") &&
+    (a.end ?? "") === (b.end ?? "") &&
+    Boolean(a.repeat) === Boolean(b.repeat)
+  );
+}
+
+export { describeGateOpenState, describeRepeatDays };

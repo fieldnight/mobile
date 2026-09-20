@@ -19,6 +19,8 @@ export const Spacing = {
   md: 12,
   lg: 16,
   xl: 24,
+  "2xl": 32,
+  "3xl": 40,
 } as const;
 
 export const WEATHER_REGION_KEY = "webee_weather_region";

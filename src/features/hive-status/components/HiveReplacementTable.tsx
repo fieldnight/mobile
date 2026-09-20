@@ -22,7 +22,6 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
     <Card
       delay={200}
       style={{
-        marginHorizontal: -14,
         backgroundColor: "rgba(255,255,255,0.72)",
         elevation: 0,
       }}

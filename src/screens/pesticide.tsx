@@ -21,7 +21,6 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { Card } from "@/components/hive/hive-shared";
 import { FilterDropdown } from "@/components/FilterDropdown";
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppToast } from "@/components/ToastContext";
 
@@ -208,9 +207,6 @@ export default function PesticideTable() {
 
   const handlePage = useCallback((p: number) => setPage(p), []);
   const handleSuggestion = useCallback((s: string) => setQuery(s), []);
-  const handleRefresh = useCallback(async () => {
-    await Promise.all([refetchCodes(), refetchList()]);
-  }, [refetchCodes, refetchList]);
   const handleRowPress = useCallback((item: ResultItem) => setSelectedItem(item), []);
 
   const tableContent = (
@@ -275,7 +271,7 @@ export default function PesticideTable() {
         }}
       />
 
-      <PullToRefresh
+      <ScrollView
         contentContainerStyle={{
           paddingHorizontal: 14,
           paddingTop: HEADER_HEIGHT + 10,
@@ -283,7 +279,6 @@ export default function PesticideTable() {
           gap: 10,
         }}
         showsVerticalScrollIndicator={false}
-        onRefresh={handleRefresh}
       >
         {/* 관심 농약 — 저장된 항목이 있을 때만 렌더링 */}
         <InterestPesticideList />
@@ -402,7 +397,7 @@ export default function PesticideTable() {
           )}
 
         </Card>
-      </PullToRefresh>
+      </ScrollView>
 
       {/* 전체화면 모달 */}
       <Modal visible={fullscreen} animationType="slide" onRequestClose={() => setFullscreen(false)}>

@@ -191,7 +191,6 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
         delay={180}
         className="mb-10"
         style={{
-          marginHorizontal: -14,
           backgroundColor: "rgba(255,255,255,0.72)",
           elevation: 0,
         }}

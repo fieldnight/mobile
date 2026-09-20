@@ -14,7 +14,6 @@ import {
   ScrollView,
   Modal,
   Pressable,
-  RefreshControl,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -564,11 +563,6 @@ export default function FruitPriceScreen() {
     else fetchMarket(marketCode, selectedDate);
   }, [cacheKey, quickItem, selectedDate, marketCode]);
 
-  const handlePullRefresh = useCallback(async () => {
-    handleRefresh();
-    await new Promise<void>((resolve) => setTimeout(resolve, 800));
-  }, [handleRefresh]);
-
   const currentMidName = useMemo(
     () =>
       quickItem ||
@@ -651,14 +645,6 @@ export default function FruitPriceScreen() {
             paddingBottom: 24,
             gap: 10,
           }}
-          refreshControl={
-            <RefreshControl
-              refreshing={isLoading}
-              onRefresh={handlePullRefresh}
-              tintColor={C.primary}
-              colors={[C.primary]}
-            />
-          }
         >
           {/* ── Card 1: 내 맞춤 시세 ── */}
           <Card style={{ padding: 0, overflow: "hidden" }} delay={0}>

@@ -57,6 +57,8 @@ class WeBeeHceService : HostApduService() {
 
   private fun getActivePayload(): String {
     val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val wirePayload = prefs.getString(KEY_WIRE, "").orEmpty()
+    if (wirePayload.isNotEmpty()) return wirePayload
     val title = prefs.getString(KEY_TITLE, "WeBee") ?: "WeBee"
     val mode = prefs.getString(KEY_MODE, "window") ?: "window"
     val start = prefs.getString(KEY_START, "") ?: ""
@@ -94,6 +96,7 @@ class WeBeeHceService : HostApduService() {
     private const val KEY_START = "start"
     private const val KEY_END = "end"
     private const val KEY_REPEAT = "repeat"
+    private const val KEY_WIRE = "wire_payload_v2"
     const val ACTION_HCE_RESULT = "${packageName}.WEBEE_HCE_RESULT"
     const val EXTRA_RESULT = "result"
     const val ACTION_HCE_STATS = "${packageName}.WEBEE_HCE_STATS"
@@ -243,6 +246,16 @@ class WeBeeHceModule(
   override fun getName(): String = "WeBeeHceModule"
 
   @ReactMethod
+  fun getProtocolVersion(promise: Promise) { promise.resolve(2) }
+
+  @ReactMethod
+  fun clearActiveCard(promise: Promise) {
+    reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      .edit().putString(KEY_WIRE, "WB2|X").apply()
+    promise.resolve(true)
+  }
+
+  @ReactMethod
   fun setActiveCard(card: ReadableMap, promise: Promise) {
     try {
       val title = card.getStringOrDefault("title", "WeBee")
@@ -250,6 +263,11 @@ class WeBeeHceModule(
       val start = card.getStringOrDefault("start", "")
       val end = card.getStringOrDefault("end", "")
       val repeat = card.getBooleanOrDefault("repeat", false)
+      val wirePayload = card.getStringOrDefault("wirePayload", "")
+      require(wirePayload.isEmpty() ||
+        (wirePayload.matches(Regex("WB2[|][A-Z0-9|]+")) && wirePayload.length <= 48)) {
+        "Invalid NFC v2 payload"
+      }
 
       reactContext
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -259,6 +277,7 @@ class WeBeeHceModule(
         .putString(KEY_START, sanitize(start))
         .putString(KEY_END, sanitize(end))
         .putBoolean(KEY_REPEAT, repeat)
+        .putString(KEY_WIRE, wirePayload)
         .apply()
 
       Log.d(TAG, "Active HCE card updated title=$title mode=$mode start=$start end=$end repeat=$repeat")
@@ -302,6 +321,7 @@ class WeBeeHceModule(
       "alternate_24h",
       "lock_days",
       "count_status",
+      "count_control",
       "activity_boost",
       "overpollination_guard",
       "return_limit" -> mode
@@ -373,6 +393,7 @@ class WeBeeHceModule(
     private const val KEY_START = "start"
     private const val KEY_END = "end"
     private const val KEY_REPEAT = "repeat"
+    private const val KEY_WIRE = "wire_payload_v2"
   }
 }
 `;

@@ -1,489 +1,253 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  View,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, PanResponder, Platform, Pressable, View } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { Card } from "@/components/hive/hive-shared";
-import { BoxColor as C } from "@/types";
+import { C } from "@/constants/hive-colors";
+import { useHiveControlSettings, useHiveControlSse, useRequestManualControl } from "../hooks";
+import type { ControlResultEvent, HiveControlSettingsResponse } from "../api";
 
-const THUMB_SIZE = 30;
-const APPLY_DELAY_MS = 1800;
-
-const OPERATING_MODES = [
-  {
-    id: "saving",
-    icon: "moon" as const,
-    label: "절전 모드",
-    temperature: 24,
-    humidity: 58,
-  },
-  {
-    id: "ai",
-    icon: "cpu" as const,
-    label: "AI 모드",
-    temperature: 25,
-    humidity: 62,
-  },
-  {
-    id: "breeding",
-    icon: "heart" as const,
-    label: "사육 모드",
-    temperature: 26,
-    humidity: 65,
-  },
-  {
-    id: "normal",
-    icon: "sun" as const,
-    label: "일반 모드",
-    temperature: 25,
-    humidity: 60,
-  },
-] as const;
-
-type OperatingModeId = (typeof OPERATING_MODES)[number]["id"];
+const MIN_TEMPERATURE = 16;
+const MAX_TEMPERATURE = 36;
+const TEMPERATURE_STEP = 0.5;
+const THUMB_SIZE = 28;
+const RESPONSE_TIMEOUT_MS = 15000;
 
 interface HiveControlSectionProps {
   controlHive: string;
+  hiveName?: string;
 }
 
-type SettingKind = "temperature" | "humidity";
+type RequestPhase = "idle" | "sending" | "waiting" | "checking" | "success" | "error";
+interface PendingRequest {
+  temperature: number;
+  accepted: boolean;
+  checking: boolean;
+  finalCheck: boolean;
+  resultReceived: boolean;
+}
 
-/**
- * 스마트벌통 데모 제어
- * - 실제 MQTT/API 명령은 보내지 않습니다.
- * - 슬라이더 조작 후 잠시 잠겼다가 적용 완료 토스트만 표시합니다.
- */
-export function HiveControlSection({
-  controlHive: _controlHive,
-}: HiveControlSectionProps) {
+function getTargetTemperature(settings?: HiveControlSettingsResponse) {
+  const value = settings?.controls.find((entry) => entry.type === "TEMPERATURE")?.targetValue;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function clampTemperature(value: number) {
+  return Math.max(MIN_TEMPERATURE, Math.min(MAX_TEMPERATURE, Math.round(value / TEMPERATURE_STEP) * TEMPERATURE_STEP));
+}
+
+export function HiveControlSection(props: HiveControlSectionProps) {
+  // 벌통이 바뀌면 초안, 요청과 응답 대기를 함께 초기화합니다.
+  return <HiveTemperatureControl key={props.controlHive} {...props} />;
+}
+
+function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionProps) {
   const { show: showToast } = useAppToast();
-  const [targetTemperature, setTargetTemperature] = useState(25);
-  const [targetHumidity, setTargetHumidity] = useState(62);
-  const [mode, setMode] = useState<OperatingModeId | null>("ai");
-  const [pending, setPending] = useState<Record<SettingKind, boolean>>({
-    temperature: false,
-    humidity: false,
-  });
-  const timers = useRef<Partial<Record<SettingKind, ReturnType<typeof setTimeout>>>>(
-    {},
-  );
+  const { data, isLoading, isError, isFetching, refetch } = useHiveControlSettings(controlHive || undefined);
+  const { mutate: mutateManualControl } = useRequestManualControl();
+  const [draftTemperature, setDraftTemperature] = useState<number | null>(null);
+  const [phase, setPhase] = useState<RequestPhase>("idle");
+  const [notice, setNotice] = useState("");
+  const requestRef = useRef<PendingRequest | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTemperature = getTargetTemperature(data);
+  const targetTemperature = draftTemperature ?? clampTemperature(savedTemperature ?? 25);
+  const pending = phase === "sending" || phase === "waiting" || phase === "checking";
+  const hasChanges = savedTemperature == null || targetTemperature !== savedTemperature;
+  const canEdit = !!controlHive && !!data && !isError && !pending;
 
-  useEffect(
-    () => () => {
-      Object.values(timers.current).forEach((timer) => {
-        if (timer) clearTimeout(timer);
-      });
-    },
-    [],
-  );
+  useEffect(() => () => {
+    requestRef.current = null;
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
 
-  const applySetting = (kind: SettingKind) => {
-    if (pending[kind]) return;
+  const finishRequest = useCallback((request: PendingRequest, nextPhase: "success" | "error", message: string) => {
+    if (requestRef.current !== request) return;
+    requestRef.current = null;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setPhase(nextPhase);
+    setNotice(message);
+    if (nextPhase === "success") setDraftTemperature(null);
+    showToast(message, nextPhase);
+  }, [showToast]);
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPending((current) => ({ ...current, [kind]: true }));
+  const verifySetting = useCallback(async (request: PendingRequest, finalCheck = false) => {
+    if (requestRef.current !== request) return;
+    request.finalCheck ||= finalCheck;
+    if (request.checking) return;
+    request.checking = true;
+    setPhase("checking");
+    try {
+      // SSE에는 벌통/요청 ID가 없으므로 현재 벌통의 설정을 다시 읽어 확인합니다.
+      // 설정 확인은 실제 장치의 온도 도달이나 하드웨어 동작 완료를 의미하지 않습니다.
+      const result = await refetch();
+      if (requestRef.current !== request) return;
+      if (!result.isError && getTargetTemperature(result.data) === request.temperature) {
+        finishRequest(request, "success", `목표 온도 설정이 ${request.temperature.toFixed(1)}°C로 확인됐어요`);
+      } else if (request.finalCheck) {
+        finishRequest(request, "error", "변경 결과를 확인하지 못했어요. 현재 설정을 확인한 뒤 다시 적용해 주세요.");
+      } else {
+        setPhase("waiting");
+      }
+    } catch {
+      if (requestRef.current !== request) return;
+      if (request.finalCheck) {
+        finishRequest(request, "error", "설정을 확인할 수 없어요. 연결 상태를 확인한 뒤 다시 시도해 주세요.");
+      } else {
+        setPhase("waiting");
+      }
+    } finally {
+      request.checking = false;
+    }
+  }, [finishRequest, refetch]);
 
-    timers.current[kind] = setTimeout(() => {
-      setPending((current) => ({ ...current, [kind]: false }));
-      showToast("반영되었습니다!", "success");
-      delete timers.current[kind];
-    }, APPLY_DELAY_MS);
+  const handleSseResult = useCallback((event: ControlResultEvent) => {
+    const request = requestRef.current;
+    if (!request || event.targetTemperature !== request.temperature) return;
+    // 다른 벌통의 응답일 수 있어 성공/실패를 직접 확정하지 않습니다.
+    request.resultReceived = true;
+    if (request.accepted) void verifySetting(request);
+  }, [verifySetting]);
+
+  useHiveControlSse({ enabled: !!controlHive, onResult: handleSseResult });
+
+  const changeTemperature = (value: number) => {
+    if (!canEdit) return;
+    setDraftTemperature(clampTemperature(value));
+    setPhase("idle");
+    setNotice("");
   };
 
-  const applyMode = (nextMode: OperatingModeId) => {
-    const next = OPERATING_MODES.find((item) => item.id === nextMode);
-    if (!next) return;
+  const applyTemperature = () => {
+    if (!canEdit || !hasChanges || requestRef.current) return;
+    if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const request: PendingRequest = { temperature: targetTemperature, accepted: false, checking: false, finalCheck: false, resultReceived: false };
+    requestRef.current = request;
+    setPhase("sending");
+    setNotice("");
+    timerRef.current = setTimeout(() => {
+      if (requestRef.current !== request) return;
+      if (request.accepted) {
+        // 재조회가 지연되거나 자동 재시도 중이어도 조작 화면은 계속 잠기지 않습니다.
+        timerRef.current = setTimeout(() => finishRequest(request, "error", "설정 확인이 늦어지고 있어요. 현재 설정을 다시 확인해 주세요."), 10000);
+        void verifySetting(request, true);
+      }
+      else finishRequest(request, "error", "전송 결과를 확인하지 못했어요. 현재 설정을 확인한 뒤 다시 적용해 주세요.");
+    }, RESPONSE_TIMEOUT_MS);
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMode(nextMode);
-    setTargetTemperature(next.temperature);
-    setTargetHumidity(next.humidity);
-    showToast(`${next.label}로 설정했어요`, "success");
+    mutateManualControl({ hiveId: controlHive, body: { targetTemperature: request.temperature } }, {
+      onSuccess: () => {
+        if (requestRef.current !== request) return;
+        request.accepted = true;
+        setPhase("waiting");
+        if (request.resultReceived) void verifySetting(request);
+      },
+      onError: () => finishRequest(request, "error", "설정 전송에 실패했어요. 연결 상태를 확인한 뒤 다시 적용해 주세요."),
+    });
   };
+
+  const pendingLabel = phase === "sending" ? "설정을 전송하고 있어요" : phase === "checking" ? "현재 설정을 확인하고 있어요" : "변경 결과를 기다리고 있어요";
 
   return (
-    <Card
-      style={{
-        borderRadius: 24,
-        backgroundColor: "rgba(255, 255, 255, 0.72)",
-        elevation: 0,
-        marginHorizontal: -14,
-        padding: 14,
-      }}
-    >
-      <View className="mb-4 flex-row items-center justify-between">
-        <View>
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 19, color: C.textAlt }}
-          >
-            온도 · 습도 설정
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            className="mt-1"
-            style={{ fontSize: 12.5, color: C.sec }}
-          >
-            값을 놓으면 잠시 후 자동으로 반영돼요
-          </PretendardFont>
-        </View>
-        <View
-          className="rounded-full px-2.5 py-1.5"
-          style={{ backgroundColor: "rgba(105, 180, 213, 0.13)" }}
-        >
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 11, color: C.primary }}
-          >
-            데모 제어
-          </PretendardFont>
-        </View>
+    <Card style={{ backgroundColor: "rgba(255,255,255,0.72)", elevation: 0 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Feather name="thermometer" size={19} color={C.chartTemp} />
+        <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>목표 온도 설정</PretendardFont>
       </View>
 
-      <View className="mb-3">
-        <View className="mb-2 flex-row items-center justify-between">
-          <PretendardFont
-            weight="semibold"
-            style={{ fontSize: 14, color: C.textAlt }}
-          >
-            운영 모드
-          </PretendardFont>
-          <PretendardFont
-            weight="regular"
-            style={{ fontSize: 11, color: C.ter }}
-          >
-            모드를 고르면 권장값이 적용돼요
-          </PretendardFont>
+      {!data && isLoading ? (
+        <View style={{ minHeight: 96, alignItems: "center", justifyContent: "center", gap: 12 }} accessibilityLiveRegion="polite">
+          <ActivityIndicator color={C.textAlt} />
+          <PretendardFont style={{ fontSize: 14, color: C.textAlt }}>현재 설정을 불러오고 있어요</PretendardFont>
         </View>
+      ) : !data ? (
+        <View style={{ marginTop: 20, gap: 12 }}>
+          <PretendardFont style={{ fontSize: 14, lineHeight: 21, color: C.textAlt }}>현재 목표 온도를 불러오지 못했어요.</PretendardFont>
+          <Pressable accessibilityRole="button" disabled={isFetching} onPress={() => void refetch()} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: C.bg }}>
+            <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.text }}>{isFetching ? "불러오는 중…" : "다시 불러오기"}</PretendardFont>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <TemperatureStepButton direction="minus" disabled={!canEdit || targetTemperature <= MIN_TEMPERATURE} onPress={() => changeTemperature(targetTemperature - TEMPERATURE_STEP)} />
+            <PretendardFont accessibilityLiveRegion="polite" accessibilityLabel={`설정할 목표 온도 ${targetTemperature.toFixed(1)}도`} weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flex: 1, fontSize: 38, color: C.text, textAlign: "center", fontVariant: ["tabular-nums"] }}>
+              {targetTemperature.toFixed(1)}<PretendardFont weight="medium" style={{ fontSize: 23, color: C.textAlt }}> °C</PretendardFont>
+            </PretendardFont>
+            <TemperatureStepButton direction="plus" disabled={!canEdit || targetTemperature >= MAX_TEMPERATURE} onPress={() => changeTemperature(targetTemperature + TEMPERATURE_STEP)} />
+          </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 7, paddingRight: 6 }}
-        >
-          {OPERATING_MODES.map((item) => {
-            const active = item.id === mode;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => applyMode(item.id)}
-                className="flex-row items-center rounded-xl px-3 py-2 active:opacity-75"
-                style={{
-                  gap: 6,
-                  minWidth: 104,
-                  borderWidth: 1,
-                  borderColor: active
-                    ? "rgba(105, 180, 213, 0.85)"
-                    : "rgba(15, 23, 42, 0.07)",
-                  backgroundColor: active
-                    ? "rgba(105, 180, 213, 0.16)"
-                    : "rgba(255,255,255,0.7)",
-                }}
-              >
-                <Feather
-                  name={item.icon}
-                  size={14}
-                  color={active ? C.primary : C.ter}
-                />
-                <PretendardFont
-                  weight={active ? "bold" : "medium"}
-                  numberOfLines={1}
-                  style={{
-                    fontSize: 12,
-                    color: active ? C.primary : C.sec,
-                  }}
-                >
-                  {item.label}
-                </PretendardFont>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+          <TemperatureSlider value={targetTemperature} disabled={!canEdit} onChange={changeTemperature} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <PretendardFont style={{ fontSize: 12, color: C.textAlt }}>16°C</PretendardFont>
+            <PretendardFont style={{ fontSize: 12, color: C.textAlt }}>0.5°C씩 조절</PretendardFont>
+            <PretendardFont style={{ fontSize: 12, color: C.textAlt }}>36°C</PretendardFont>
+          </View>
+          <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#15803D" }} />
+            <PretendardFont style={{ fontSize: 12, color: C.textAlt }}>수정벌 권장 구간 24~27°C</PretendardFont>
+          </View>
 
-      <SettingCard
-        label="목표 온도"
-        helper="16~36°C · 수정벌 권장 구간 24~27°C"
-        value={targetTemperature}
-        valueLabel={`${targetTemperature.toFixed(1)}°C`}
-        min={16}
-        max={36}
-        step={0.5}
-        optimalMin={24}
-        optimalMax={27}
-        disabled={pending.temperature}
-        onChange={(value) => {
-          setMode(null);
-          setTargetTemperature(value);
-        }}
-        onSlidingComplete={() => applySetting("temperature")}
-      />
-
-      <SettingCard
-        label="목표 습도"
-        helper="40~90% · 권장 구간 50~70%"
-        value={targetHumidity}
-        valueLabel={`${targetHumidity}%`}
-        min={40}
-        max={90}
-        step={1}
-        optimalMin={50}
-        optimalMax={70}
-        disabled={pending.humidity}
-        onChange={(value) => {
-          setMode(null);
-          setTargetHumidity(value);
-        }}
-        onSlidingComplete={() => applySetting("humidity")}
-      />
+          {/* 전송 상태나 오류가 있을 때만 안내 공간을 사용합니다. */}
+          {(pending || notice || isError) && <View accessibilityLiveRegion="polite" style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {pending ? <ActivityIndicator size="small" color={C.textAlt} /> : notice ? <Feather name={phase === "error" ? "alert-circle" : "check-circle"} size={16} color={phase === "error" ? C.error : C.success} /> : null}
+            <PretendardFont style={{ flex: 1, fontSize: 13, lineHeight: 20, color: phase === "error" ? C.error : phase === "success" ? C.success : C.textAlt }}>
+              {pending ? pendingLabel : notice || "현재 설정을 새로 확인하지 못했어요. 다시 불러온 뒤 적용해 주세요."}
+            </PretendardFont>
+          </View>}
+          {/* 비활성 상태에도 배경과 테두리를 남겨 버튼 영역이 보이도록 합니다. */}
+          <Pressable accessibilityRole="button" accessibilityLabel={`${hiveName ?? "선택한 벌통"} 목표 온도 ${targetTemperature.toFixed(1)}도로 적용`} accessibilityState={{ disabled: !canEdit || !hasChanges, busy: pending }} disabled={!canEdit || !hasChanges} onPress={applyTemperature}
+            className="active:opacity-80"
+            style={{ minHeight: 48, marginTop: 10, borderRadius: 12, alignSelf: "stretch", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: !canEdit || !hasChanges ? "#CBD5E1" : "#191F28", backgroundColor: !canEdit || !hasChanges ? "#E2E8F0" : "#191F28" }}>
+            <PretendardFont weight="bold" style={{ fontSize: 16, color: !canEdit || !hasChanges ? "#475569" : "#FFFFFF" }}>{pending ? "설정 확인 중…" : `${targetTemperature.toFixed(1)}°C로 적용`}</PretendardFont>
+          </Pressable>
+          {!pending && (draftTemperature != null || phase === "error" || isError) ? (
+            <Pressable accessibilityRole="button" onPress={() => { setDraftTemperature(null); setPhase("idle"); setNotice(""); void refetch(); }} style={{ minHeight: 44, marginTop: 4, alignItems: "center", justifyContent: "center" }}>
+              <PretendardFont weight="medium" style={{ fontSize: 13, color: C.textAlt }}>현재 설정 다시 확인</PretendardFont>
+            </Pressable>
+          ) : null}
+        </>
+      )}
     </Card>
   );
 }
 
-function SettingCard({
-  label,
-  helper,
-  value,
-  valueLabel,
-  min,
-  max,
-  step,
-  optimalMin,
-  optimalMax,
-  disabled,
-  onChange,
-  onSlidingComplete,
-}: {
-  label: string;
-  helper: string;
-  value: number;
-  valueLabel: string;
-  min: number;
-  max: number;
-  step: number;
-  optimalMin: number;
-  optimalMax: number;
-  disabled: boolean;
-  onChange: (value: number) => void;
-  onSlidingComplete: () => void;
-}) {
+function TemperatureStepButton({ direction, disabled, onPress }: { direction: "minus" | "plus"; disabled: boolean; onPress: () => void }) {
   return (
-    <View
-      className="mb-2.5 rounded-[18px] px-3 py-3"
-      style={{
-        backgroundColor: "rgba(255,255,255,0.82)",
-        borderWidth: 1,
-        borderColor: "rgba(15, 23, 42, 0.06)",
-        opacity: disabled ? 0.56 : 1,
-      }}
-    >
-      <View className="mb-1 flex-row items-center justify-between">
-        <PretendardFont
-          weight="semibold"
-          style={{ fontSize: 14, color: C.textAlt }}
-        >
-          {label}
-        </PretendardFont>
-        {disabled ? (
-          <View className="flex-row items-center">
-            <ActivityIndicator size="small" color={C.primary} />
-            <PretendardFont
-              weight="medium"
-              className="ml-1.5"
-              style={{ fontSize: 12, color: C.sec }}
-            >
-              반영 중...
-            </PretendardFont>
-          </View>
-        ) : null}
-      </View>
-
-      <SegmentSlider
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        valueLabel={valueLabel}
-        optimalMin={optimalMin}
-        optimalMax={optimalMax}
-        disabled={disabled}
-        onChange={onChange}
-        onSlidingComplete={onSlidingComplete}
-      />
-
-      <PretendardFont
-        weight="regular"
-        className="mt-1"
-        style={{ fontSize: 10.5, color: C.ter }}
-      >
-        {helper}
-      </PretendardFont>
-    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel={`목표 온도 0.5도 ${direction === "plus" ? "올리기" : "내리기"}`} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 14, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? C.border : C.bgAlt, opacity: disabled ? 0.4 : 1 })}>
+      <Feather name={direction} size={21} color={C.text} />
+    </Pressable>
   );
 }
 
-function SegmentSlider({
-  value,
-  min,
-  max,
-  step,
-  valueLabel,
-  optimalMin,
-  optimalMax,
-  disabled,
-  onChange,
-  onSlidingComplete,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  valueLabel: string;
-  optimalMin: number;
-  optimalMax: number;
-  disabled: boolean;
-  onChange: (value: number) => void;
-  onSlidingComplete: () => void;
-}) {
-  const [sliderWidth, setSliderWidth] = useState(200);
-  const onChangeRef = useRef(onChange);
-  const onSlidingCompleteRef = useRef(onSlidingComplete);
-  const startRatioRef = useRef(0);
-  const changedRef = useRef(false);
-  onChangeRef.current = onChange;
-  onSlidingCompleteRef.current = onSlidingComplete;
+function TemperatureSlider({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (value: number) => void }) {
+  const [width, setWidth] = useState(200);
+  const liveRef = useRef({ value, disabled, onChange });
+  liveRef.current = { value, disabled, onChange };
+  const startValueRef = useRef(value);
+  const travel = Math.max(1, width - THUMB_SIZE);
+  const range = MAX_TEMPERATURE - MIN_TEMPERATURE;
+  const thumbLeft = ((value - MIN_TEMPERATURE) / range) * travel;
 
-  const range = max - min;
-  const valueRatio = Math.max(0, Math.min(1, (value - min) / range));
-  const travel = Math.max(1, sliderWidth - THUMB_SIZE);
-  const thumbLeft = Math.max(0, Math.min(travel, valueRatio * travel));
-  const activeWidth = thumbLeft + THUMB_SIZE / 2;
-  const goodLeft = ((optimalMin - min) / range) * sliderWidth;
-  const goodWidth = ((optimalMax - optimalMin) / range) * sliderWidth;
-
-  const updateFromRatio = (ratio: number) => {
-    const boundedRatio = Math.max(0, Math.min(1, ratio));
-    const raw = min + boundedRatio * range;
-    const next = Math.max(
-      min,
-      Math.min(max, Math.round(raw / step) * step),
-    );
-    changedRef.current = true;
-    onChangeRef.current(next);
-  };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
-        onStartShouldSetPanResponderCapture: () => !disabled,
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          !disabled && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1),
-        onMoveShouldSetPanResponderCapture: () => !disabled,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (event) => {
-          if (disabled) return;
-          changedRef.current = false;
-          const nextRatio = Math.max(
-            0,
-            Math.min(1, (event.nativeEvent.locationX - THUMB_SIZE / 2) / travel),
-          );
-          startRatioRef.current = nextRatio;
-          updateFromRatio(nextRatio);
-        },
-        onPanResponderMove: (_, gesture) => {
-          if (disabled) return;
-          updateFromRatio(startRatioRef.current + gesture.dx / travel);
-        },
-        onPanResponderRelease: () => {
-          if (!disabled && changedRef.current) {
-            onSlidingCompleteRef.current();
-          }
-        },
-        onPanResponderTerminate: () => {
-          if (!disabled && changedRef.current) {
-            onSlidingCompleteRef.current();
-          }
-        },
-      }),
-    [disabled, max, min, range, step, travel],
-  );
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gesture) => !liveRef.current.disabled && Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderGrant: () => { startValueRef.current = liveRef.current.value; },
+    onPanResponderMove: (_, gesture) => {
+      if (!liveRef.current.disabled) liveRef.current.onChange(clampTemperature(startValueRef.current + (gesture.dx / travel) * range));
+    },
+  }), [range, travel]);
 
   return (
-    <View className="flex-row items-center gap-2">
-      <PretendardFont
-        weight="regular"
-        style={{ width: 30, fontSize: 10, color: C.ter }}
-      >
-        {min}
-      </PretendardFont>
-
-      <View
-        {...panResponder.panHandlers}
-        className="h-11 flex-1 justify-center"
-        onLayout={(event) => {
-          const nextWidth = Math.max(1, event.nativeEvent.layout.width);
-          setSliderWidth((previous) =>
-            Math.abs(previous - nextWidth) < 1 ? previous : nextWidth,
-          );
-        }}
-      >
-        <View className="h-2.5 rounded-full" style={{ backgroundColor: C.bgAlt }} />
-        <View
-          className="absolute h-2.5 rounded-full"
-          style={{
-            left: goodLeft,
-            width: goodWidth,
-            backgroundColor: "rgba(34, 197, 94, 0.22)",
-          }}
-        />
-        <View
-          className="absolute h-2.5 rounded-full"
-          style={{
-            width: activeWidth,
-            backgroundColor: "rgba(105, 180, 213, 0.7)",
-          }}
-        />
-        <View
-          pointerEvents="none"
-          className="absolute items-center justify-center rounded-full bg-white"
-          style={{
-            left: thumbLeft,
-            width: THUMB_SIZE,
-            height: THUMB_SIZE,
-            borderWidth: 2.5,
-            borderColor: C.primary,
-            shadowColor: C.shadow,
-            shadowOpacity: 0.16,
-            shadowRadius: 5,
-            shadowOffset: { width: 0, height: 2 },
-          }}
-        >
-          <View
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: C.primary }}
-          />
-        </View>
-      </View>
-
-      <PretendardFont
-        weight="semibold"
-        style={{
-          width: 56,
-          textAlign: "right",
-          fontSize: 15,
-          color: C.textAlt,
-        }}
-      >
-        {valueLabel}
-      </PretendardFont>
+    <View {...panResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="목표 온도" accessibilityHint="위아래로 쓸어 0.5도씩 조절한 뒤 적용 버튼을 누르세요" accessibilityState={{ disabled }} accessibilityValue={{ min: MIN_TEMPERATURE, max: MAX_TEMPERATURE, now: value, text: `${value.toFixed(1)}도` }} accessibilityActions={[{ name: "increment", label: "0.5도 올리기" }, { name: "decrement", label: "0.5도 내리기" }]} onAccessibilityAction={(event) => { if (!disabled) onChange(clampTemperature(value + (event.nativeEvent.actionName === "increment" ? TEMPERATURE_STEP : -TEMPERATURE_STEP))); }} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ height: 52, marginTop: 10, justifyContent: "center", opacity: disabled ? 0.55 : 1 }}>
+      <View style={{ height: 6, marginHorizontal: THUMB_SIZE / 2, borderRadius: 3, backgroundColor: C.border }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: THUMB_SIZE / 2, width: thumbLeft, height: 6, borderRadius: 3, backgroundColor: C.primary }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: THUMB_SIZE / 2 + ((24 - MIN_TEMPERATURE) / range) * travel, width: (3 / range) * travel, height: 6, borderRadius: 3, backgroundColor: "#15803D" }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: thumbLeft, width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2, backgroundColor: C.white, borderWidth: 3, borderColor: C.textAlt }} />
     </View>
   );
 }

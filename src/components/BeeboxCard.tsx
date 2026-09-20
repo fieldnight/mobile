@@ -24,13 +24,14 @@ export function BeeBoxCard({
         {
           backgroundColor: isSettingVariant ? "rgba(255, 255, 255, 0.704)" : C.white,
           borderRadius: 20,
-          padding: 25,
+          padding: 15,
+          borderWidth: 1,
+          borderColor: "rgba(0, 0, 0, 0.04)",
           shadowColor: C.sec,
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.1,
           shadowRadius: 20,
           elevation: isSettingVariant ? 0 : 4,
-          ...(isSettingVariant && { marginHorizontal: -13 }),
         },
         style,
       ]}

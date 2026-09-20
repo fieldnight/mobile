@@ -2,18 +2,24 @@ import { DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from 
 import type { EmitterSubscription } from "react-native";
 import type { NfcDoorCardConfig, NfcDoorMode } from "../components/nfcDoorCards";
 
+import { encodeNfcCard } from "./nfcWire";
+import { createNfcStatsAssembler } from "./nfcStatsFragments";
+
 const HCE_RESULT_EVENT = "WeBeeHceResult";
 const HCE_STATS_EVENT = "WeBeeHceStats";
-const HH_MM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const POSITIVE_INT_PATTERN = /^[1-9]\d*$/;
 
 interface WeBeeHceNativeModule {
+  getProtocolVersion?(): Promise<number>;
+  clearActiveCard?(): Promise<boolean>;
   setActiveCard(payload: HceCardPayload): Promise<boolean>;
 }
 
+export type HceNativeMode = NfcDoorMode;
+
 export interface HceCardPayload {
+  wirePayload: string;
   title: string;
-  mode: NfcDoorMode;
+  mode: HceNativeMode;
   start?: string;
   end?: string;
   repeat: boolean;
@@ -66,101 +72,15 @@ function sanitizeTitle(title: string) {
   return title.replace(/\|/g, " ").trim() || "WeBee";
 }
 
-function normalizeTime(value: string | undefined, fallback: string) {
-  const trimmed = value?.trim() ?? "";
-  return HH_MM_PATTERN.test(trimmed) ? trimmed : fallback;
-}
-
-function normalizeLockDays(value: string | undefined) {
-  const trimmed = value?.trim() ?? "";
-  return POSITIVE_INT_PATTERN.test(trimmed) ? trimmed : "1";
-}
-
-function normalizeAlternateStart(value: string | undefined) {
-  return value === "open_first" ? "open_first" : "close_first";
-}
-
-function normalizeCountTarget(value: string | undefined, fallback: string) {
-  const trimmed = value?.trim() ?? "";
-  return trimmed || fallback;
-}
-
 export function toHceCardPayload(card: NfcDoorCardConfig): HceCardPayload {
-  const title = sanitizeTitle(card.title);
-  const repeat = card.repeat ?? false;
-
-  switch (card.mode) {
-    case "open_now":
-      return { title, mode: "open_now", start: "", end: "", repeat: false };
-    case "close_now":
-      return { title, mode: "close_now", start: "", end: "", repeat: false };
-    case "open_at":
-      return {
-        title,
-        mode: "open_at",
-        start: normalizeTime(card.start, "09:00"),
-        end: "",
-        repeat,
-      };
-    case "close_at":
-      return {
-        title,
-        mode: "close_at",
-        start: "",
-        end: normalizeTime(card.end, "18:00"),
-        repeat,
-      };
-    case "window":
-      return {
-        title,
-        mode: "window",
-        start: normalizeTime(card.start, "09:00"),
-        end: normalizeTime(card.end, "14:00"),
-        repeat,
-      };
-    case "alternate_24h":
-      return {
-        title,
-        mode: "alternate_24h",
-        start: normalizeAlternateStart(card.start),
-        end: "",
-        repeat,
-      };
-    case "lock_days":
-      return {
-        title,
-        mode: "lock_days",
-        start: normalizeLockDays(card.start),
-        end: "",
-        repeat: false,
-      };
-    case "count_status":
-      return { title, mode: "count_status", start: "", end: "", repeat: false };
-    case "activity_boost":
-      return {
-        title,
-        mode: "activity_boost",
-        start: normalizeCountTarget(card.start, "exit_out"),
-        end: normalizeLockDays(card.end),
-        repeat: false,
-      };
-    case "overpollination_guard":
-      return {
-        title,
-        mode: "overpollination_guard",
-        start: normalizeCountTarget(card.start, "exit_out"),
-        end: normalizeLockDays(card.end),
-        repeat: false,
-      };
-    case "return_limit":
-      return {
-        title,
-        mode: "return_limit",
-        start: normalizeCountTarget(card.start, "entrance_in"),
-        end: normalizeLockDays(card.end),
-        repeat: false,
-      };
-  }
+  return {
+    title: sanitizeTitle(card.title),
+    mode: card.mode,
+    start: card.start ?? "",
+    end: card.end ?? "",
+    repeat: card.repeat ?? false,
+    wirePayload: encodeNfcCard(card),
+  };
 }
 
 export function parseHceResult(result: string): HceResultEvent {
@@ -297,16 +217,29 @@ export function subscribeHceResult(
 export function subscribeHceStats(
   listener: (event: HceStatsEvent) => void,
 ): EmitterSubscription {
+  const assemble = createNfcStatsAssembler();
   return createHceEmitter().addListener(HCE_STATS_EVENT, (payload: { stats?: string }) => {
-    const stats = payload?.stats ?? "";
+    const stats = assemble(payload?.stats ?? "");
+    if (stats === null) return;
     const parsed = parseHceStats(stats);
 
     listener(parsed);
   });
 }
 
+export async function clearActiveHceCard() {
+  await WeBeeHceModule?.clearActiveCard?.();
+}
+
 export async function setActiveHceCard(card: NfcDoorCardConfig) {
-  const payload = toHceCardPayload(card);
+  let payload: HceCardPayload;
+  try {
+    payload = toHceCardPayload(card);
+  } catch (error) {
+    // A rejected card must not leave another card armed for the next tap.
+    await WeBeeHceModule?.clearActiveCard?.();
+    throw error;
+  }
 
   if (Platform.OS !== "android") {
     console.warn("[WeBee HCE] Android HCE is only available on Android", {
@@ -323,11 +256,15 @@ export async function setActiveHceCard(card: NfcDoorCardConfig) {
     return false;
   }
 
+  if (!WeBeeHceModule.getProtocolVersion || await WeBeeHceModule.getProtocolVersion() < 2) {
+    throw new Error("새 NFC 형식을 지원하는 앱 업데이트가 필요해요.");
+  }
   try {
     await WeBeeHceModule.setActiveCard(payload);
     return true;
   } catch (error) {
     console.error("[WeBee HCE] active card update failed", { payload, error });
-    return false;
+    await WeBeeHceModule.clearActiveCard?.();
+    throw new Error("NFC 카드 활성화에 실패했어요. 다시 시도해주세요.");
   }
 }

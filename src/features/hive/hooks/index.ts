@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createHive,
@@ -13,11 +13,7 @@ import {
   type HiveUpdateRequest,
 } from "../api";
 import { getApiErrorLogData } from "../utils";
-import {
-  DEMO_HIVES,
-  HIVE_DEMO_MODE,
-  useHiveStore,
-} from "@/stores/useHiveStore";
+import { useHiveStore } from "@/stores/useHiveStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
@@ -40,7 +36,7 @@ export function useHiveList() {
   return useQuery({
     queryKey: HIVE_QUERY_KEYS.list,
     queryFn: getHives,
-    enabled: isAuthenticated && !HIVE_DEMO_MODE,
+    enabled: isAuthenticated,
   });
 }
 
@@ -54,28 +50,10 @@ export function useSyncHiveList() {
   const query = useHiveList();
 
   useEffect(() => {
-    if (HIVE_DEMO_MODE) {
-      const current = useHiveStore.getState().hives;
-      const alreadyUsingDemo =
-        current.length === DEMO_HIVES.length &&
-        current.every((hive, index) => {
-          const demo = DEMO_HIVES[index];
-          return (
-            hive.id === demo.id &&
-            hive.name === demo.name &&
-            hive.status === demo.status &&
-            hive.temperature === demo.temperature &&
-            hive.humidity === demo.humidity &&
-            hive.externalTemperature === demo.externalTemperature &&
-            hive.externalHumidity === demo.externalHumidity
-          );
-        });
-
-      if (!alreadyUsingDemo) setHives(DEMO_HIVES);
-      return;
-    }
     if (!query.data?.hives) return;
-    setHives(query.data.hives.map(toHiveData));
+    const mapped = query.data.hives.map(toHiveData);
+    console.log("[useSyncHiveList] 서버 hive 목록:", mapped.map((h) => ({ id: h.id, name: h.name })));
+    setHives(mapped);
   }, [query.data, setHives]);
 
   return query;
@@ -241,44 +219,28 @@ export function useDeleteHive() {
  */
 export function useHiveConnectionStatuses(hiveIds: string[]) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const setHives = useHiveStore((state) => state.setHives);
-  const hives = useHiveStore((state) => state.hives);
+  const updateConnections = useHiveStore((state) => state.updateConnections);
 
   const results = useQueries({
     queries: hiveIds.map((hiveId) => ({
       queryKey: HIVE_QUERY_KEYS.connection(hiveId),
       queryFn: () => getHiveConnection(hiveId),
-      enabled: isAuthenticated && !HIVE_DEMO_MODE && hiveId !== "",
+      enabled: isAuthenticated && hiveId !== "",
+      refetchInterval: 60_000,
+      refetchIntervalInBackground: true,
     })),
   });
 
-  const connectionMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
-    hiveIds.forEach((id, i) => {
-      const data = results[i]?.data;
-      if (data !== undefined) map[id] = data.isConnected;
-    });
-    return map;
-  }, [hiveIds, results]);
-
+  // 새 응답만 반영합니다. 이전 캐시는 store가 시각을 비교해 무시합니다.
   useEffect(() => {
-    if (!hives.length || !Object.keys(connectionMap).length) return;
-
-    const hasChange = hives.some((hive) => {
-      const isConnected = connectionMap[hive.id];
-      if (isConnected === undefined) return false;
-      return hive.status !== (isConnected ? "online" : "offline");
-    });
-    if (!hasChange) return;
-
-    setHives(
-      hives.map((hive) => {
-        const isConnected = connectionMap[hive.id];
-        if (isConnected === undefined) return hive;
-        return { ...hive, status: isConnected ? ("online" as const) : ("offline" as const) };
-      }),
-    );
-  }, [connectionMap, hives, setHives]);
+    if (!isAuthenticated) return;
+    updateConnections(hiveIds.flatMap((id, index) => {
+      const result = results[index];
+      return result?.data && !result.isError ? [{
+        id, connected: result.data.isConnected, checkedAt: result.dataUpdatedAt,
+      }] : [];
+    }));
+  }, [hiveIds, results, updateConnections, isAuthenticated]);
 
   return results;
 }
