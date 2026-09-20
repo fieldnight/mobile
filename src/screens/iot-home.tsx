@@ -43,8 +43,10 @@ import {
   DoorOpenerHeroVisual,
   EMPTY_BEE_TRAFFIC_COUNTS,
   GateModeSection,
+  GateOfflineNoticeSheet,
   GateReportSection,
   NfcDoorCardSection,
+  type GateConnectionCheckStatus,
 } from "@/features/door-opener";
 import type { NfcDoorCardConfig } from "@/features/door-opener/components/nfcDoorCards";
 import { DEFAULT_NFC_DOOR_CARDS } from "@/features/door-opener/components/nfcDoorCards";
@@ -61,6 +63,7 @@ import {
   setActiveHceCard,
   subscribeHceResult,
   subscribeHceStats,
+  clearActiveHceCard,
 } from "@/features/door-opener/model/webeeHce";
 import type {
   BeeTrafficCounts,
@@ -235,6 +238,16 @@ function getKnownApduDeviceId(deviceId: string | undefined) {
   return trimmed && trimmed.toLowerCase() !== "unknown" ? trimmed : undefined;
 }
 
+const GATE_OFFLINE_NOTICE_HIDE_TODAY_KEY = "webee-gate-offline-notice-hide-date";
+const GATE_OFFLINE_NOTICE_HIDE_FOREVER_KEY = "webee-gate-offline-notice-hide-forever";
+
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 export default function DoorOpenerScreen() {
   const insets = useSafeAreaInsets();
   const hives = useHiveStore((s) => s.hives);
@@ -255,11 +268,48 @@ export default function DoorOpenerScreen() {
   const [selectedStatsDeviceId, setSelectedStatsDeviceId] = useState<
     string | undefined
   >();
+  const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
   const activeHceCardRef = useRef<NfcDoorCardConfig | null>(null);
   useSyncHiveList();
 
+  useEffect(() => {
+    if (gateMode !== "offline") return;
+    let cancelled = false;
+
+    const checkNoticePreference = async () => {
+      try {
+        const [hideForever, hideDate] = await Promise.all([
+          AsyncStorage.getItem(GATE_OFFLINE_NOTICE_HIDE_FOREVER_KEY),
+          AsyncStorage.getItem(GATE_OFFLINE_NOTICE_HIDE_TODAY_KEY),
+        ]);
+        if (cancelled) return;
+        setOfflineNoticeVisible(hideForever !== "true" && hideDate !== todayKey());
+      } catch {
+        if (!cancelled) setOfflineNoticeVisible(true);
+      }
+    };
+
+    checkNoticePreference();
+    return () => {
+      cancelled = true;
+    };
+  }, [gateMode]);
+
+  const hideOfflineNoticeToday = useCallback(async () => {
+    await AsyncStorage.setItem(GATE_OFFLINE_NOTICE_HIDE_TODAY_KEY, todayKey());
+    setOfflineNoticeVisible(false);
+  }, []);
+
+  const hideOfflineNoticeForever = useCallback(async () => {
+    await AsyncStorage.setItem(GATE_OFFLINE_NOTICE_HIDE_FOREVER_KEY, "true");
+    setOfflineNoticeVisible(false);
+  }, []);
+
   const activeHive = hives[0];
-  const gateConnected = false;
+  const activeGate = gates[0];
+  const gateConnectionStatus: GateConnectionCheckStatus = activeGate
+    ? "registered"
+    : "unregistered";
 
   useEffect(() => {
     let cancelled = false;
@@ -382,6 +432,8 @@ export default function DoorOpenerScreen() {
 
   const handleHceStats = useCallback((event: HceStatsEvent) => {
     if (event.type === "unknown") return;
+    // NFC v2 keeps the short result free of counters; ST|BOOT carries them.
+    if (event.type === "boot") setTrafficCounts(event.counts);
     const deviceId = getKnownApduDeviceId(
       "deviceId" in event ? event.deviceId : undefined,
     );
@@ -502,6 +554,10 @@ export default function DoorOpenerScreen() {
   }, [handleHceResult, handleHceStats]);
 
   useEffect(() => {
+    if (gateMode === "online") {
+      clearActiveHceCard().catch(error => console.warn("[DoorOpener] NFC 비활성화 실패", error));
+      return;
+    }
     if (activeTab !== "stats") return;
 
     let cancelled = false;
@@ -519,12 +575,12 @@ export default function DoorOpenerScreen() {
       console.log("[DoorOpener] 통계 화면 HCE 활성화 완료");
     };
 
-    activateStatsHce();
+    activateStatsHce().catch(error => console.warn("[DoorOpener] NFC 통계 준비 실패", error));
 
     return () => {
       cancelled = true;
     };
-  }, [activeTab]);
+  }, [activeTab, gateMode]);
 
   // DoorOpenerTabs 실측 높이(탭 바 + GateModeSection). 개폐기 탭 히어로 배너가
   // 이 아래에서 시작하도록 onLayout으로 갱신합니다. 드롭다운은 오버레이라 이 값에
@@ -651,7 +707,10 @@ export default function DoorOpenerScreen() {
             <Animated.View
               className="rounded-t-[28px] px-[18px] pt-5 gap-4"
               style={[
-                { marginTop: -CARD_SHEET_OVERLAP - (tabsHeight - 50) },
+                {
+                  // 탭 축소분만큼 올리되, 좁은 화면에서도 상단 안내를 덮지 않습니다.
+                  marginTop: -Math.min(HERO_BANNER_H, CARD_SHEET_OVERLAP + tabsHeight - 42),
+                },
                 controlStretchStyle,
               ]}
             >
@@ -682,11 +741,15 @@ export default function DoorOpenerScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
+          {gateMode === "online" ? (
           <Animated.View entering={FadeInDown.delay(95).duration(380)}>
             <GateReportSection />
           </Animated.View>
-
+          ) : (
           <Animated.View entering={FadeInDown.delay(110).duration(380)}>
+            <PretendardFont style={{ color: C.sec, fontSize: 13, marginBottom: 12 }}>
+              오프라인 리포트 · NFC로 받은 기록만 표시해요.
+            </PretendardFont>
             <DoorStatsPanel
               stats={statsState}
               now={new Date(nowTick)}
@@ -694,11 +757,19 @@ export default function DoorOpenerScreen() {
               onSelectDevice={setSelectedStatsDeviceId}
               fallbackCounts={trafficCounts}
               appConnectionStatus={appConnectionStatus}
-              gateConnected={gateConnected}
+              gateConnectionStatus={gateConnectionStatus}
             />
           </Animated.View>
+          )}
         </BounceScrollView>
       )}
+
+      <GateOfflineNoticeSheet
+        visible={offlineNoticeVisible}
+        onClose={() => setOfflineNoticeVisible(false)}
+        onHideToday={hideOfflineNoticeToday}
+        onHideForever={hideOfflineNoticeForever}
+      />
     </View>
   );
 }
@@ -711,8 +782,8 @@ export default function DoorOpenerScreen() {
  * 예전에는 GateModeSection이 각 탭 콘텐츠 맨 위에 둥근 카드로 따로 떠 있어
  * 탭을 바꿀 때마다 다시 나타나는 것처럼 보였는데, 지금은 탭 바 자체의 일부가
  * 되어 탭을 넘나들어도 항상 같은 자리에 고정됩니다.
- * 온라인 모드 드롭다운을 펼치면 이 블록 전체 높이가 늘어나므로, onLayout으로
- * 실측한 높이를 부모(iot-home)에 보고해 개폐기 탭의 히어로 배너 위치를 맞춥니다.
+ * 안내 문구가 화면 폭에 따라 줄바꿈될 수 있어 onLayout으로 실측한 높이를
+ * 부모(iot-home)에 보고해 개폐기 탭의 히어로 배너 위치를 맞춥니다.
  */
 function DoorOpenerTabs({
   activeTab,
@@ -725,7 +796,7 @@ function DoorOpenerTabs({
 }) {
   return (
     <View onLayout={(event) => onHeightChange?.(event.nativeEvent.layout.height)}>
-      <View className="h-16 flex-row items-end px-2">
+      <View className="h-14 flex-row items-end px-2">
         {(
           [
             ["control", "개폐기"],
@@ -736,24 +807,17 @@ function DoorOpenerTabs({
           return (
             <Pressable
               key={tab}
-              className="h-16 flex-1 items-center justify-center"
+              className="h-14 flex-1 items-center justify-center"
               style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
               onPress={() => onChange(tab)}
             >
               <PretendardFont
                 weight={active ? "bold" : "semibold"}
-                style={{ fontSize: 17, color: active ? C.white : "rgba(255,255,255,0.5)" }}
+                style={{ fontSize: 17, color: active ? C.text : C.tabInactive }}
               >
                 {label}
               </PretendardFont>
 
-              <View
-                className="absolute bottom-0 h-[3px] rounded-full"
-                style={{
-                  width: active ? 68 : 0,
-                  backgroundColor: active ? C.white : "transparent",
-                }}
-              />
             </Pressable>
           );
         })}
@@ -771,7 +835,7 @@ function DoorStatsPanel({
   onSelectDevice,
   fallbackCounts,
   appConnectionStatus,
-  gateConnected,
+  gateConnectionStatus,
 }: {
   stats: DoorStatsState;
   now: Date;
@@ -779,7 +843,7 @@ function DoorStatsPanel({
   onSelectDevice: (deviceId: string) => void;
   fallbackCounts: BeeTrafficCounts;
   appConnectionStatus: GateActionAppConnectionStatus;
-  gateConnected: boolean;
+  gateConnectionStatus: GateConnectionCheckStatus;
 }) {
   const pagerRef = useRef<ScrollView>(null);
   const devices = Object.values(stats.devices).sort((a, b) => {
@@ -823,7 +887,7 @@ function DoorStatsPanel({
         counts={selectedDevice?.bootCounts ?? fallbackCounts}
         latestClimate={latestClimate}
         appConnectionStatus={appConnectionStatus}
-        gateConnected={gateConnected}
+        gateConnectionStatus={gateConnectionStatus}
       />
 
       <DoorAiReportCard

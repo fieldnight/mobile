@@ -19,6 +19,7 @@ export const C = {
   sec: "#8B95A1", // 보조 텍스트
   sky: "#9cdcff", // 하늘색 (슬라이더 화살표)
   ter: "#B0B8C1", // 3차 텍스트 (날짜, 단위 등)
+  tabInactive: "#6B7684", // 상단 탭바 비선택 글자 (밝은 배경에서도 또렷이 보이는 톤)
   border: "#E5E8EB", // 구분선 / 보더
   bgAlt: "#F8FAFC", // 표 대체 배경
   sectionBorder: "#D9E2E8", // 섹션 구분선

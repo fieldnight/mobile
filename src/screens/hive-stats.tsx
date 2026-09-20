@@ -3,7 +3,7 @@
  * - HiveSliderSection / PeriodCard / WeatherSection / ChartCards / DataTable / HiveEnvironmentGuide를 조합합니다.
  * - 기간(period), 선택된 벌통(selectedHive), 보기 모드(viewMode)를 로컬 상태로 관리합니다.
  * - useWeatherRegion/useMakeWeather로 날씨 데이터를 가져와 WeatherSection에 전달합니다.
- * - PullToRefresh 새로고침, 설정 이동, 슬라이더/보기 모드 전환 핸들러를 포함합니다.
+ * - 설정 이동, 슬라이더/보기 모드 전환 핸들러를 포함합니다.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -143,9 +143,9 @@ export default function HiveStatsScreen() {
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
-          paddingTop: Spacing.sm,
+          paddingTop: Spacing.xs,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.lg,
+          gap: Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!chartInteracting}
@@ -164,7 +164,7 @@ export default function HiveStatsScreen() {
         />
 
         {hasHives ? (
-          <>
+          <View style={{ gap: Spacing.xl }}>
             <PeriodCard
               period={period}
               onSelect={(nextPeriod) => {
@@ -235,7 +235,7 @@ export default function HiveStatsScreen() {
             <HiveReplacementTable hiveId={selectedHive} />
 
             <HiveEnvironmentGuide />
-          </>
+          </View>
         ) : null}
       </BounceScrollView>
 

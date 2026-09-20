@@ -15,7 +15,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.webee.mo"
+      "bundleIdentifier": "com.webee.mo",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "192.168.4.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
+      }
     },
     "android": {
       "package": "com.webee.mo",
@@ -48,7 +58,8 @@
           "locationWhenInUsePermission": "현재 위치를 기준으로 가까운 수정벌 판매처와 농장 위치를 보여드리기 위해 사용합니다."
         }
       ],
-      "./plugins/withWeBeeHce"
+      "./plugins/withWeBeeHce",
+      "./plugins/withGateWifiCleartext"
     ],
     "extra": {
       "WEATHER_API_KEY": "af3abab5447ba09c9b99af1252e0808e",

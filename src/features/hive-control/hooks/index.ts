@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  createHiveAutoControlSchedule,
-  deleteHiveAutoControlSchedule,
-  getHiveAutoControlSchedules,
   getHiveControlSettings,
   requestManualControl,
   type ControlResultEvent,
-  type HiveAutoControlScheduleCreateRequest,
   type ManualControlRequest,
 } from "../api";
 import {
@@ -22,8 +18,6 @@ import { useAuthStore } from "@/stores/useAuthStore";
 export const HIVE_CONTROL_QUERY_KEYS = {
   settings: (hiveId: string | number | undefined) =>
     ["hive-control", "settings", hiveId] as const,
-  schedules: (hiveId: string | number | undefined) =>
-    ["hive-control", "auto-schedules", hiveId] as const,
 };
 
 /** 현재 벌통의 제어 설정(목표 온도/습도)을 조회합니다. */
@@ -47,51 +41,6 @@ export function useRequestManualControl() {
       hiveId: string | number;
       body: ManualControlRequest;
     }) => requestManualControl(hiveId, body),
-  });
-}
-
-/** 현재 벌통에 등록된 자동제어 스케줄 목록을 조회합니다. */
-export function useHiveAutoControlSchedules(hiveId: string | number | undefined) {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  return useQuery({
-    queryKey: HIVE_CONTROL_QUERY_KEYS.schedules(hiveId),
-    queryFn: () => getHiveAutoControlSchedules(hiveId!),
-    enabled: isAuthenticated && hiveId !== undefined && hiveId !== "",
-  });
-}
-
-/** 자동제어 스케줄을 등록하고 목록 캐시를 갱신합니다. */
-export function useCreateHiveAutoControlSchedule() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      hiveId,
-      body,
-    }: {
-      hiveId: string | number;
-      body: HiveAutoControlScheduleCreateRequest;
-    }) => createHiveAutoControlSchedule(hiveId, body),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: HIVE_CONTROL_QUERY_KEYS.schedules(variables.hiveId),
-      });
-    },
-  });
-}
-
-/** 자동제어 스케줄을 삭제하고 목록 캐시를 갱신합니다. */
-export function useDeleteHiveAutoControlSchedule() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: deleteHiveAutoControlSchedule,
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: HIVE_CONTROL_QUERY_KEYS.schedules(variables.hiveId),
-      });
-    },
   });
 }
 

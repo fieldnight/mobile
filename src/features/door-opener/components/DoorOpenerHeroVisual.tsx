@@ -13,21 +13,27 @@ export const EMPTY_BEE_TRAFFIC_COUNTS: BeeTrafficCounts = {
   exitOut: 0,
 };
 
+export type GateConnectionCheckStatus = "registered" | "unregistered";
+
 export function DoorOpenerHeroVisual({
   counts = EMPTY_BEE_TRAFFIC_COUNTS,
   latestClimate,
   appConnectionStatus = "idle",
-  gateConnected = false,
+  gateConnectionStatus = "unregistered",
 }: {
   counts?: BeeTrafficCounts;
   latestClimate?: HceClimateSample;
   appConnectionStatus?: GateActionAppConnectionStatus;
-  gateConnected?: boolean;
+  gateConnectionStatus?: GateConnectionCheckStatus;
 }) {
   const { width } = useWindowDimensions();
   const imageSize = Math.min(width * 0.42, 168);
   const incomingCount = counts.entranceIn + counts.exitIn;
   const outgoingCount = counts.entranceOut + counts.exitOut;
+  const gateChipText =
+    gateConnectionStatus === "registered" ? "등록됨" : "미등록";
+  const gateChipTone: "on" | "off" | "neutral" =
+    gateConnectionStatus === "registered" ? "neutral" : "off";
 
   return (
     <View
@@ -47,14 +53,10 @@ export function DoorOpenerHeroVisual({
         <View className="mb-2 flex-row gap-2">
           <ConnectionChip
             label="앱"
-            status={appConnectionStatus === "online" || appConnectionStatus === "syncing"}
+            tone={appConnectionStatus === "online" || appConnectionStatus === "syncing" ? "on" : "off"}
             text={appConnectionStatus === "syncing" ? "동기화중" : appConnectionStatus === "online" ? "연결됨" : "오프라인"}
           />
-          <ConnectionChip
-            label="개폐기"
-            status={gateConnected}
-            text={gateConnected ? "연결됨" : "오프라인"}
-          />
+          <ConnectionChip label="개폐기" tone={gateChipTone} text={gateChipText} />
         </View>
 
         <View className="flex-row gap-2">
@@ -113,13 +115,15 @@ function ClimateSummary({ sample }: { sample?: HceClimateSample }) {
 
 function ConnectionChip({
   label,
-  status,
+  tone,
   text,
 }: {
   label: string;
-  status: boolean;
+  tone: "on" | "off" | "neutral";
   text: string;
 }) {
+  const dotColor =
+    tone === "on" ? "#34D399" : tone === "neutral" ? "#F59E0B" : "rgba(25,31,40,0.28)";
   return (
     <View
       className="flex-row items-center rounded-full px-2.5 py-1"
@@ -130,7 +134,7 @@ function ConnectionChip({
         style={{
           width: 7,
           height: 7,
-          backgroundColor: status ? "#34D399" : "rgba(25,31,40,0.28)",
+          backgroundColor: dotColor,
         }}
       />
       <PretendardFont

@@ -108,7 +108,7 @@ export default function HiveControlScreen() {
           padding: Spacing.lg,
           paddingTop: Spacing.xs,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.sm,
+          gap: Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -139,7 +139,7 @@ export default function HiveControlScreen() {
         />
 
         {hasHives ? (
-          <>
+          <View style={{ gap: Spacing.xl }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${currentHive?.name ?? "선택한 벌통"} 실시간 센서값 보기`}
@@ -169,7 +169,7 @@ export default function HiveControlScreen() {
             ) : null}
             <HiveControlSection controlHive={controlHive} hiveName={currentHive?.name} />
             <HiveReplacementCard hive={currentHive} />
-          </>
+          </View>
         ) : null}
       </BounceScrollView>
     </ImageBackground>

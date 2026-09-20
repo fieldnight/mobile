@@ -69,6 +69,9 @@ export function getGateDeviceErrorMessage(error: unknown, fallback: string) {
   const code = apiError?.response?.data?.code;
   const serverMessage = apiError?.response?.data?.message;
 
+  if (code === "GATE_OFFLINE") return "서버가 개폐기를 오프라인으로 판단해 명령을 보내지 않았어요. 개폐기 Wi-Fi와 서버 연결 상태를 확인해주세요.";
+  if (code === "GATE_NOT_FOUND") return "현재 계정의 개폐기 등록 정보를 서버에서 찾지 못했어요.";
+  if (code === "GATE_COMMAND_NOT_FOUND") return "서버에서 명령 기록을 찾지 못했어요. 실제 적용 여부를 확인해주세요.";
   if (code === "GATE_MAC_ADDRESS_ALREADY_EXISTS") {
     return typeof serverMessage === "string" && serverMessage.trim()
       ? serverMessage.trim()

@@ -107,9 +107,9 @@ export default function HiveOverviewScreen() {
         className="flex-1"
         contentContainerStyle={{
           padding: Spacing.lg,
-          paddingTop: Spacing.sm,
+          paddingTop: Spacing.xs,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.lg,
+          gap: Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}

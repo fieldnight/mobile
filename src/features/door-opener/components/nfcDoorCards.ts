@@ -92,6 +92,8 @@ export interface NfcDoorCardConfig {
   serverActionId?: number;
   /** 카드 추가 때 사용자가 직접 적어둔 한 줄 메모. */
   memo?: string;
+  /** 온라인 모드에서 이 카드가 저장된 서버 카드 ID(PR #195 기준 사용자 소유 공용 카드). */
+  serverCardId?: number;
 }
 
 export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
@@ -274,6 +276,52 @@ export function createCustomDoorCard({
     repeat,
     memo,
   };
+}
+
+function sameRepeatDays(a: RepeatDays, b: RepeatDays) {
+  return (
+    a.sun === b.sun &&
+    a.mon === b.mon &&
+    a.tue === b.tue &&
+    a.wed === b.wed &&
+    a.thu === b.thu &&
+    a.fri === b.fri &&
+    a.sat === b.sat
+  );
+}
+
+function sameGateOpenState(a: GateOpenState, b: GateOpenState) {
+  return a.entranceOpen === b.entranceOpen && a.exitOpen === b.exitOpen;
+}
+
+function sameCountControl(a?: BeeCountControlConfig, b?: BeeCountControlConfig) {
+  if (!a || !b) return a === b;
+  return (
+    a.low === b.low &&
+    a.high === b.high &&
+    a.timeWindowStart === b.timeWindowStart &&
+    a.timeWindowEnd === b.timeWindowEnd &&
+    sameRepeatDays(a.repeatDays, b.repeatDays) &&
+    sameGateOpenState(a.within, b.within) &&
+    sameGateOpenState(a.above, b.above)
+  );
+}
+
+/**
+ * 두 카드의 "설정값"(메모·제목 제외)이 완전히 같은지 비교합니다.
+ * 카드 추가 시 이미 동일한 설정의 카드가 있으면 중복 추가를 막는 데 씁니다.
+ */
+export function isSameCardSettings(a: NfcDoorCardConfig, b: NfcDoorCardConfig) {
+  if (a.mode !== b.mode) return false;
+  if (a.mode === "count_control") {
+    return sameCountControl(a.countControl, b.countControl);
+  }
+  return (
+    a.functionType === b.functionType &&
+    (a.start ?? "") === (b.start ?? "") &&
+    (a.end ?? "") === (b.end ?? "") &&
+    Boolean(a.repeat) === Boolean(b.repeat)
+  );
 }
 
 export { describeGateOpenState, describeRepeatDays };

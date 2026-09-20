@@ -4,8 +4,20 @@
  * - 추가: AddNfcDoorCardModal (바텀시트)
  * - 삭제: ConfirmSheet (바텀시트) — Alert.alert 대체
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { executeGateCard } from "../api/gateCommandsApi";
+import { getGateDeviceErrorMessage } from "../api/gateDeviceApi";
+import {
+  createGateCountCard,
+  createGateTimeCard,
+  deleteGateCountCard,
+  deleteGateTimeCard,
+} from "../api/gateCardsApi";
+import {
+  buildGateCountCardRequest,
+  buildGateTimeCardRequest,
+  isServerStorableCard,
+} from "../model/gateCardRequest";
 import {
   Animated,
   LayoutAnimation,
@@ -29,6 +41,7 @@ import type { GateData } from "@/types/gate-control";
 import {
   DEFAULT_NFC_DOOR_CARDS,
   createCustomDoorCard,
+  isSameCardSettings,
   type NfcDoorCardConfig,
 } from "./nfcDoorCards";
 import {
@@ -37,11 +50,8 @@ import {
   type DoorOpenerRuntimeState,
 } from "../model/doorOpenerRuntime";
 import {
-  enqueueGateActionCreate,
-  enqueueGateActionDelete,
   loadStoredNfcDoorCards,
   saveStoredNfcDoorCards,
-  syncGateActionsWithServer,
 } from "../model/gateActionSync";
 import {
   assignCardToGates,
@@ -52,7 +62,6 @@ import {
 
 const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
-const SYNC_THROTTLE_MS = 10000;
 
 export type GateActionAppConnectionStatus =
   | "idle"
@@ -108,9 +117,16 @@ export function NfcDoorCardSection({
   const dragStartIndexRef    = useRef(0);
   const dragCurrentIndexRef  = useRef(0);
   const cardsRef             = useRef(cards);
-  const syncingRef = useRef(false);
-  const lastSyncAtRef = useRef(0);
+  const commandPendingRef = useRef(false);
+  const [commandPending, setCommandPending] = useState(false);
+
   cardsRef.current = cards;
+
+  useEffect(() => {
+    if (gateMode === "online") setActiveCard(null);
+    else setGateSelectCard(null);
+    setPendingReplacement(null);
+  }, [gateMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,43 +167,8 @@ export function NfcDoorCardSection({
     });
   }, [cards, cardsHydrated]);
 
-  const syncWithServer = useCallback(async (force = false) => {
-    if (!hiveId || !cardsHydrated || syncingRef.current) return;
-    const now = Date.now();
-    if (!force && now - lastSyncAtRef.current < SYNC_THROTTLE_MS) return;
-
-    syncingRef.current = true;
-    lastSyncAtRef.current = now;
-    onSyncStatusChange?.("syncing");
-
-    try {
-      const result = await syncGateActionsWithServer({
-        hiveId,
-        cards: cardsRef.current,
-      });
-      cardsRef.current = result.cards;
-      setCards(result.cards);
-      onSyncStatusChange?.(result.synced ? "online" : "offline");
-    } catch (error) {
-      onSyncStatusChange?.("offline");
-      // 예시 벌통은 서버에 등록되어 있지 않을 수 있으므로
-      // 화면 진입 시 자동 동기화 실패를 사용자 메시지로 노출하지 않습니다.
-      console.warn("[NFC Door Cards] 서버 동기화 실패", error);
-    } finally {
-      syncingRef.current = false;
-    }
-  }, [cardsHydrated, hiveId, onSyncStatusChange]);
-
-  useEffect(() => {
-    syncWithServer(true);
-  }, [cardsHydrated, hiveId, syncWithServer]);
-
-  useFocusEffect(
-    useCallback(() => {
-      syncWithServer(true);
-    }, [syncWithServer]),
-  );
-
+  // 서버 카드 CRUD(PR #195)는 30분 단위 등 일부 설정을 표현하지 못해,
+  // 카드 원본은 계속 로컬(AsyncStorage)에 전체 정보로 보관합니다.
   const cell = useMemo(
     () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.66 + GRID_GAP }),
     [cardWidth],
@@ -280,7 +261,32 @@ export function NfcDoorCardSection({
   ).current;
 
   const addCard = async (cardInput: Parameters<typeof createCustomDoorCard>[0]) => {
-    const card = createCustomDoorCard(cardInput);
+    let card = createCustomDoorCard(cardInput);
+
+    const isDuplicate = cardsRef.current.some((existing) => isSameCardSettings(existing, card));
+    if (isDuplicate) {
+      showToast("이미 같은 설정의 카드가 있어요. 카드를 다시 확인해 주세요.", "error");
+      return;
+    }
+
+    // 온라인 모드에서는 카드를 서버에 저장해둡니다(개폐기 무관 공용 카드).
+    // 실행 시 대상 개폐기는 별도로 고릅니다. 24시간 교대는 저장 API가 아직
+    // 표현하지 못해 로컬에만 남깁니다.
+    if (gateMode === "online" && isServerStorableCard(card)) {
+      try {
+        if (card.mode === "count_control") {
+          const saved = await createGateCountCard(buildGateCountCardRequest(card));
+          card = { ...card, serverCardId: saved.id };
+        } else {
+          const saved = await createGateTimeCard(buildGateTimeCardRequest(card));
+          card = { ...card, serverCardId: saved.id };
+        }
+      } catch (error) {
+        console.warn("[NFC Door Cards] 카드 서버 저장 실패", error);
+        showToast(getGateDeviceErrorMessage(error, "카드를 서버에 저장하지 못했어요. 휴대폰에는 저장돼요."), "error");
+      }
+    }
+
     const nextCards = [...cardsRef.current, card];
 
     cardsRef.current = nextCards;
@@ -288,9 +294,7 @@ export function NfcDoorCardSection({
 
     try {
       await saveStoredNfcDoorCards(nextCards);
-      await enqueueGateActionCreate(hiveId, card);
       showToast(`${cardInput.title} 카드를 추가했어요.`, "success");
-      syncWithServer(true);
     } catch (error) {
       console.warn("[NFC Door Cards] 카드 추가 저장 실패", error);
       showToast("카드 정보를 저장하지 못했어요.", "error");
@@ -300,6 +304,7 @@ export function NfcDoorCardSection({
   /** 삭제 요청 — ConfirmSheet 열기 */
   const requestDelete = (card: NfcDoorCardConfig) => {
     const isAppliedCard =
+      gateMode === "offline" &&
       isDoorOpenerRuntimeActive(runtimeState ?? null) &&
       runtimeState?.cardId === card.id;
     if (isAppliedCard) {
@@ -319,11 +324,22 @@ export function NfcDoorCardSection({
     setCards(nextCards);
     setPendingDelete(null);
 
+    if (targetCard.serverCardId != null) {
+      try {
+        if (targetCard.mode === "count_control") {
+          await deleteGateCountCard(targetCard.serverCardId);
+        } else {
+          await deleteGateTimeCard(targetCard.serverCardId);
+        }
+      } catch (error) {
+        console.warn("[NFC Door Cards] 카드 서버 삭제 실패", error);
+        showToast(getGateDeviceErrorMessage(error, "서버에 저장된 카드를 지우지 못했어요."), "error");
+      }
+    }
+
     try {
       await saveStoredNfcDoorCards(nextCards);
-      await enqueueGateActionDelete(hiveId, targetCard);
       showToast(`${targetCard.title} 카드를 삭제했어요.`, "success");
-      syncWithServer(true);
     } catch (error) {
       console.warn("[NFC Door Cards] 카드 삭제 저장 실패", error);
       showToast("카드 삭제 정보를 저장하지 못했어요.", "error");
@@ -343,16 +359,16 @@ export function NfcDoorCardSection({
   };
 
   const handleCardPress = (card: NfcDoorCardConfig) => {
-    if (deleting || draggingCardIdRef.current) return;
+    if (deleting || draggingCardIdRef.current || commandPendingRef.current) return;
     const currentCardId = runtimeState?.cardId;
     const hasRunningCard = isDoorOpenerRuntimeActive(runtimeState ?? null) && currentCardId;
-    if (hasRunningCard && currentCardId !== card.id && card.mode !== "count_status") {
+    if (gateMode === "offline" && hasRunningCard && currentCardId !== card.id && card.mode !== "count_status") {
       setPendingReplacement(card);
       return;
     }
     // 온라인 모드에서는 NFC 태깅 대신 "적용할 개폐기"를 먼저 고릅니다.
-    // 카운트 확인 카드는 태깅 한 번으로 즉시 읽는 동작이라 대상 지정이 의미 없어 예외로 둡니다.
-    if (gateMode === "online" && card.mode !== "count_status") {
+    // 온라인 모드에서는 NFC를 활성화하지 않습니다.
+    if (gateMode === "online") {
       setGateSelectCard(card);
       return;
     }
@@ -365,26 +381,47 @@ export function NfcDoorCardSection({
    * "적용하기" 버튼에서 handleCardPress를 호출해 시작됩니다.
    */
   const handleCountCardPress = (card: NfcDoorCardConfig) => {
-    if (deleting || draggingCardIdRef.current) return;
+    if (deleting || draggingCardIdRef.current || commandPendingRef.current) return;
     setCountDetailCard(card);
   };
 
-  /** 개폐기 선택 확정 — 실제 온라인 명령 채널이 없어 로컬에만 적용 의도를 기록합니다. */
+  /** Only record assignments after the device result is SUCCESS. */
   const confirmGateSelection = async (selectedGateIds: string[]) => {
     const targetCard = gateSelectCard;
-    if (!targetCard) return;
-
-    const nextAssignments = assignCardToGates(gateAssignments, targetCard.id, selectedGateIds);
-    setGateAssignments(nextAssignments);
+    if (!targetCard || commandPendingRef.current || selectedGateIds.length === 0) return;
+    commandPendingRef.current = true;
+    setCommandPending(true);
     setGateSelectCard(null);
-
+    setLastSelectedGateIds(selectedGateIds);
+    showToast("개폐기에 명령을 보내고 결과를 확인하고 있어요.", "info");
     try {
-      await saveGateCardAssignments(nextAssignments);
-      setLastSelectedGateIds(selectedGateIds);
-      showToast(`${targetCard.title} 카드를 개폐기 ${selectedGateIds.length}곳에 적용했어요.`, "success");
+      const results = await Promise.allSettled(selectedGateIds.map(async id => {
+        const gate = gates.find(item => item.id === id);
+        if (!gate) throw new Error("등록된 개폐기를 찾지 못했어요.");
+        const result = await executeGateCard(gate, targetCard);
+        return { id, deferred: result.detail === "SERVO_DEFERRED" };
+      }));
+      const succeeded = results.flatMap(result => result.status === "fulfilled" ? [result.value.id] : []);
+      if (succeeded.length && targetCard.mode !== "count_status") {
+        const next = assignCardToGates(gateAssignments, targetCard.id, succeeded);
+        setGateAssignments(next);
+        await saveGateCardAssignments(next);
+      }
+      const deferred = results.filter(result => result.status === "fulfilled" && result.value.deferred).length;
+      const deferredMessage = deferred ? ` ${deferred}곳은 통로 센서 감지로 문 움직임을 기다리고 있어요.` : "";
+      const failed = results.find(result => result.status === "rejected");
+      if (failed?.status === "rejected") {
+        showToast(`${succeeded.length}/${selectedGateIds.length}곳 적용 확인. ${getGateDeviceErrorMessage(failed.reason, failed.reason?.message || "응답을 확인하지 못했어요.")}${deferredMessage}`, "error");
+      } else if (deferred) {
+        showToast(`명령을 접수했어요.${deferredMessage}`, "info");
+      } else {
+        showToast(`${selectedGateIds.length}곳에서 ${targetCard.title} 명령 처리를 확인했어요.`, "success");
+      }
     } catch (error) {
-      console.warn("[NFC Door Cards] 개폐기 적용 기록 저장 실패", error);
-      showToast("적용 기록을 저장하지 못했어요.", "error");
+      showToast(getGateDeviceErrorMessage(error, "결과 기록을 저장하지 못했어요."), "error");
+    } finally {
+      commandPendingRef.current = false;
+      setCommandPending(false);
     }
   };
 
@@ -435,6 +472,11 @@ export function NfcDoorCardSection({
 
   return (
     <View>
+      {commandPending ? (
+        <PretendardFont style={{ marginBottom: 12, fontSize: 13, color: C.sec }}>
+          개폐기 응답을 확인하고 있어요. 잠시 기다려주세요.
+        </PretendardFont>
+      ) : null}
       <CollapsibleSectionHeader
         title="개폐기 카드"
         count={gridCards.length}
@@ -448,6 +490,7 @@ export function NfcDoorCardSection({
           {gridCards.map((card) => {
             const dragging = draggingCardId === card.id;
             const active =
+              gateMode === "offline" &&
               isDoorOpenerRuntimeActive(runtimeState ?? null) &&
               runtimeState?.cardId === card.id;
             const cardRuntimeText = active
@@ -487,6 +530,7 @@ export function NfcDoorCardSection({
               {countControlCards.map((card) => {
                 const dragging = false;
                 const active =
+                  gateMode === "offline" &&
                   isDoorOpenerRuntimeActive(runtimeState ?? null) &&
                   runtimeState?.cardId === card.id;
                 const cardRuntimeText = active
@@ -516,6 +560,7 @@ export function NfcDoorCardSection({
         card={countDetailCard}
         visible={countDetailCard != null}
         active={
+          gateMode === "offline" &&
           isDoorOpenerRuntimeActive(runtimeState ?? null) &&
           runtimeState?.cardId === countDetailCard?.id
         }

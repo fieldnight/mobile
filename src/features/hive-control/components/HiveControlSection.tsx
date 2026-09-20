@@ -152,7 +152,7 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
   const pendingLabel = phase === "sending" ? "설정을 전송하고 있어요" : phase === "checking" ? "현재 설정을 확인하고 있어요" : "변경 결과를 기다리고 있어요";
 
   return (
-    <Card style={{ marginHorizontal: -14, backgroundColor: "rgba(255,255,255,0.72)", elevation: 0 }}>
+    <Card style={{ backgroundColor: "rgba(255,255,255,0.72)", elevation: 0 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Feather name="thermometer" size={19} color={C.chartTemp} />
         <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>목표 온도 설정</PretendardFont>

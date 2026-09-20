@@ -42,21 +42,6 @@ export interface ManualControlRequest {
   targetHumidity?: number;
 }
 
-export interface HiveAutoControlSchedule {
-  scheduleId: number;
-  startTime: string;
-  endTime: string;
-}
-
-export interface HiveAutoControlScheduleCreateRequest {
-  startTime: string;
-  endTime: string;
-}
-
-export interface HiveAutoControlScheduleCreateResponse {
-  scheduleId: number;
-}
-
 export async function getHiveControlSettings(
   hiveId: string | number,
 ): Promise<HiveControlSettingsResponse> {
@@ -98,70 +83,3 @@ export async function requestManualControl(
   }
 }
 
-export async function getHiveAutoControlSchedules(
-  hiveId: string | number,
-): Promise<HiveAutoControlSchedule[]> {
-  try {
-    const res = await api.get<ApiResponse<HiveAutoControlSchedule[]>>(
-      `/api/v1/hives/${hiveId}/control/auto/schedules`,
-    );
-    console.log("[Hive Control Schedule API] 목록 조회 성공", {
-      hiveId,
-      data: res.data.data,
-    });
-    return res.data.data;
-  } catch (error) {
-    console.error("[Hive Control Schedule API] 목록 조회 실패", {
-      hiveId,
-      error: getApiErrorDetail(error),
-    });
-    throw error;
-  }
-}
-
-export async function createHiveAutoControlSchedule(
-  hiveId: string | number,
-  body: HiveAutoControlScheduleCreateRequest,
-): Promise<HiveAutoControlScheduleCreateResponse> {
-  try {
-    const res = await api.post<ApiResponse<HiveAutoControlScheduleCreateResponse>>(
-      `/api/v1/hives/${hiveId}/control/auto/schedules`,
-      body,
-    );
-    console.log("[Hive Control Schedule API] 등록 성공", {
-      hiveId,
-      body,
-      data: res.data.data,
-    });
-    return res.data.data;
-  } catch (error) {
-    console.error("[Hive Control Schedule API] 등록 실패", {
-      hiveId,
-      body,
-      error: getApiErrorDetail(error),
-    });
-    throw error;
-  }
-}
-
-export async function deleteHiveAutoControlSchedule({
-  hiveId,
-  scheduleId,
-}: {
-  hiveId: string | number;
-  scheduleId: string | number;
-}): Promise<void> {
-  try {
-    await api.delete<ApiResponse<void>>(
-      `/api/v1/hives/${hiveId}/control/auto/schedules/${scheduleId}`,
-    );
-    console.log("[Hive Control Schedule API] 삭제 성공", { hiveId, scheduleId });
-  } catch (error) {
-    console.error("[Hive Control Schedule API] 삭제 실패", {
-      hiveId,
-      scheduleId,
-      error: getApiErrorDetail(error),
-    });
-    throw error;
-  }
-}

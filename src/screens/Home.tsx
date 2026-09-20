@@ -1,7 +1,6 @@
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { NewsCarousel } from "@/components/NewsCarousel";
 import { PromoBanner } from "@/components/Promobanner";
 import { HomeGridIcon } from "@/components/HomeGridIcon";
@@ -22,9 +21,6 @@ function todayKey() {
 export default function Home() {
   const [inquiryVisible, setInquiryVisible] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false);
-  const handleRefresh = useCallback(async (): Promise<void> => {
-    return new Promise((resolve) => setTimeout(resolve, 1000));
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -62,15 +58,12 @@ export default function Home() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: "#F4F5F7" }}>
-      <PullToRefresh
-        onRefresh={handleRefresh}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView showsVerticalScrollIndicator={false}>
         <PromoBanner />
         <HomeGridIcon onInquiryPress={() => setInquiryVisible(true)} />
         <HiveStatusBanner />
         <NewsCarousel keyword="수정벌" />
-      </PullToRefresh>
+      </ScrollView>
 
       <InquiryModal
         visible={inquiryVisible}

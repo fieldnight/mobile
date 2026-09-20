@@ -1,11 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const STORAGE_KEY = "ourbee:gate-card-assignments:v1";
+const STORAGE_KEY = "ourbee:gate-card-assignments:v2";
 
 /**
- * 카드 id -> 이 카드를 적용하기로 고른 개폐기 id 목록.
- * 온라인 모드에서만 쓰는 로컬 전용 기록입니다. 실제 온라인 명령 채널이 없어
- * 서버에 확인된 상태가 아니라 사용자가 로컬에 남긴 "적용 의도"일 뿐입니다.
+ * 카드 id -> 마지막 SUCCESS 응답을 확인한 개폐기 id 목록.
+ * 실시간 적용 상태가 아니며, 자동 종료/다른 폰의 변경은 반영되지 않습니다.
+ * v1의 미확인 적용 의도는 가져오지 않습니다.
  */
 export type GateCardAssignments = Record<string, string[]>;
 
@@ -28,7 +28,7 @@ export async function saveGateCardAssignments(assignments: GateCardAssignments) 
   try {
     await AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ version: 1, assignments }),
+      JSON.stringify({ version: 2, assignments }),
     );
   } catch (error) {
     console.warn("[Gate Card Assignments] 적용 기록 저장 실패", error);
@@ -40,5 +40,9 @@ export function assignCardToGates(
   cardId: string,
   gateIds: string[],
 ): GateCardAssignments {
-  return { ...assignments, [cardId]: gateIds };
+  const next = Object.fromEntries(Object.entries(assignments).map(([id, ids]) =>
+    [id, ids.filter(gateId => !gateIds.includes(gateId))],
+  ));
+  next[cardId] = [...new Set([...(next[cardId] ?? []), ...gateIds])];
+  return next;
 }

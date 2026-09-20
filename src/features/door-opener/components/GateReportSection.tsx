@@ -45,11 +45,11 @@ export function GateReportSection({ delay = 0 }: { delay?: number }) {
     gates.find((gate) => gate.id === selectedGateId) ?? gates[0] ?? null;
 
   const telemetryQuery = useGateDeviceTelemetry({
-    gateId: selectedGate?.id ?? "",
+    gateId: selectedGate ? String(selectedGate.gateId) : "",
     period,
   });
   const beeCountQuery = useGateDeviceBeeCount({
-    gateId: selectedGate?.id ?? "",
+    gateId: selectedGate ? String(selectedGate.gateId) : "",
     period,
   });
 
@@ -65,7 +65,7 @@ export function GateReportSection({ delay = 0 }: { delay?: number }) {
   return (
     <Card delay={delay} style={{ padding: 14 }}>
       <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
-        개폐기 리포트
+        온라인 리포트
       </PretendardFont>
 
       {gates.length > 1 ? (
@@ -89,6 +89,14 @@ export function GateReportSection({ delay = 0 }: { delay?: number }) {
       )}
 
       <PeriodRow period={period} onSelect={setPeriod} />
+      <PretendardFont style={{ marginTop: 8, fontSize: 12, color: C.sec }}>
+        서버에 수집된 기록이에요. 벌 출입 수치는 조회 구간의 평균입니다.
+      </PretendardFont>
+      {telemetryQuery.isError || beeCountQuery.isError ? (
+        <PretendardFont style={{ marginTop: 8, color: "#B42318", fontSize: 13 }}>
+          리포트를 불러오지 못했어요. 연결 상태를 확인해주세요.
+        </PretendardFont>
+      ) : null}
 
       <GateNotFoundOrContent
         isNotFound={

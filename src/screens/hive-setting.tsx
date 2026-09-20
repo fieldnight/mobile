@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -19,10 +20,10 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KMA_REGIONS } from "@/types";
 import { BeeBoxCard } from "@/components/BeeboxCard";
+import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
-import { AutoControlScheduleSection } from "@/features/hive-control";
 import { useSyncHiveList } from "@/features/hive";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { HiveWifiSetupSheet } from "@/features/hive-wifi";
@@ -52,6 +53,7 @@ export default function HiveSettingsScreen() {
   const [searchText, setSearchText] = useState("");
   const [savedMessage, setSavedMessage] = useState(false);
   const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
+  const [hiveSelectVisible, setHiveSelectVisible] = useState(false);
   const savedMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedHive =
@@ -104,12 +106,12 @@ export default function HiveSettingsScreen() {
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
       <HiveTabBar />
-      <ScrollView
+      <BounceScrollView
         className="flex-1"
         contentContainerStyle={{
-          padding: 16,
-          paddingTop: Spacing.sm,
-          gap: 16,
+          padding: Spacing.lg,
+          paddingTop: Spacing.xs,
+          gap: Spacing.xl,
           paddingBottom: insets.bottom + 100,
         }}
         showsVerticalScrollIndicator={false}
@@ -156,8 +158,13 @@ export default function HiveSettingsScreen() {
           </View>
 
           {selectedHive && (
-            <View
-              className="mt-4 flex-row items-center justify-between rounded-xl px-3.5 py-3"
+            <Pressable
+              onPress={() => {
+                if (hives.length < 2) return;
+                haptic();
+                setHiveSelectVisible(true);
+              }}
+              className="mt-4 flex-row items-center justify-between rounded-xl px-3.5 py-3 active:opacity-70"
               style={{ backgroundColor: C.bg }}
             >
               <PretendardFont
@@ -166,13 +173,18 @@ export default function HiveSettingsScreen() {
               >
                 설정할 벌통
               </PretendardFont>
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 13, color: C.text }}
-              >
-                {selectedHive.name}
-              </PretendardFont>
-            </View>
+              <View className="flex-row items-center gap-1">
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 13, color: C.text }}
+                >
+                  {selectedHive.name}
+                </PretendardFont>
+                {hives.length > 1 && (
+                  <Feather name="chevron-down" size={16} color={C.sec} />
+                )}
+              </View>
+            </Pressable>
           )}
 
           <Pressable
@@ -191,21 +203,6 @@ export default function HiveSettingsScreen() {
               Wi-Fi 연결·변경
             </PretendardFont>
           </Pressable>
-        </BeeBoxCard>
-
-        <BeeBoxCard delay={100} variant="setting">
-          <HiveScheduleTargetPicker
-            hives={hives.map((hive) => ({ id: hive.id, name: hive.name }))}
-            selectedHiveId={selectedHive?.id}
-            onSelectHive={(hiveId) => {
-              haptic();
-              setSelectedHiveId(hiveId);
-            }}
-          />
-          <AutoControlScheduleSection
-            hiveId={selectedHive?.id}
-            hiveName={selectedHive?.name}
-          />
         </BeeBoxCard>
 
         <BeeBoxCard delay={200} variant="setting">
@@ -300,7 +297,7 @@ export default function HiveSettingsScreen() {
             />
           )}
         </BeeBoxCard>
-      </ScrollView>
+      </BounceScrollView>
 
       {savedMessage && (
         <Animated.View
@@ -322,6 +319,48 @@ export default function HiveSettingsScreen() {
         initialDeviceId={selectedHive?.macAddress}
         onProvisioned={showSavedMessage}
       />
+
+      <BottomSheet
+        visible={hiveSelectVisible}
+        onClose={() => setHiveSelectVisible(false)}
+        title="설정할 벌통 선택"
+        snapHeight={0.55}
+      >
+        <View>
+          {hives.map((hive) => {
+            const isSelected = hive.id === selectedHiveId;
+            return (
+              <Pressable
+                key={hive.id}
+                onPress={() => {
+                  haptic();
+                  setSelectedHiveId(hive.id);
+                  setHiveSelectVisible(false);
+                }}
+                className="mb-2 flex-row items-center justify-between rounded-2xl px-4 py-3.5 active:opacity-80"
+                style={{ backgroundColor: C.bg }}
+              >
+                <PretendardFont
+                  weight="bold"
+                  style={{ fontSize: 14.5, color: C.text }}
+                >
+                  {hive.name}
+                </PretendardFont>
+                <View
+                  className="h-7 w-7 items-center justify-center rounded-full"
+                  style={{ backgroundColor: isSelected ? C.primary : C.white }}
+                >
+                  <Feather
+                    name={isSelected ? "check" : "circle"}
+                    size={15}
+                    color={isSelected ? C.white : C.border}
+                  />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </ImageBackground>
   );
 }
@@ -476,50 +515,3 @@ function RegionGroupPicker({
   );
 }
 
-function HiveScheduleTargetPicker({
-  hives,
-  selectedHiveId,
-  onSelectHive,
-}: {
-  hives: Array<{ id: string; name: string }>;
-  selectedHiveId?: string;
-  onSelectHive: (hiveId: string) => void;
-}) {
-  if (hives.length <= 1) return null;
-
-  return (
-    <View className="mb-4">
-      <PretendardFont weight="bold" className="mb-2 text-[13px] text-toss-text">
-        스케줄 적용 벌통
-      </PretendardFont>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
-        {hives.map((hive) => {
-          const selected = hive.id === selectedHiveId;
-          return (
-            <Pressable
-              key={hive.id}
-              onPress={() => onSelectHive(hive.id)}
-              className="rounded-full px-3.5 py-2 active:opacity-70"
-              style={{
-                backgroundColor: selected ? C.primary : C.white,
-                borderWidth: 1,
-                borderColor: selected ? C.primary : C.border,
-              }}
-            >
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 13, color: selected ? C.white : C.text }}
-              >
-                {hive.name}
-              </PretendardFont>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}

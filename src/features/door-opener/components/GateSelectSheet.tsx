@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useGateModeStore } from "@/stores/useGateModeStore";
+import { useAppToast } from "@/components/ToastContext";
+import { cancelGateCommand, getCurrentGateCommand, getGateConnection, type GateCurrentCommand } from "../api/gateCommandsApi";
+import { getGateDeviceErrorMessage } from "../api/gateDeviceApi";
 import type { GateData } from "@/types/gate-control";
 import type { NfcDoorCardConfig } from "./nfcDoorCards";
 
@@ -12,9 +15,7 @@ const FORM_PANEL_BG = "#EEF2F6";
 
 /**
  * 온라인 모드에서 카드를 눌렀을 때 뜨는 "적용할 개폐기 선택" 바텀시트입니다.
- * - NFC 태깅과 달리 온라인 명령은 대상을 사전에 지정해야 하므로, 확인을 누르면
- *   로컬(gateCardAssignments)에만 적용 기록을 남깁니다. 실제 개폐기 동작은
- *   바뀌지 않습니다(온라인 명령 채널이 아직 없음).
+ * - 선택한 개폐기마다 REST 명령을 보내고 결과를 폴링하는 부모 콜백을 실행합니다.
  */
 export function GateSelectSheet({
   visible,
@@ -31,6 +32,14 @@ export function GateSelectSheet({
 }) {
   const lastSelectedGateIds = useGateModeStore((s) => s.lastSelectedGateIds);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentCommands, setCurrentCommands] = useState<Record<string, GateCurrentCommand | null>>({});
+  const [connections, setConnections] = useState<Record<string, string>>({});
+  const cancelPending = useRef(false);
+  const viewEpoch = useRef(0);
+  const [currentErrors, setCurrentErrors] = useState<Record<string, boolean>>({});
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
+  const [cancelingGateId, setCancelingGateId] = useState<string | null>(null);
+  const { show: showToast } = useAppToast();
 
   useEffect(() => {
     if (!visible) return;
@@ -38,6 +47,68 @@ export function GateSelectSheet({
     const gateIds = new Set(gates.map((gate) => gate.id));
     setSelectedIds(lastSelectedGateIds.filter((id) => gateIds.has(id)));
   }, [visible, gates, lastSelectedGateIds]);
+
+  // 시트가 열릴 때마다 각 개폐기에 현재 적용 중인 명령을 조회해 보여줍니다.
+  useEffect(() => {
+    viewEpoch.current++;
+    if (!visible || gates.length === 0) {
+      setLoadingCurrent(false);
+      setCurrentErrors({});
+      setConnections({});
+      setCurrentCommands({});
+      return;
+    }
+    let cancelled = false;
+    setLoadingCurrent(true);
+    setCurrentCommands({});
+    setConnections({});
+    setCurrentErrors({});
+    Promise.all(
+      gates.map(async (gate) => {
+        const [current, connection] = await Promise.allSettled([
+          getCurrentGateCommand(gate), getGateConnection(gate),
+        ]);
+        let label = "서버 연결 확인 실패";
+        if (connection.status === "fulfilled") {
+          label = connection.value.isConnected ? "서버 판정: 온라인" : "서버 판정: 오프라인";
+        } else {
+          const status = connection.reason?.response?.status;
+          const code = connection.reason?.response?.data?.code;
+          if ((status === 404 && code !== "GATE_NOT_FOUND") || status === 405) label = "서버 연결 확인 기능 미지원";
+        }
+        return [gate.id, current.status === "fulfilled" ? current.value : null, current.status === "rejected", label] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setConnections(Object.fromEntries(entries.map(([id, , , label]) => [id, label])));
+      setCurrentCommands(Object.fromEntries(entries.map(([id, current]) => [id, current])));
+      setCurrentErrors(Object.fromEntries(entries.map(([id, , failed]) => [id, failed])));
+    }).finally(() => {
+      if (!cancelled) setLoadingCurrent(false);
+    });
+    return () => {
+      cancelled = true;
+      viewEpoch.current++;
+    };
+  }, [visible, gates]);
+
+  const cancelCurrentCommand = async (gate: GateData) => {
+    const current = currentCommands[gate.id];
+    if (!current || cancelPending.current) return;
+    const startedEpoch = viewEpoch.current;
+    cancelPending.current = true;
+    setCancelingGateId(gate.id);
+    try {
+      await cancelGateCommand(gate, current.commandId);
+      if (startedEpoch === viewEpoch.current) setCurrentCommands((prev) => ({ ...prev, [gate.id]: null }));
+      showToast(`${gate.name}의 적용을 취소했어요.`, "success");
+    } catch (error) {
+      showToast(getGateDeviceErrorMessage(error, "적용 취소에 실패했어요."), "error");
+    } finally {
+      cancelPending.current = false;
+      setCancelingGateId(null);
+    }
+  };
 
   const allSelected = gates.length > 0 && selectedIds.length === gates.length;
 
@@ -76,15 +147,42 @@ export function GateSelectSheet({
             emphasized
           />
 
-          {gates.map((gate) => (
-            <SelectRow
-              key={gate.id}
-              label={gate.name}
-              sublabel={gate.location}
-              selected={selectedIds.includes(gate.id)}
-              onPress={() => toggleGate(gate.id)}
-            />
-          ))}
+          {gates.map((gate) => {
+            const current = currentCommands[gate.id];
+            const sublabel = [
+              gate.location,
+              loadingCurrent ? "서버 상태 확인 중" : connections[gate.id],
+              currentErrors[gate.id] ? "현재 적용 상태 확인 실패" : current ? `현재 적용: ${current.title}` : null,
+            ].filter(Boolean).join(" · ");
+            return (
+              <SelectRow
+                key={gate.id}
+                label={gate.name}
+                sublabel={sublabel}
+                selected={selectedIds.includes(gate.id)}
+                onPress={() => toggleGate(gate.id)}
+                trailing={
+                  current ? (
+                    <Pressable
+                      onPress={() => cancelCurrentCommand(gate)}
+                      disabled={cancelingGateId !== null}
+                      hitSlop={8}
+                      className="ml-2 rounded-full px-2.5 py-1.5 active:opacity-70"
+                      style={{ backgroundColor: "rgba(0,0,0,0.06)" }}
+                    >
+                      {cancelingGateId === gate.id ? (
+                        <ActivityIndicator size="small" color={C.textAlt} />
+                      ) : (
+                        <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.textAlt }}>
+                          적용 취소
+                        </PretendardFont>
+                      )}
+                    </Pressable>
+                  ) : null
+                }
+              />
+            );
+          })}
         </ScrollView>
 
         <View className="pt-4 pb-5 flex-row gap-2.5">
@@ -98,8 +196,8 @@ export function GateSelectSheet({
             </PretendardFont>
           </Pressable>
           <Pressable
-            onPress={() => onConfirm(selectedIds)}
-            disabled={selectedIds.length === 0}
+            onPress={() => { if (!cancelPending.current) onConfirm(selectedIds); }}
+            disabled={selectedIds.length === 0 || cancelingGateId !== null}
             className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
             style={{
               backgroundColor: selectedIds.length > 0 ? C.gatePrimary : C.border,
@@ -121,12 +219,14 @@ function SelectRow({
   selected,
   onPress,
   emphasized,
+  trailing,
 }: {
   label: string;
   sublabel?: string;
   selected: boolean;
   onPress: () => void;
   emphasized?: boolean;
+  trailing?: React.ReactNode;
 }) {
   return (
     <Pressable
@@ -149,6 +249,8 @@ function SelectRow({
           </PretendardFont>
         ) : null}
       </View>
+
+      {trailing}
 
       <View
         className="h-7 w-7 items-center justify-center rounded-full"

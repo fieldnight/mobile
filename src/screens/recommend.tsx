@@ -5,8 +5,8 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -120,14 +120,9 @@ export default function RecommendScreen() {
   const {
     data: crops,
     isLoading: cropsLoading,
-    refetch: refetchFarms,
   } = useFarmList();
   const recommendMutation = useAiRecommendation();
   const saveMutation = useSaveRecommendation();
-
-  const handleRefresh = useCallback(async () => {
-    await refetchFarms();
-  }, [refetchFarms]);
 
   const showLoginNotice = () => {
     triggerHaptic("light");
@@ -211,7 +206,7 @@ export default function RecommendScreen() {
         isScrolled={isScrolled}
       />
 
-      <PullToRefresh
+      <ScrollView
         className="flex-1"
         contentContainerStyle={{
           padding: 16,
@@ -220,7 +215,6 @@ export default function RecommendScreen() {
           gap: 16,
         }}
         showsVerticalScrollIndicator={false}
-        onRefresh={handleRefresh}
         onScroll={onScroll}
         scrollEventThrottle={scrollEventThrottle}
       >
@@ -799,7 +793,7 @@ export default function RecommendScreen() {
               </Card>
             </>
           ))}
-      </PullToRefresh>
+      </ScrollView>
 
       <NoticeBottomSheet
         visible={devNoticeVisible}

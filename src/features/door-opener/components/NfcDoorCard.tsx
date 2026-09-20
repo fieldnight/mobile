@@ -105,23 +105,29 @@ export function NfcDoorCard({
             >
               {card.title}
             </PretendardFont>
-            <PretendardFont
-              weight="medium"
-              numberOfLines={2}
-              style={{
-                fontSize: 14,
-                lineHeight: 18,
-                color: active ? C.stIconBadgeOn : C.sec,
-              }}
-            >
-              {active && runtimeLabel
+            {(() => {
+              const text = active && runtimeLabel
                 ? runtimeLabel
                 : active
                   ? "실행중"
                   : card.removable
-                    ? card.memo || card.description
-                    : card.description}
-            </PretendardFont>
+                    ? card.memo ?? ""
+                    : card.description;
+              if (!text) return null;
+              return (
+                <PretendardFont
+                  weight="medium"
+                  numberOfLines={2}
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 18,
+                    color: active ? C.stIconBadgeOn : C.sec,
+                  }}
+                >
+                  {text}
+                </PretendardFont>
+              );
+            })()}
           </View>
         </CardShell>
       </Pressable>

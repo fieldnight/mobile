@@ -15,7 +15,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
-import { PullToRefresh } from "@/components/refresh/RefreshControl";
 import { useScrollHeader } from "@/hooks";
 import { useAssistantChat } from "@/features/assistant";
 import {
@@ -123,7 +122,6 @@ export default function BeeChatScreen() {
     startNewConversation,
     selectConversation,
     deleteConversation,
-    reloadHistory,
   } = useAssistantChat();
 
   const hasUserMessage = visibleMessages.some(
@@ -182,10 +180,6 @@ export default function BeeChatScreen() {
     sendWithHaptic(inputText);
   }, [inputText, sendWithHaptic]);
 
-  const handleRefresh = useCallback(async () => {
-    await reloadHistory();
-  }, [reloadHistory]);
-
   const startGuide = useCallback(() => {
     setNoticeVisible(false);
     setGuideVisible(true);
@@ -222,9 +216,8 @@ export default function BeeChatScreen() {
         isScrolled={isScrolled}
       />
 
-      <PullToRefresh
+      <ScrollView
         ref={scrollRef}
-        onRefresh={handleRefresh}
         className="flex-1"
         contentContainerClassName="px-4 pb-2 pt-[72px]"
         keyboardShouldPersistTaps="handled"
@@ -245,7 +238,7 @@ export default function BeeChatScreen() {
         ))}
 
         {isSending ? <AssistantTypingBubble /> : null}
-      </PullToRefresh>
+      </ScrollView>
 
       {hasUserMessage ? (
         <ScrollView

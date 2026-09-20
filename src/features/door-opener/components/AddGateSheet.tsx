@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -28,7 +28,7 @@ const EMPTY_FORM: GateFormInput = {
 const FORM_PANEL_BG = "#EEF2F6";
 
 function normalizeGateMacAddress(value: string) {
-  return normalizeHiveDeviceId(value).toLowerCase();
+  return normalizeHiveDeviceId(value).toUpperCase();
 }
 
 function normalizeGateName(value: string) {
@@ -74,6 +74,7 @@ function getDuplicateGateMessage({
  */
 export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
   const editing = !!gate;
+  const uiEpoch = useRef(0);
   const gates = useGateStore((state) => state.gates);
   const addGate = useGateStore((state) => state.addGate);
   const updateGate = useGateStore((state) => state.updateGate);
@@ -84,6 +85,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
   const [provisionedDeviceId, setProvisionedDeviceId] = useState("");
 
   useEffect(() => {
+    uiEpoch.current++;
     if (!visible) return;
     setWifiSetupVisible(false);
     setProvisionedDeviceId("");
@@ -99,6 +101,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
           }
         : EMPTY_FORM,
     );
+    return () => { uiEpoch.current++; };
   }, [gate, visible]);
 
   const normalizedFormMac = normalizeHiveDeviceId(form.macAddress);
@@ -112,6 +115,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
   };
 
   const resetAndClose = () => {
+    uiEpoch.current++;
     setForm(EMPTY_FORM);
     setWifiSetupVisible(false);
     setProvisionedDeviceId("");
@@ -122,10 +126,11 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
     const normalizedDeviceId = normalizeGateMacAddress(deviceId);
     setProvisionedDeviceId(normalizedDeviceId);
     if (!editing) updateField("macAddress", normalizedDeviceId);
-    showToast("개폐기 Wi-Fi 연결을 확인했어요", "success");
+    showToast("개폐기에 Wi-Fi 정보를 저장했어요", "success");
   };
 
   const handleSubmit = () => {
+    if (registerGateMutation.isPending) return;
     if (!canSubmit) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -154,6 +159,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
       return;
     }
 
+    const submittedEpoch = uiEpoch.current;
     registerGateMutation.mutate(
       {
         macAddress: payload.macAddress,
@@ -164,10 +170,12 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
       {
         onSuccess: ({ gateId }) => {
           addGate({ ...payload, id: String(gateId), gateId });
+          if (submittedEpoch !== uiEpoch.current) return;
           showToast(`${payload.name} 개폐기를 등록했어요`, "success");
           resetAndClose();
         },
         onError: (error) => {
+          if (submittedEpoch !== uiEpoch.current) return;
           showToast(getGateDeviceErrorMessage(error, "개폐기 등록에 실패했어요"), "error");
         },
       },
@@ -191,12 +199,10 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
         </PretendardFont>
       </View>
 
-      {!editing ? (
-        <WifiSetupCard
-          completedDeviceId={provisionedDeviceId}
-          onPress={() => setWifiSetupVisible(true)}
-        />
-      ) : null}
+      <WifiSetupCard
+        completedDeviceId={provisionedDeviceId}
+        onPress={() => setWifiSetupVisible(true)}
+      />
 
       <FieldLabel label="개폐기 번호" required hint={editing ? "수정 불가" : undefined} />
       <FormInput
@@ -267,6 +273,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
       <GateWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
+        mode={editing ? "change" : "register"}
         initialDeviceId={form.macAddress}
         onProvisioned={handleWifiProvisioned}
       />
@@ -302,13 +309,13 @@ function WifiSetupCard({
       </View>
       <View className="flex-1">
         <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
-          {completed ? `${completedDeviceId} Wi-Fi 연결 확인 완료` : "개폐기 Wi-Fi 연결"}
+          {completed ? `${completedDeviceId} Wi-Fi 정보 저장 완료` : "개폐기 Wi-Fi 연결"}
         </PretendardFont>
         <PretendardFont
           style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: C.sec }}
         >
           {completed
-            ? "확인 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요."
+            ? "저장 완료 · 이 MAC 주소로 등록을 마무리합니다."
             : "처음 설치하는 개폐기라면 먼저 진행해주세요."}
         </PretendardFont>
       </View>

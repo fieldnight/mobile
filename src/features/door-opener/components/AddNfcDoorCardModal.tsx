@@ -7,18 +7,17 @@ import { C } from "@/constants/hive-colors";
 import {
   NO_REPEAT_DAYS,
   isRepeatDaysEmpty,
-  isTimeWindowAllDay,
   type BeeCountControlConfig,
   type GateOpenState,
   type NfcDoorFunction,
   type RepeatDays,
 } from "./nfcDoorCards";
 
-/** 마릿수 슬라이더 상한. 이 값에 도달하면 "무제한"으로 취급해요(그림의 ∞에 대응). */
+/** 마릿수 슬라이더 상한. 99도 실제 정량값입니다. */
 const COUNT_MAX = 99;
-/** 시간 슬라이더는 하루(0~24시)를 30분 단위로 다룹니다. 값의 단위는 "시(hour, 소수)". */
+/** 시간 슬라이더는 하루(0~24시)를 1시간 단위로 다룹니다. 서버가 정수 시(0~24)만 받기 때문입니다. */
 const HOUR_MAX = 24;
-const HOUR_STEP = 0.5;
+const HOUR_STEP = 1;
 
 const FUNCTION_OPTIONS: Array<{ value: NfcDoorFunction; label: string }> = [
   { value: "open_at", label: "열기 예약" },
@@ -42,13 +41,12 @@ const DAY_OPTIONS: Array<{ key: keyof RepeatDays; label: string }> = [
 const FORM_PANEL_BG = "#EEF2F6";
 
 function makeTime(hour: number, minute: number) {
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
-  return date;
+  return new Date(2000, 0, 1, hour, minute, 0, 0);
 }
 
 /** Date -> 슬라이더가 다루는 "하루 중 시(0~24, 0.5 단위)" 값. */
 function dateToHourValue(date: Date) {
+  if (date.getDate() === 2) return HOUR_MAX;
   const hour = date.getHours() + date.getMinutes() / 60;
   return Math.round(hour / HOUR_STEP) * HOUR_STEP;
 }
@@ -58,13 +56,11 @@ function hourValueToDate(hourValue: number) {
   const clamped = Math.min(HOUR_MAX, Math.max(0, hourValue));
   const hour = Math.floor(clamped);
   const minute = Math.round((clamped - hour) * 60);
-  return makeTime(hour === HOUR_MAX ? 23 : hour, hour === HOUR_MAX ? 59 : minute);
+  return makeTime(hour, minute);
 }
 
 function formatHourValueLabel(hourValue: number) {
-  const hour = Math.floor(hourValue);
-  const minute = Math.round((hourValue - hour) * 60);
-  return minute === 0 ? `${hour}시` : `${hour}시${minute}분`;
+  return `${Math.round(hourValue)}시`;
 }
 
 function formatHourEdgeLabel(hourValue: number) {
@@ -87,28 +83,15 @@ function hourValueToHHMM(hourValue: number) {
 }
 
 function formatCountLabel(value: number) {
-  return value >= COUNT_MAX ? `${COUNT_MAX}+` : `${value}`;
+  return `${value}`;
 }
 
 function toHourMinuteString(date: Date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatClock12(date: Date) {
-  const hours = date.getHours();
-  const meridiem = hours < 12 ? "오전" : "오후";
-  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
-  return `${meridiem} ${displayHour}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return hourValueToHHMM(dateToHourValue(date));
 }
 
 function isSameClock(a: Date, b: Date) {
-  return a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes();
-}
-
-function describeRepeatDaysShort(days: RepeatDays) {
-  if (isRepeatDaysEmpty(days)) return "단발성";
-  const active = DAY_OPTIONS.filter((option) => days[option.key]).map((option) => option.label);
-  return active.length === 7 ? "매일" : active.join("");
+  return dateToHourValue(a) === dateToHourValue(b);
 }
 
 const DEFAULT_COUNT_CONTROL: BeeCountControlConfig = {
@@ -152,28 +135,11 @@ export function AddNfcDoorCardModal({
   const changeControlMode = (nextMode: ControlMode) => {
     setControlMode(nextMode);
     setFunctionType(nextMode === "time" ? "open_at" : "count_control");
+    if (nextMode === "time" && dateToHourValue(time) === HOUR_MAX) {
+      setTime(makeTime(23, 30));
+    }
     setRepeat(false);
   };
-
-  const detail = useMemo(() => {
-    if (isCountControl) {
-      const timeWindowText = isTimeWindowAllDay(countControl)
-        ? ""
-        : ` · ${countControl.timeWindowStart}~${countControl.timeWindowEnd}`;
-      return `현재 활동중인 벌 마릿수 · ${formatCountLabel(countControl.low)}~${formatCountLabel(countControl.high)}마리 구간 · ${describeRepeatDaysShort(countControl.repeatDays)}${timeWindowText}`;
-    }
-    if (functionType === "window") {
-      if (isSameClock(windowStart, windowEnd))
-        return `${formatClock12(windowStart)}부터 24시간 전체`;
-      return `${formatClock12(windowStart)} ~ ${formatClock12(windowEnd)}`;
-    }
-    if (functionType === "alternate_24h") {
-      return repeat
-        ? "24시간 닫기와 24시간 열기를 계속 반복"
-        : "24시간 닫고 24시간 연 뒤 종료";
-    }
-    return formatClock12(time);
-  }, [countControl, functionType, isCountControl, repeat, time, windowEnd, windowStart]);
 
   const autoTitle = useMemo(() => {
     if (isCountControl) {
@@ -201,11 +167,12 @@ export function AddNfcDoorCardModal({
   };
 
   const submit = () => {
-    const selectedTime = toHourMinuteString(time);
+    const selectedTime = functionType === "open_at" && dateToHourValue(time) === HOUR_MAX
+      ? "23:30" : toHourMinuteString(time);
     onSubmit({
       title: autoTitle,
       functionType,
-      detail,
+      detail: "",
       memo: memo.trim() || undefined,
       repeat: isCountControl ? !isRepeatDaysEmpty(countControl.repeatDays) : repeat,
       start: isCountControl
@@ -282,7 +249,12 @@ export function AddNfcDoorCardModal({
               return (
                 <Pressable
                   key={option.value}
-                  onPress={() => setFunctionType(option.value)}
+                  onPress={() => {
+                    setFunctionType(option.value);
+                    if (option.value === "open_at" && dateToHourValue(time) === HOUR_MAX) {
+                      setTime(makeTime(23, 30));
+                    }
+                  }}
                   className="items-center rounded-2xl px-4 py-2.5 active:opacity-70"
                   style={{
                     minWidth: "47%",
@@ -648,9 +620,9 @@ function TimeSingleSliderField({
     <View className="px-1 py-3">
       <SingleRangeSlider
         min={0}
-        max={HOUR_MAX}
+        max={activeSide === "after" ? HOUR_MAX - HOUR_STEP : HOUR_MAX}
         step={HOUR_STEP}
-        value={dateToHourValue(value)}
+        value={Math.min(dateToHourValue(value), activeSide === "after" ? HOUR_MAX - HOUR_STEP : HOUR_MAX)}
         onChange={(next) => onChange(hourValueToDate(next))}
         activeSide={activeSide}
         formatEdgeLabel={formatHourEdgeLabel}

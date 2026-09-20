@@ -13,6 +13,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -168,7 +169,7 @@ export default function HiveLiveScreen() {
         <View className="h-9 w-9" />
       </View>
 
-      <ScrollView
+      <BounceScrollView
         className="flex-1"
         contentContainerStyle={{
           padding: 16,
@@ -351,7 +352,7 @@ export default function HiveLiveScreen() {
             <LiveTelemetryTable records={records} />
           )}
         </Card>
-      </ScrollView>
+      </BounceScrollView>
     </ImageBackground>
   );
 }

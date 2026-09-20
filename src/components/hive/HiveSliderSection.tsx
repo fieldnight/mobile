@@ -359,8 +359,18 @@ export function HiveSliderSection({
           }}
           resizeMode="contain"
         />
-        {/* 연결 상태 배지 + 위치 — 이미지 위에 absolute 고정 */}
-        <View style={{ position: "absolute", top: 35, right: 30, zIndex: 10 }}>
+        {/* 페이지 인디케이터 + 연결 상태 배지 + 위치 — 이미지 위에 absolute 고정 */}
+        <View style={{ position: "absolute", top: 12, right: 30, zIndex: 10, alignItems: "flex-end" }}>
+          {hives.length > 1 ? (
+            <View
+              className="mb-2 rounded-full px-3 py-1"
+              style={{ backgroundColor: "rgba(25, 31, 40, 0.12)" }}
+            >
+              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt }}>
+                {selectedIndex + 1}/{hives.length}
+              </PretendardFont>
+            </View>
+          ) : null}
           <StatusBadge
             status={hives[selectedIndex]?.status ?? "offline"}
             location={hives[selectedIndex]?.location}
@@ -408,18 +418,6 @@ export function HiveSliderSection({
             </Pressable>
           ))}
         </ScrollView>
-      </View>
-
-      {/* 페이지 인디케이터 */}
-      <View className="mt-3 ml-[-280] items-center">
-        <View
-          className="rounded-full px-3 py-1"
-          style={{ backgroundColor: "rgba(25, 31, 40, 0.12)" }}
-        >
-          <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt }}>
-            {selectedIndex + 1}/{hives.length}
-          </PretendardFont>
-        </View>
       </View>
     </View>
   );

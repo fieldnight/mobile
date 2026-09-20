@@ -19,8 +19,8 @@ const MODE_OPTIONS: Array<{ value: GateOperatingMode; label: string }> = [
  * 모드를 바꾸거나 개폐기를 등록해도 즉시 서로 반영됩니다.
  * 삼성 스마트싱스 상단바처럼 배경 박스를 전혀 두지 않고, 뒤 배경 이미지가 그대로
  * 비치는 완전 투명한 영역 위에 텍스트/아이콘만 놓습니다. 선택 상태는 배경색이 아니라
- * 글자 굵기·색(흰색 강조 vs 반투명 흰색)으로만 구분합니다.
- * - 오프라인(NFC): 토글만 보이고 그 아래는 기존 동작 그대로입니다.
+ * 어두운 글자 굵기·색으로만 구분합니다.
+ * - 오프라인(NFC): 온라인 전환을 비활성화하고 재부팅 후 시간 동기화를 안내합니다.
  * - 온라인: 토글 옆에 "전체 개폐기" 드롭다운 트리거 + 등록(+) 버튼이 뜨고,
  *   드롭다운을 펼치면 등록된 개폐기 목록이 아코디언으로 펼쳐집니다. 목록에서
  *   개폐기를 고르면 수정 시트가 열립니다. 실제로 어떤 카드를 어떤 개폐기에
@@ -50,17 +50,22 @@ export function GateModeSection() {
       style={{
         paddingHorizontal: 18,
         paddingTop: 4,
-        paddingBottom: 14,
+        paddingBottom: 8,
         zIndex: dropdownOpen ? 50 : 0,
       }}
     >
-      <View className="flex-row items-center" style={{ gap: 18 }}>
-        <View className="flex-row items-center" style={{ gap: 14 }}>
+      <View
+        className="flex-row items-center"
+        style={{ flexWrap: "wrap", columnGap: 12, rowGap: 6 }}
+      >
+        <View className="flex-row items-center" style={{ gap: 14, flexShrink: 0 }}>
           {MODE_OPTIONS.map((option) => {
             const selected = option.value === mode;
             return (
               <Pressable
                 key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
                 onPress={() => {
                   setMode(option.value);
                   if (option.value === "offline") setDropdownOpen(false);
@@ -69,7 +74,7 @@ export function GateModeSection() {
               >
                 <PretendardFont
                   weight={selected ? "bold" : "semibold"}
-                  style={{ fontSize: 14.5, color: selected ? C.white : "rgba(255,255,255,0.55)" }}
+                  style={{ fontSize: 14.5, color: selected ? C.text : C.textAlt }}
                 >
                   {option.label}
                 </PretendardFont>
@@ -88,14 +93,14 @@ export function GateModeSection() {
               <PretendardFont
                 weight="semibold"
                 numberOfLines={1}
-                style={{ fontSize: 13.5, color: "rgba(255,255,255,0.85)", flexShrink: 1 }}
+                style={{ fontSize: 13.5, color: C.textAlt, flexShrink: 1 }}
               >
                 {gates.length === 0 ? "등록된 개폐기 없음" : `전체 개폐기 (${gates.length})`}
               </PretendardFont>
               <Feather
                 name={dropdownOpen ? "chevron-up" : "chevron-down"}
                 size={15}
-                color="rgba(255,255,255,0.85)"
+                color={C.textAlt}
               />
             </Pressable>
 
@@ -106,7 +111,7 @@ export function GateModeSection() {
               accessibilityLabel="개폐기 추가"
               className="active:opacity-70"
             >
-              <Feather name="plus" size={18} color="rgba(255,255,255,0.85)" />
+              <Feather name="plus" size={18} color={C.textAlt} />
             </Pressable>
           </>
         ) : null}

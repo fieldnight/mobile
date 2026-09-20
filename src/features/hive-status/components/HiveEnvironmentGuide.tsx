@@ -27,7 +27,6 @@ export function HiveEnvironmentGuide() {
       delay={300}
       className="mb-10"
       style={{
-        marginHorizontal: -14,
         backgroundColor: "rgba(255,255,255,0.643)",
         elevation: 0,
       }}

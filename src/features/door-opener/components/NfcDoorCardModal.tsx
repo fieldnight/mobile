@@ -6,6 +6,7 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   View,
 } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
@@ -136,10 +137,12 @@ export function NfcDoorCardModal({
       onActivated?.(card);
 
       console.log("[NFC Door Card Modal] HCE 카드 활성화 완료", toHceCardPayload(card));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
 
-    activate();
+    activate().catch((error: unknown) => {
+      stopRipple();
+      setHceActivateError(error instanceof Error ? error.message : "NFC 카드 설정을 확인해주세요.");
+    });
 
     return () => {
       stopRipple();
@@ -209,7 +212,6 @@ export function NfcDoorCardModal({
       onRequestClose={closeWithSlide}
     >
       <View
-        {...panResponder.panHandlers}
         className="flex-1 items-center justify-center"
         style={{ backgroundColor: "rgba(0,0,0,0.72)" }}
       >
@@ -219,15 +221,17 @@ export function NfcDoorCardModal({
         />
 
         <Animated.View
-          {...panResponder.panHandlers}
           style={{
             position: "absolute",
-            top: "28%",
+            top: "12%",
+            bottom: "8%",
             width: ACTIVE_CARD_W,
             transform: [{ translateY }],
           }}
         >
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
           <View
+            {...panResponder.panHandlers}
             style={{
               height: ACTIVE_CARD_H,
               borderRadius: 14,
@@ -282,17 +286,33 @@ export function NfcDoorCardModal({
               >
                 {card.title}
               </PretendardFont>
-              <PretendardFont
-                weight="semibold"
-                style={{
-                  fontSize: 16,
-                  lineHeight: 23,
-                  color: C.textAlt,
-                  marginTop: 3,
-                }}
-              >
-                {card.removable ? card.memo || card.description : card.description}
-              </PretendardFont>
+              {card.removable ? (
+                card.memo ? (
+                  <PretendardFont
+                    weight="semibold"
+                    style={{
+                      fontSize: 16,
+                      lineHeight: 23,
+                      color: C.textAlt,
+                      marginTop: 3,
+                    }}
+                  >
+                    {card.memo}
+                  </PretendardFont>
+                ) : null
+              ) : (
+                <PretendardFont
+                  weight="semibold"
+                  style={{
+                    fontSize: 16,
+                    lineHeight: 23,
+                    color: C.textAlt,
+                    marginTop: 3,
+                  }}
+                >
+                  {card.description}
+                </PretendardFont>
+              )}
 
               {card.detail ? (
                 <View
@@ -319,7 +339,9 @@ export function NfcDoorCardModal({
               weight="bold"
               style={{ fontSize: 19, color: C.white, textAlign: "center" }}
             >
-              개폐기 NFC 리더기에{"\n"}휴대폰을 가까이 대주세요
+              {hceResult?.status === "ok"
+                ? "개폐기에 카드가 반영됐어요"
+                : "개폐기 NFC 리더기에\n휴대폰을 가까이 대주세요"}
             </PretendardFont>
             <PretendardFont
               weight="semibold"
@@ -332,7 +354,14 @@ export function NfcDoorCardModal({
             >
               {hceStatus.message}
             </PretendardFont>
+            <PretendardFont
+              style={{ fontSize: 12, lineHeight: 18, color: "rgba(255,255,255,0.7)", textAlign: "center" }}
+            >
+              알림이 안 오면 휴대폰을 떼고 2초 이상 기다린 뒤 다시 대주세요.{"\n"}
+              알림을 못 받아도 이미 적용됐을 수 있어요.
+            </PretendardFont>
           </View>
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
@@ -346,14 +375,14 @@ function getHceStatus(result: HceResultEvent | null, activateError: string | nul
 
   if (!result) {
     return {
-      message: "카드를 전송한 뒤 개폐기 적용 결과를 기다리고 있어요",
+      message: "통신에 시간이 걸릴 수 있어요.\n적용 완료 알림이 올 때까지\n휴대폰을 떼지 말고 대고 있어주세요.",
       color: "rgba(255,255,255,0.78)",
     };
   }
 
   if (result.status === "ok") {
     return {
-      message: "개폐기에 반영됐어요",
+      message: "통계도 받으려면 잠시 더 대고 있어주세요.",
       color: "#DDFBEA",
     };
   }

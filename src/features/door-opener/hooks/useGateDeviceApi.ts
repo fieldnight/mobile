@@ -68,6 +68,9 @@ export function useGateDeviceTelemetry({
         });
       }
 
+      if (temperatureResult.status === "rejected") throw temperatureResult.reason;
+      if (humidityResult.status === "rejected") throw humidityResult.reason;
+
       return {
         temperature:
           temperatureResult.status === "fulfilled"
