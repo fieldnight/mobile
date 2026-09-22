@@ -81,18 +81,15 @@ test("single measurement and repeated zoom keep finite usable axes", () => {
   assert.ok(Number.isFinite(viewport.min + viewport.max));
 });
 
-test("large histories compute statistics and domains without argument-count limits", () => {
+test("large histories compute statistics without argument-count limits", () => {
   const data = Array.from({ length: 300000 }, (_, index) => point(index % 100));
   assert.deepEqual(model.sensorStats(data, key), { avg: 49.5, min: 0, max: 99 });
-  const domain = model.valueDomain(data, [key]);
-  assert.ok(domain.min < 0 && domain.max > 99);
 });
 
-test("the visible domain includes edge interpolation and excludes distant outliers", () => {
+test("temperature and humidity domains are fixed to -20..100 regardless of the data range", () => {
   const data = [point(-1000), point(0), point(null), point(20), point(1000)];
-  const domain = model.valueDomain(data, [key], 1.2, 2.8);
-  assert.ok(domain.min < 0 && domain.min > -100);
-  assert.ok(domain.max > 20 && domain.max < 100);
+  assert.deepEqual(model.valueDomain(data, [key], 1.2, 2.8), { min: -20, max: 100 });
+  assert.deepEqual(model.valueDomain(data, ["internalHumidity"]), { min: -20, max: 100 });
   assert.deepEqual(model.valueDomain(data, ["co2"]), { min: 0, max: 1 });
 });
 

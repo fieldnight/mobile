@@ -19,13 +19,7 @@ export function HiveReplacementTable({ hiveId }: HiveReplacementTableProps) {
   const history = historyQuery.data?.content ?? [];
 
   return (
-    <Card
-      delay={200}
-      style={{
-        backgroundColor: "rgba(255,255,255,0.72)",
-        elevation: 0,
-      }}
-    >
+    <Card delay={200} translucent>
       <View className="mb-4 flex-row items-center justify-between">
         <View>
           <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>

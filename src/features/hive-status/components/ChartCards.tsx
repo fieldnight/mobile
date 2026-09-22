@@ -62,7 +62,7 @@ const SensorLines = memo(function SensorLines({ sensors, start, span, min, max, 
           <Path d={path} stroke={sensor.color} strokeWidth={2.25} fill="none" strokeLinecap="round"
             strokeLinejoin="round" strokeDasharray={sensor.dashed ? "5 4" : undefined} />
           {span <= 10 || segment.length === 1 ? segment.map((point) =>
-            <Circle key={point.index} cx={x(point.index)} cy={y(point.value)} r={2.5} fill={sensor.color} />) : null}
+            <Circle key={point.index} cx={x(point.index)} cy={y(point.value)} r={5} fill={sensor.color} />) : null}
         </G>;
       })}
     </G>)}
@@ -80,7 +80,7 @@ const SensorReadings = memo(function SensorReadings({ sensors, selected }: {
       return <View key={sensor.key} style={styles.reading}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${sensor.label} 기간 평균, 최저, 최고 보기`}
           onPressIn={() => setStatsPopupKey(sensor.key)} onPressOut={() => setStatsPopupKey(null)}
-          style={{ minHeight: 48 }}>
+          style={{ minHeight: 56, backgroundColor: C.bgAlt, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8 }}>
           <View style={[styles.inline, { gap: 4 }]}>
             <View style={{ width: 8, borderTopWidth: 2, borderTopColor: sensor.color, borderStyle: sensor.dashed ? "dashed" : "solid" }} />
             <PretendardFont weight="medium" numberOfLines={1} style={{ fontSize: 11, color: C.textAlt, flexShrink: 1 }}>{sensor.label}</PretendardFont>
@@ -109,9 +109,12 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
 }) {
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const isSingleSensor = sensors.length === 1;
   const height = expanded
     ? Math.max(140, window.height - insets.top - insets.bottom - 218)
-    : Math.max(300, Math.min(410, window.height * 0.43));
+    : isSingleSensor
+      ? Math.max(150, Math.min(205, window.height * 0.215))
+      : Math.max(300, Math.min(410, window.height * 0.43));
   const plotHeight = height - PAD_Y * 2;
   const [plotWidth, setPlotWidth] = useState(240);
   const keys = useMemo(() => sensors.map((sensor) => sensor.key), [sensors]);
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
   inline: { flexDirection: "row", alignItems: "center", gap: 6 },
   selectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   caption: { fontSize: 11, color: C.textAlt, flex: 1 },
-  readings: { flexDirection: "row", gap: 4, zIndex: 2 },
+  readings: { flexDirection: "row", gap: 6, zIndex: 2 },
   reading: { flex: 1, minWidth: 64 },
   statsPopup: {
     position: "absolute", bottom: "100%", marginBottom: 6, zIndex: 10,

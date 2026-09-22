@@ -19,7 +19,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KMA_REGIONS } from "@/types";
-import { BeeBoxCard } from "@/components/BeeboxCard";
+import { Card } from "@/components/hive/hive-shared";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -116,7 +116,7 @@ export default function HiveSettingsScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row items-center justify-between rounded-2xl border border-white/50 bg-white/70 px-4 py-3">
+        <Card translucent style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View className="flex-row items-center gap-2.5">
             <View className="h-8 w-8 items-center justify-center rounded-full bg-gray-900">
               <Feather name="clock" size={16} color={C.white} />
@@ -126,17 +126,17 @@ export default function HiveSettingsScreen() {
                 weight="bold"
                 className="text-[14px] text-gray-900"
               >
-                실시간 데이터는 5분마다 업데이트돼요
+                실시간 데이터는 수신 즉시 반영돼요
               </PretendardFont>
               <PretendardFont className="mt-0.5 text-[12px] leading-[17px] text-gray-800">
-                센서 데이터는 최대 5분 기준 안에서 반영돼요.
+                벌통 센서 값이 도착하면 화면이 바로 업데이트돼요.
               </PretendardFont>
             </View>
           </View>
           <Feather name="info" size={18} color={C.sec} />
-        </View>
+        </Card>
 
-        <BeeBoxCard variant="setting">
+        <Card translucent>
           <View className="flex-row items-center gap-3">
             <View
               className="h-10 w-10 items-center justify-center rounded-full"
@@ -203,9 +203,9 @@ export default function HiveSettingsScreen() {
               Wi-Fi 연결·변경
             </PretendardFont>
           </Pressable>
-        </BeeBoxCard>
+        </Card>
 
-        <BeeBoxCard delay={200} variant="setting">
+        <Card delay={200} translucent>
           <View className="mb-3 flex-row items-center gap-2.5">
             <View
               className="items-center justify-center rounded-lg p-2"
@@ -296,7 +296,7 @@ export default function HiveSettingsScreen() {
               onSelect={handleSelectRegion}
             />
           )}
-        </BeeBoxCard>
+        </Card>
       </BounceScrollView>
 
       {savedMessage && (

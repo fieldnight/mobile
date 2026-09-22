@@ -42,7 +42,15 @@ export function latestSensorIndex(data: DataPoint[], keys: HiveSensorDataKey[]) 
   return -1;
 }
 
+// 온도(°C)·습도(%) 센서는 항상 이 고정 범위로 표시합니다.
+// 데이터 편차에 따라 y축이 널뛰며 비현실적인 값(예: 300°C)까지 확대되는 것을 막습니다.
+const FIXED_DOMAIN_MIN = -20;
+const FIXED_DOMAIN_MAX = 100;
+
 export function valueDomain(data: DataPoint[], keys: HiveSensorDataKey[], start = 0, end = data.length - 1) {
+  if (keys.some((key) => key.includes("Temperature") || key.includes("Humidity"))) {
+    return { min: FIXED_DOMAIN_MIN, max: FIXED_DOMAIN_MAX };
+  }
   let lowest = Infinity;
   let highest = -Infinity;
   const last = Math.min(data.length - 1, Math.ceil(end));
@@ -77,7 +85,7 @@ export function clampViewport(viewport: ChartViewport, count: number): ChartView
 export function initialViewport(data: DataPoint[], keys: HiveSensorDataKey[], showAll = false): ChartViewport {
   const latest = Math.max(0, latestSensorIndex(data, keys));
   const totalSpan = Math.max(1, data.length - 1);
-  const span = showAll ? totalSpan : Math.min(totalSpan, 8);
+  const span = showAll ? totalSpan : Math.min(totalSpan, 16);
   const start = showAll ? 0 : Math.max(0, Math.min(totalSpan - span, latest - span * 0.8));
   return { start, span, ...valueDomain(data, keys, start, start + span) };
 }

@@ -105,14 +105,14 @@ test("scrubbing updates every crossed sample while haptics are throttled and unc
   assert.deepEqual(h.haptics, [240]);
   h.advance(10);
   h.controller.move([touch(140)]);
-  assert.equal(h.snapshot().selectedIndex, 115);
+  assert.equal(h.snapshot().selectedIndex, 110);
   assert.deepEqual(h.haptics, [240]);
   h.advance(61);
   h.controller.move([touch(200)]);
-  assert.equal(h.snapshot().selectedIndex, 116);
+  assert.equal(h.snapshot().selectedIndex, 114);
   h.advance(19);
   h.controller.move([touch(250)]);
-  assert.equal(h.snapshot().selectedIndex, 118);
+  assert.equal(h.snapshot().selectedIndex, 116);
   h.advance(51);
   h.controller.move([touch(300)]);
   assert.equal(h.snapshot().selectedIndex, 119);
@@ -176,14 +176,19 @@ test("one to two to one finger transitions rebase without jumps or a post-pinch 
   closeTo(panned.min, pinched.min + (pinched.max - pinched.min) * 20 / 200);
   h.controller.end();
   h.settle();
-  assert.deepEqual(h.snapshot().viewport, panned);
+  // Releasing always snaps the value axis back to the fixed temperature/humidity domain;
+  // only the time axis (start/span) carries over from the pan.
+  assert.equal(h.snapshot().viewport.start, panned.start);
+  assert.equal(h.snapshot().viewport.span, panned.span);
+  assert.deepEqual({ min: h.snapshot().viewport.min, max: h.snapshot().viewport.max }, { min: -20, max: 100 });
   assert.equal(h.haptics.length, 0);
 });
 
-test("horizontal dragging fixes the value axis, then smoothly fits the released interval", () => {
+test("horizontal dragging keeps the fixed temperature/humidity value axis throughout and after release", () => {
   const data = Array.from({ length: 120 }, (_, index) => point(index < 110 ? 10 : 40, index));
   const h = harness({ data });
   const initial = h.snapshot().viewport;
+  assert.deepEqual({ min: initial.min, max: initial.max }, { min: -20, max: 100 });
   h.controller.start([touch(0)]);
   h.advance(32);
   h.controller.move([touch(400, 85)]);
@@ -192,15 +197,9 @@ test("horizontal dragging fixes the value axis, then smoothly fits the released 
   assert.equal(dragged.max, initial.max);
   h.advance(100);
   h.controller.end();
-  assert.deepEqual(h.snapshot().viewport, dragged);
-  h.frame(90);
-  const midway = h.snapshot().viewport;
-  assert.equal(midway.start, dragged.start);
-  assert.ok(midway.min < dragged.min);
-  h.frame(100);
-  const expected = chartModel.valueDomain(data, [key], dragged.start, dragged.start + dragged.span);
-  closeTo(h.snapshot().viewport.min, expected.min);
-  closeTo(h.snapshot().viewport.max, expected.max);
+  h.settle();
+  assert.equal(h.snapshot().viewport.start, dragged.start);
+  assert.deepEqual({ min: h.snapshot().viewport.min, max: h.snapshot().viewport.max }, { min: -20, max: 100 });
   assert.equal(h.frames.size, 0);
 });
 
@@ -224,7 +223,7 @@ test("a fling keeps moving after release and a new touch stops it immediately", 
   h.controller.cancel();
 });
 
-test("a paused drag does not fling and a vertical drag preserves its chosen value range", () => {
+test("a paused drag does not fling, and releasing a vertical drag snaps back to the fixed value range", () => {
   const h = harness();
   h.controller.start([touch(100, 40)]);
   h.advance(32);
@@ -233,7 +232,8 @@ test("a paused drag does not fling and a vertical drag preserves its chosen valu
   h.advance(100);
   h.controller.end();
   h.settle();
-  assert.deepEqual(h.snapshot().viewport, dragged);
+  assert.equal(h.snapshot().viewport.start, dragged.start);
+  assert.deepEqual({ min: h.snapshot().viewport.min, max: h.snapshot().viewport.max }, { min: -20, max: 100 });
 });
 
 test("reduced motion skips momentum and applies the released domain without animation", () => {

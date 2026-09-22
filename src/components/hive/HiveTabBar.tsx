@@ -47,7 +47,15 @@ function HiveTabButton({
       >
         {label}
       </PretendardFont>
-
+      <View
+        style={{
+          marginTop: 6,
+          height: 2.5,
+          width: active ? 18 : 0,
+          borderRadius: 2,
+          backgroundColor: C.text,
+        }}
+      />
     </Pressable>
   );
 }
@@ -58,8 +66,8 @@ export function HiveTabBar({ style }: { style?: ViewStyle }) {
 
   return (
     <View style={style}>
-      {/* 공통 상단바 높이에 맞춘 텍스트 탭입니다. 개폐기 탭바와 동일하게 배경 없이 글자만 둡니다. */}
-      <View className="h-14 flex-row items-end px-2">
+      {/* 공통 상단바 높이에 맞춘 텍스트 탭입니다. 선택된 탭 아래 밑줄로 현재 위치를 표시합니다. */}
+      <View className="h-14 flex-row items-center px-2">
         {TABS.map((tab) => {
           const routeKey = tab.route.replace("/", "");
           return (

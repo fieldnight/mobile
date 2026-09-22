@@ -106,7 +106,6 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     publish();
   }
   function fitValues() {
-    if (!horizontal) return;
     const { data, keys, reducedMotion } = runtime.options();
     fitFrom = snapshot.viewport;
     fitTarget = { ...fitFrom, ...valueDomain(data, keys, fitFrom.start, fitFrom.start + fitFrom.span) };
@@ -253,7 +252,7 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
       animation = "momentum";
       lastFrameAt = runtime.now();
       publish();
-    } else if (mode === "pan") {
+    } else if (mode === "pan" || mode === "pinch") {
       fitValues();
     }
   }
