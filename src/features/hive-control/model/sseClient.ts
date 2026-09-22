@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import type { ControlResultEvent } from "../api";
+import type { HiveTelemetry } from "@/types/hive-telemetry";
 
 const API_URL =
   Constants.expoConfig?.extra?.apiUrl ??
@@ -7,13 +8,8 @@ const API_URL =
   "https://webeelab.site";
 const RECONNECT_DELAY_MS = 3_000;
 
-export interface HiveTelemetryEvent {
+export interface HiveTelemetryEvent extends HiveTelemetry {
   hiveId: number;
-  internalTemperature: number;
-  internalHumidity: number;
-  externalTemperature: number;
-  externalHumidity: number;
-  co2: number;
   recordedAt: string;
 }
 
@@ -40,29 +36,45 @@ function notifyError(error: unknown) {
   subscribers.forEach((subscriber) => subscriber.onError?.(error));
 }
 
-function parseTelemetry(rawData: string): HiveTelemetryEvent {
+export function parseTelemetry(rawData: string): HiveTelemetryEvent {
   const parsed = JSON.parse(rawData) as Partial<HiveTelemetryEvent>;
-  // co2는 센서 미장착 등의 이유로 null이 내려올 수 있어 필수 검증에서 제외하고 0으로 대체합니다.
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("HIVE_TELEMETRY payload 형식이 올바르지 않습니다.");
+  }
   const numericFields = [
-    parsed.hiveId,
     parsed.internalTemperature,
     parsed.internalHumidity,
     parsed.externalTemperature,
     parsed.externalHumidity,
+    parsed.co2, parsed.peltierDutyPct, parsed.fanHotDutyPct,
+    parsed.fanColdDutyPct, parsed.targetTemperature,
+    parsed.peltierCoolCurrentA, parsed.peltierHeatCurrentA,
   ];
 
   if (
+    !Number.isSafeInteger(parsed.hiveId) || Number(parsed.hiveId) <= 0 ||
     numericFields.some(
-      (value) => typeof value !== "number" || !Number.isFinite(value),
+      (value) => value != null && (typeof value !== "number" || !Number.isFinite(value)),
     ) ||
-    (parsed.co2 != null &&
-      (typeof parsed.co2 !== "number" || !Number.isFinite(parsed.co2))) ||
-    typeof parsed.recordedAt !== "string"
+    [parsed.internalSensorValid, parsed.externalSensorValid].some(
+      (value) => value != null && typeof value !== "boolean",
+    ) ||
+    [parsed.peltierMode, parsed.fanState, parsed.hwIssue, parsed.hwIssueTimestamp].some(
+      (value) => value != null && typeof value !== "string",
+    ) ||
+    typeof parsed.recordedAt !== "string" || !Number.isFinite(Date.parse(parsed.recordedAt))
   ) {
     throw new Error("HIVE_TELEMETRY payload 형식이 올바르지 않습니다.");
   }
 
-  return { ...parsed, co2: parsed.co2 ?? 0 } as HiveTelemetryEvent;
+  return {
+    ...parsed,
+    internalTemperature: parsed.internalSensorValid === false ? null : parsed.internalTemperature ?? null,
+    internalHumidity: parsed.internalSensorValid === false ? null : parsed.internalHumidity ?? null,
+    externalTemperature: parsed.externalSensorValid === false ? null : parsed.externalTemperature ?? null,
+    externalHumidity: parsed.externalSensorValid === false ? null : parsed.externalHumidity ?? null,
+    co2: parsed.co2 ?? null,
+  } as HiveTelemetryEvent;
 }
 
 function dispatchEvent(eventName: string, rawData: string) {
@@ -127,7 +139,8 @@ function startConnection(accessToken: string) {
   const consumeChunk = (chunk: string) => {
     const normalized = `${pendingLine}${chunk}`.replace(/\r\n/g, "\n");
     const lines = normalized.split("\n");
-    pendingLine = normalized.endsWith("\n") ? "" : (lines.pop() ?? "");
+    // 마지막 조각은 다음 청크와 합칩니다. 줄 끝과 이벤트 끝(빈 줄)을 구분합니다.
+    pendingLine = lines.pop() ?? "";
 
     lines.forEach((line) => {
       if (line === "") {

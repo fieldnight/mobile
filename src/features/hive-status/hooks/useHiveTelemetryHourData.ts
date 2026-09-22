@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   getHiveTelemetryHour,
+  collectTelemetryIssues,
   HIVE_TELEMETRY_SENSORS,
   type HiveTelemetryInterval,
   type HiveTelemetryResponse,
   type HiveTelemetrySensorType,
 } from "../api/telemetryApi";
+import type { HiveHardwareIssue } from "@/types/hive-telemetry";
 
 export interface HiveTelemetryHourRecord {
   label: string;
+  issues?: HiveHardwareIssue[];
   internalTemperature: number | null;
   internalHumidity: number | null;
   externalTemperature: number | null;
@@ -77,6 +80,12 @@ export function useHiveTelemetryHourData({
         });
       });
 
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected" && results.every((result) => result.status === "rejected")) {
+        throw failed.reason;
+      }
+      const issues = collectTelemetryIssues(responses);
+
       const maps = {
         internalTemperature: toPointMap(responses.INTERNAL_TEMPERATURE),
         internalHumidity: toPointMap(responses.INTERNAL_HUMIDITY),
@@ -95,6 +104,7 @@ export function useHiveTelemetryHourData({
 
       const merged = labels.map((label) => ({
         label,
+        issues: issues.get(label) ?? [],
         internalTemperature: maps.internalTemperature.get(label) ?? null,
         internalHumidity: maps.internalHumidity.get(label) ?? null,
         externalTemperature: maps.externalTemperature.get(label) ?? null,

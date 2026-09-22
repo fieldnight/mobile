@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { C } from "@/constants/hive-colors";
+import type { HiveTelemetry } from "./hive-telemetry";
 
 export interface ControlSetting {
   id: string;
@@ -15,10 +16,11 @@ export interface HiveData {
   name: string;
   region: string;
   status: "online" | "offline";
-  temperature: number;
-  humidity: number;
-  externalTemperature?: number;
-  externalHumidity?: number;
+  temperature: number | null;
+  humidity: number | null;
+  externalTemperature?: number | null;
+  externalHumidity?: number | null;
+  telemetry?: HiveTelemetry;
   weight: number;
   beeActivity: "high" | "medium" | "low";
   lastUpdate: string;

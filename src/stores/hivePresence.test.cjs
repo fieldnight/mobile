@@ -101,3 +101,20 @@ test('rehydration never restores persisted online status', () => {
   const restored = f.options.merge({ hives: [f.hive] }, f.state);
   assert.equal(restored.hives[0].status, 'offline'); assert.equal(restored.hives[0].temperature, 18);
 });
+
+test('new hardware fields survive list sync; newer null readings clear old values and issues', () => {
+  const f = fixture();
+  const telemetry = { internalTemperature: null, internalHumidity: null, externalTemperature: 0,
+    externalHumidity: 50, internalSensorValid: false, peltierCoolCurrentA: 0,
+    hwIssue: 'SENSOR_READ_FAIL', hwIssueTimestamp: 'UNSYNCED_BOOT', recordedAt: new Date(f.now).toISOString() };
+  f.state.updateHiveTelemetry('a', telemetry);
+  f.state.setHives([{ id: 'a', status: 'offline', name: 'renamed' }]);
+  assert.equal(f.hive.status, 'online'); assert.equal(f.hive.temperature, null);
+  assert.equal(f.hive.telemetry.hwIssue, 'SENSOR_READ_FAIL');
+  assert.equal(f.hive.telemetry.peltierCoolCurrentA, 0);
+  f.tick(1000);
+  f.state.updateHiveTelemetry('a', { ...telemetry, hwIssue: null, recordedAt: new Date(f.now).toISOString() });
+  assert.equal(f.hive.telemetry.hwIssue, null);
+  f.state.updateHiveTelemetry('a', telemetry);
+  assert.equal(f.hive.telemetry.hwIssue, null);
+});

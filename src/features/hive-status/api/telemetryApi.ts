@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
+import type { HiveHardwareIssue } from "@/types/hive-telemetry";
 
 interface ApiResponse<T> {
   code: string;
@@ -19,6 +20,7 @@ export type HiveTelemetrySensorType =
 export interface HiveTelemetryPoint {
   label: string;
   value: number | null;
+  issues?: HiveHardwareIssue[];
 }
 
 export interface HiveTelemetryResponse {
@@ -171,6 +173,23 @@ function toPointMap(response?: HiveTelemetryResponse, normalizeLabel?: (label: s
   );
 }
 
+/** 같은 오류가 센서별 응답마다 반복되므로 코드와 원본 시각으로 중복을 제거합니다. */
+export function collectTelemetryIssues(
+  responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
+  normalizeLabel: (label: string) => string = (label) => label,
+): Map<string, HiveHardwareIssue[]> {
+  const slots = new Map<string, Map<string, HiveHardwareIssue>>();
+  Object.values(responses).forEach((response) => response?.data.forEach((point) => {
+    const label = normalizeLabel(point.label);
+    const issues = slots.get(label) ?? new Map<string, HiveHardwareIssue>();
+    (point.issues ?? []).forEach((issue) => {
+      issues.set(JSON.stringify([issue.code, issue.timestamp]), issue);
+    });
+    slots.set(label, issues);
+  }));
+  return new Map([...slots].map(([label, issues]) => [label, [...issues.values()]]));
+}
+
 function emptyPoint(label: string): DataPoint {
   return {
     label,
@@ -238,6 +257,7 @@ export function mergeTelemetryData(
   period: Period,
 ): DataPoint[] {
   const normalizeLabel = period === "일간" ? normalizeDailyLabel : undefined;
+  const issues = collectTelemetryIssues(responses, normalizeLabel);
   const responseMaps = Object.fromEntries(
     HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
       sensorType,
@@ -264,6 +284,7 @@ export function mergeTelemetryData(
 
   const merged = labels.map((label) => {
     const point = emptyPoint(label);
+    point.issues = issues.get(label) ?? [];
 
     HIVE_TELEMETRY_SENSORS.forEach(({ sensorType, dataKey }) => {
       const value = responseMaps[sensorType].get(label);

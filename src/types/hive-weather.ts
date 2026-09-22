@@ -5,6 +5,7 @@
  */
 
 import type { Feather } from "@expo/vector-icons";
+import type { HiveHardwareIssue } from "./hive-telemetry";
 
 export type Period = "일간" | "주간" | "월간";
 
@@ -17,6 +18,7 @@ export type HiveSensorDataKey =
 
 export interface DataPoint {
   label: string;
+  issues?: HiveHardwareIssue[];
   /** null은 미수신 값이며, 실제 측정값 0과 구분합니다. */
   internalTemperature: number | null;
   externalTemperature: number | null;

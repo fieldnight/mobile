@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { HiveControlState, HiveData, HiveFormInput } from "@/types/hive-control";
 import { initialControls } from "@/types";
 import { mergeHive, refreshPresence } from "./hivePresence";
+import type { HiveTelemetry } from "@/types/hive-telemetry";
 
 /** 화면 표시용 오늘 날짜를 yyyy-MM-dd로 만듭니다. */
 function todayLabel() {
@@ -39,10 +40,10 @@ function createHiveData(input: HiveFormInput): HiveData {
     registeredAt: todayLabel(),
     replacedAt: input.replacedAt,
     status: "offline",
-    temperature: 0,
-    humidity: 0,
-    externalTemperature: 0,
-    externalHumidity: 0,
+    temperature: null,
+    humidity: null,
+    externalTemperature: null,
+    externalHumidity: null,
     weight: 28,
     beeActivity: "low",
     lastUpdate: "연결 확인 중",
@@ -64,13 +65,7 @@ interface HiveStoreState {
   updateConnections: (updates: { id: string; connected: boolean; checkedAt: number }[]) => void;
   updateHiveTelemetry: (
     id: string,
-    telemetry: {
-      internalTemperature: number;
-      internalHumidity: number;
-      externalTemperature: number;
-      externalHumidity: number;
-      recordedAt?: string;
-    },
+    telemetry: HiveTelemetry,
   ) => void;
 }
 
@@ -180,6 +175,7 @@ export const useHiveStore = create<HiveStoreState>()(
             hive.id === id && measuredAt > (hive.measuredAt ?? 0)
               ? refreshPresence({
                   ...hive,
+                  telemetry,
                   status: measuredAt <= (hive.disconnectedAt ?? 0) ? "offline" : "online",
                   temperature: telemetry.internalTemperature,
                   humidity: telemetry.internalHumidity,

@@ -39,7 +39,7 @@ export default function HiveControlScreen() {
     if (prevStatus === sseStatus) return;
 
     if (sseStatus === "reconnecting") {
-      showToast("실시간 연결이 끊겼어요. 다시 연결하고 있어요", "error");
+      showToast("실시간 연결이 끊겼어요. 다시 연결하고 있어요", "error", 7000);
     } else if (sseStatus === "connected" && prevStatus === "reconnecting") {
       showToast("실시간 연결이 복구됐어요", "success");
     }
@@ -161,12 +161,6 @@ export default function HiveControlScreen() {
               </PretendardFont>
             </Pressable>
 
-            {sseStatus === "reconnecting" ? (
-              <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "#FFF7ED" }}>
-                <Feather name="wifi-off" size={16} color={C.warning} />
-                <PretendardFont style={{ flex: 1, fontSize: 13, lineHeight: 19, color: C.textAlt }}>실시간 연결을 다시 시도하고 있어요. 설정 확인이 늦어질 수 있어요.</PretendardFont>
-              </View>
-            ) : null}
             <HiveControlSection controlHive={controlHive} hiveName={currentHive?.name} />
             <HiveReplacementCard hive={currentHive} />
           </View>
