@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { ConfirmSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import { useGateStore } from "@/stores/useGateStore";
 import { useGateModeStore, type GateOperatingMode } from "@/stores/useGateModeStore";
+import { getGateDeviceDetail, getGateDeviceErrorMessage } from "../api";
+import { useDeleteGateDevice } from "../hooks";
 import { AddGateSheet } from "./AddGateSheet";
 import type { GateData } from "@/types/gate-control";
 
@@ -23,26 +27,65 @@ const MODE_OPTIONS: Array<{ value: GateOperatingMode; label: string }> = [
  * - 오프라인(NFC): 온라인 전환을 비활성화하고 재부팅 후 시간 동기화를 안내합니다.
  * - 온라인: 토글 옆에 "전체 개폐기" 드롭다운 트리거 + 등록(+) 버튼이 뜨고,
  *   드롭다운을 펼치면 등록된 개폐기 목록이 아코디언으로 펼쳐집니다. 목록에서
- *   개폐기를 고르면 수정 시트가 열립니다. 실제로 어떤 카드를 어떤 개폐기에
- *   적용할지는 NfcDoorCardSection의 GateSelectSheet에서 별도로 고릅니다.
+ *   개폐기를 고르면 수정 시트가 열리고, 각 행의 삭제 아이콘으로 서버(DELETE
+ *   /api/v1/gates/{gateId})에서 바로 삭제할 수 있습니다. 실제로 어떤 카드를 어떤
+ *   개폐기에 적용할지는 NfcDoorCardSection의 GateSelectSheet에서 별도로 고릅니다.
  */
 export function GateModeSection() {
   const gates = useGateStore((state) => state.gates);
+  const deleteGate = useGateStore((state) => state.deleteGate);
   const mode = useGateModeStore((state) => state.mode);
   const setMode = useGateModeStore((state) => state.setMode);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [addGateVisible, setAddGateVisible] = useState(false);
   const [editingGate, setEditingGate] = useState<GateData | null>(null);
+  const [deletingGate, setDeletingGate] = useState<GateData | null>(null);
+  const { show: showToast } = useAppToast();
+  const deleteGateMutation = useDeleteGateDevice();
+  const editRequest = useRef(0);
+  useEffect(() => () => { editRequest.current++; }, []);
 
   const openAddGate = () => {
+    editRequest.current++;
     setEditingGate(null);
     setAddGateVisible(true);
   };
 
-  const openEditGate = (gate: GateData) => {
-    setDropdownOpen(false);
-    setEditingGate(gate);
-    setAddGateVisible(true);
+  const openEditGate = async (gate: GateData) => {
+    const request = ++editRequest.current;
+    try {
+      const detail = await getGateDeviceDetail(gate.gateId);
+      if (request !== editRequest.current) return;
+      setDropdownOpen(false);
+      setEditingGate({
+        ...gate, ...detail, region: detail.region ?? undefined,
+        location: detail.location ?? "", memo: detail.memo ?? "",
+        registeredAt: detail.createdAt,
+      });
+      setAddGateVisible(true);
+    } catch (error) {
+      if (request === editRequest.current) showToast(getGateDeviceErrorMessage(error, "개폐기 정보를 불러오지 못했어요"), "error");
+    }
+  };
+
+  const requestDeleteGate = (gate: GateData) => {
+    setDeletingGate(gate);
+  };
+
+  const confirmDeleteGate = () => {
+    if (!deletingGate || deleteGateMutation.isPending) return;
+    const target = deletingGate;
+
+    deleteGateMutation.mutate(target.gateId, {
+      onSuccess: () => {
+        deleteGate(target.id);
+        setDeletingGate(null);
+        showToast(`${target.name} 개폐기를 삭제했어요`, "success");
+      },
+      onError: (error) => {
+        showToast(getGateDeviceErrorMessage(error, "개폐기 삭제에 실패했어요"), "error");
+      },
+    });
   };
 
   return (
@@ -126,7 +169,13 @@ export function GateModeSection() {
             onPress={() => setDropdownOpen(false)}
           />
           <View style={{ position: "absolute", top: "100%", left: 18, right: 18, zIndex: 50 }}>
-            <GateDropdownList gates={gates} onGatePress={openEditGate} onAddPress={openAddGate} />
+            <GateDropdownList
+              gates={gates}
+              onGatePress={openEditGate}
+              onAddPress={openAddGate}
+              onDeletePress={requestDeleteGate}
+              deletingGateId={deleteGateMutation.isPending ? deletingGate?.id : undefined}
+            />
           </View>
         </>
       ) : null}
@@ -136,6 +185,17 @@ export function GateModeSection() {
         onClose={() => setAddGateVisible(false)}
         gate={editingGate}
       />
+
+      <ConfirmSheet
+        visible={deletingGate != null}
+        onClose={() => setDeletingGate(null)}
+        title="개폐기 삭제"
+        message={`${deletingGate?.name ?? "선택한 개폐기"}를 삭제할까요? 저장된 리포트 기록도 함께 삭제되며, 이 작업은 되돌릴 수 없어요.`}
+        confirmLabel="삭제"
+        destructive
+        confirmDisabled={deleteGateMutation.isPending}
+        onConfirm={confirmDeleteGate}
+      />
     </View>
   );
 }
@@ -144,10 +204,14 @@ function GateDropdownList({
   gates,
   onGatePress,
   onAddPress,
+  onDeletePress,
+  deletingGateId,
 }: {
   gates: GateData[];
   onGatePress: (gate: GateData) => void;
   onAddPress: () => void;
+  onDeletePress: (gate: GateData) => void;
+  deletingGateId?: string;
 }) {
   if (gates.length === 0) {
     return (
@@ -222,7 +286,24 @@ function GateDropdownList({
               </PretendardFont>
             ) : null}
           </View>
-          <Feather name="chevron-right" size={16} color={C.ter} />
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onDeletePress(gate);
+            }}
+            disabled={deletingGateId === gate.id}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${gate.name} 삭제`}
+            className="ml-2 h-7 w-7 items-center justify-center rounded-full active:opacity-70"
+          >
+            {deletingGateId === gate.id ? (
+              <ActivityIndicator size="small" color={C.error} />
+            ) : (
+              <Feather name="trash-2" size={15} color={C.error} />
+            )}
+          </Pressable>
+          <Feather name="chevron-right" size={16} color={C.ter} style={{ marginLeft: 6 }} />
         </Pressable>
       ))}
     </View>

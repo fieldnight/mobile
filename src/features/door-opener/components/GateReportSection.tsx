@@ -32,7 +32,7 @@ function triggerHaptic() {
  * 개폐기 하드웨어 리포트 섹션 (리포트 탭)
  * - 기존 NFC/HCE 기반 DoorStatsPanel(로컬 deviceId + 실시간 이벤트)과는 별개로,
  *   서버에 등록된 gateId 기준 REST 리포트(GET .../telemetry, GET .../bee-count)를 보여줍니다.
- * - 목록 조회 API가 없어 개폐기 후보는 useGateStore(로컬 등록 목록)에서 가져옵니다.
+ * - 개폐기 후보는 useGateStore(서버 목록을 캐시한 로컬 store, useSyncGateList로 동기화)에서 가져옵니다.
  */
 export function GateReportSection({ delay = 0 }: { delay?: number }) {
   const gates = useGateStore((state) => state.gates);

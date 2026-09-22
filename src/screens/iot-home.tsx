@@ -28,6 +28,7 @@ import { useHiveStore } from "@/stores/useHiveStore";
 import { useGateStore } from "@/stores/useGateStore";
 import { useGateModeStore } from "@/stores/useGateModeStore";
 import { useSyncHiveList } from "@/features/hive";
+import { useSyncGateList } from "@/features/door-opener/hooks";
 import {
   createDoorActivityReport,
   sendAssistantMessage,
@@ -271,6 +272,7 @@ export default function DoorOpenerScreen() {
   const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
   const activeHceCardRef = useRef<NfcDoorCardConfig | null>(null);
   useSyncHiveList();
+  useSyncGateList();
 
   useEffect(() => {
     if (gateMode !== "offline") return;
