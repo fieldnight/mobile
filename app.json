@@ -2,7 +2,7 @@
   "expo": {
     "name": "webee-mo",
     "slug": "webee-mo",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "webee",
     "orientation": "portrait",
     "icon": "./assets/branding/webee_logo.png",
@@ -13,17 +13,24 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "expo": {
-      "android": {
-        "softwareKeyboardLayoutMode": "pan"
-      }
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.webee.mo"
+      "bundleIdentifier": "com.webee.mo",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "192.168.4.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
+      }
     },
     "android": {
       "package": "com.webee.mo",
+      "versionCode": 2,
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/webee_logo.png",
         "backgroundColor": "#ffffff"
@@ -37,11 +44,31 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "color": "#F59E0B"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "현재 위치를 기준으로 가까운 수정벌 판매처와 농장 위치를 보여드리기 위해 사용합니다."
+        }
+      ],
+      "./plugins/withWeBeeHce",
+      "./plugins/withGateWifiCleartext"
     ],
     "extra": {
       "WEATHER_API_KEY": "af3abab5447ba09c9b99af1252e0808e",
-      "apiUrl": "https://webeelab.site"
-    }
+      "apiUrl": "https://webeelab.site",
+      "router": {},
+      "eas": {
+        "projectId": "898c11e9-20c6-46b4-bf40-1e91f030aaee"
+      }
+    },
+    "owner": "minari0120"
   }
 }

@@ -8,6 +8,8 @@ export interface UserCropCreateRequest {
   cultivationAddress?: string;
   cultivationArea: number;
   plantingDate: string;
+  harvestStartDate: string;
+  harvestEndDate: string;
 }
 
 export interface UserCrop {
@@ -18,5 +20,7 @@ export interface UserCrop {
   cultivationAddress: string | null;
   cultivationArea: number;
   plantingDate: string;
+  harvestStartDate: string | null;
+  harvestEndDate: string | null;
   createdAt?: string;
 }

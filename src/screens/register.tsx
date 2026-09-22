@@ -1,11 +1,20 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Alert, Pressable, ScrollView, TouchableOpacity } from 'react-native';
+import { View, TextInput, Alert, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/Button';
+import { ConsentCheckRow } from '@/components/ConsentCheckRow';
+import { LegalNoticeModal } from '@/components/LegalNoticeModal';
+import { PretendardFont } from '@/components/PretendardFont';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { PhoneVerification } from '@/components/PhoneVerification';
+import {
+  AGE_CONFIRM_DESCRIPTION,
+  REQUIRED_CONSENT_DESCRIPTION,
+  type LegalNoticeKey,
+} from '@/lib/complianceNotices';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -18,21 +27,9 @@ export default function RegisterScreen() {
     name: '',
     phoneNumber: '',
   });
-  const [verificationCode, setVerificationCode] = useState('');
-  const [isVerificationSent, setIsVerificationSent] = useState(false);
-
-  const handleSendVerification = () => {
-    if (!formData.phoneNumber.trim()) {
-      Alert.alert('알림', '전화번호를 입력해주세요');
-      return;
-    }
-    if (!/^010\d{8}$/.test(formData.phoneNumber)) {
-      Alert.alert('알림', '전화번호 형식이 올바르지 않습니다 (01012345678)');
-      return;
-    }
-    Alert.alert('알림', 'SMS 인증 서비스는 준비 중입니다');
-    setIsVerificationSent(true);
-  };
+  const [isAgeConfirmed, setIsAgeConfirmed] = useState(false);
+  const [isRequiredConsentChecked, setIsRequiredConsentChecked] = useState(false);
+  const [legalNoticeType, setLegalNoticeType] = useState<LegalNoticeKey | null>(null);
 
   const handleRegister = async () => {
     if (!formData.username.trim()) {
@@ -43,12 +40,8 @@ export default function RegisterScreen() {
       Alert.alert('알림', '닉네임을 입력해주세요');
       return;
     }
-    if (!formData.phoneNumber.trim()) {
-      Alert.alert('알림', '전화번호를 입력해주세요');
-      return;
-    }
-    if (!/^010\d{8}$/.test(formData.phoneNumber)) {
-      Alert.alert('알림', '전화번호 형식이 올바르지 않습니다 (01012345678)');
+    if (!formData.phoneNumber) {
+      Alert.alert('알림', '전화번호 인증을 완료해주세요');
       return;
     }
     if (!formData.password) {
@@ -61,6 +54,14 @@ export default function RegisterScreen() {
     }
     if (formData.password !== formData.passwordConfirm) {
       Alert.alert('알림', '비밀번호가 일치하지 않습니다');
+      return;
+    }
+    if (!isAgeConfirmed) {
+      Alert.alert('알림', '만 14세 이상 여부를 확인해주세요');
+      return;
+    }
+    if (!isRequiredConsentChecked) {
+      Alert.alert('알림', '서비스 이용약관 및 개인정보 처리방침에 동의해주세요');
       return;
     }
 
@@ -83,7 +84,6 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top']}>
-      {/* Header */}
       <View className="flex-row items-center px-4 py-2">
         <Pressable
           onPress={() => router.back()}
@@ -105,13 +105,12 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View className="items-center mb-10">
-          <Text className="text-gray-900 text-3xl font-bold">회원가입</Text>
+          <PretendardFont weight="bold" className="text-gray-900 text-3xl">회원가입</PretendardFont>
         </View>
 
         <View className="gap-5">
-          {/* 아이디 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">아이디</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">아이디</PretendardFont>
             <TextInput
               value={formData.username}
               onChangeText={(text) => setFormData({ ...formData, username: text })}
@@ -123,9 +122,8 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 닉네임 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">닉네임</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">닉네임</PretendardFont>
             <TextInput
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
@@ -136,49 +134,12 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 전화번호 + 인증 */}
-          <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">전화번호</Text>
-            <View className="flex-row gap-2">
-              <TextInput
-                value={formData.phoneNumber}
-                onChangeText={(text) => setFormData({ ...formData, phoneNumber: text.replace(/[^0-9]/g, '') })}
-                placeholder="01012345678"
-                keyboardType="phone-pad"
-                maxLength={11}
-                className="flex-1 px-4 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 text-base"
-                placeholderTextColor="#9ca3af"
-                style={{ height: 52 }}
-              />
-              <TouchableOpacity
-                onPress={handleSendVerification}
-                className="justify-center items-center px-4 rounded-xl"
-                style={{ height: 52, backgroundColor: '#3b82f6', minWidth: 96 }}
-              >
-                <Text className="text-white font-semibold text-sm">인증번호 받기</Text>
-              </TouchableOpacity>
-            </View>
+          <PhoneVerification
+            onVerified={(phone) => setFormData({ ...formData, phoneNumber: phone })}
+          />
 
-            {isVerificationSent && (
-              <View className="mt-2">
-                <TextInput
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                  placeholder="인증번호 6자리 입력"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  className="w-full px-4 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 text-base"
-                  placeholderTextColor="#9ca3af"
-                  style={{ height: 52 }}
-                />
-                <Text className="text-xs text-gray-400 mt-1 ml-1">SMS 인증 서비스 준비 중입니다</Text>
-              </View>
-            )}
-          </View>
-
-          {/* 비밀번호 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">비밀번호</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">비밀번호</PretendardFont>
             <TextInput
               value={formData.password}
               onChangeText={(text) => setFormData({ ...formData, password: text })}
@@ -190,9 +151,8 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* 비밀번호 확인 */}
           <View>
-            <Text className="text-base font-semibold text-gray-900 mb-2">비밀번호 확인</Text>
+            <PretendardFont weight="semibold" className="text-base text-gray-900 mb-2">비밀번호 확인</PretendardFont>
             <TextInput
               value={formData.passwordConfirm}
               onChangeText={(text) => setFormData({ ...formData, passwordConfirm: text })}
@@ -207,14 +167,59 @@ export default function RegisterScreen() {
               }}
             />
             {passwordMismatch && (
-              <Text className="text-red-500 text-sm mt-1 ml-1">비밀번호가 일치하지 않습니다</Text>
+              <PretendardFont className="text-red-500 text-sm mt-1 ml-1">비밀번호가 일치하지 않습니다</PretendardFont>
             )}
           </View>
 
+          <View className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3.5">
+            <View className="flex-row items-center gap-2">
+              <Feather name="shield" size={16} color="#2563eb" />
+              <PretendardFont weight="bold" className="text-sm text-gray-900">
+                가입 전 확인
+              </PretendardFont>
+            </View>
+            <PretendardFont className="mt-2 text-xs text-gray-600 leading-5">
+              선택 권한은 기능을 사용할 때만 요청됩니다. 카메라/사진, 위치, 알림, NFC 권한은 설정에서 언제든 변경할 수 있어요.
+            </PretendardFont>
+            <Pressable onPress={() => setLegalNoticeType('permissions')} className="mt-2 self-start py-1 active:opacity-70">
+              <PretendardFont weight="semibold" className="text-xs text-blue-600">
+                앱 권한 안내 보기
+              </PretendardFont>
+            </Pressable>
+          </View>
+
+          <View className="gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+            <ConsentCheckRow
+              checked={isAgeConfirmed}
+              onPress={() => setIsAgeConfirmed((value) => !value)}
+              title="만 14세 이상입니다"
+              description={AGE_CONFIRM_DESCRIPTION}
+            />
+            <View className="h-px bg-gray-100" />
+            <ConsentCheckRow
+              checked={isRequiredConsentChecked}
+              onPress={() => setIsRequiredConsentChecked((value) => !value)}
+              title="서비스 이용약관 및 개인정보 처리방침에 동의합니다"
+              description={REQUIRED_CONSENT_DESCRIPTION}
+            />
+            <View className="flex-row gap-3 pl-9">
+              <Pressable onPress={() => setLegalNoticeType('terms')} className="py-1 active:opacity-70">
+                <PretendardFont weight="semibold" className="text-xs text-blue-600 underline">
+                  이용약관
+                </PretendardFont>
+              </Pressable>
+              <Pressable onPress={() => setLegalNoticeType('privacy')} className="py-1 active:opacity-70">
+                <PretendardFont weight="semibold" className="text-xs text-blue-600 underline">
+                  개인정보 처리방침
+                </PretendardFont>
+              </Pressable>
+            </View>
+          </View>
+
           <View className="flex-row justify-center items-center mt-2">
-            <Text className="text-gray-600 text-base">이미 계정이 있으신가요? </Text>
+            <PretendardFont className="text-gray-600 text-base">이미 계정이 있으신가요? </PretendardFont>
             <Pressable onPress={() => router.back()}>
-              <Text className="text-blue-600 font-semibold text-base">로그인</Text>
+              <PretendardFont weight="semibold" className="text-blue-600 text-base">로그인</PretendardFont>
             </Pressable>
           </View>
         </View>
@@ -231,6 +236,10 @@ export default function RegisterScreen() {
           회원가입
         </Button>
       </View>
+      <LegalNoticeModal
+        type={legalNoticeType}
+        onClose={() => setLegalNoticeType(null)}
+      />
     </SafeAreaView>
   );
 }

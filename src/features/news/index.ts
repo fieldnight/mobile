@@ -1,5 +1,5 @@
 // API functions
-export { fetchGoogleNews } from './api';
+export { fetchGoogleNews, getNewsList, getNewsDetail } from './api';
 
 // Hooks
-export { useNews } from './hooks';
+export { useNews, useNewsList, useNewsDetail } from './hooks';

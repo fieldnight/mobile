@@ -1,9 +1,3 @@
-/**
- * KMA(기상청) 날씨 데이터 fetch 훅
- * - 오늘 날씨(fetchTodayDirect)와 주간 날씨(fetchWeeklyDirect)를 병렬 요청
- * - Promise.allSettled로 한쪽 실패 시에도 나머지 데이터 유지
- * - 언마운트 시 cancelled 플래그로 불필요한 setState 방지
- */
 import { useState, useEffect } from "react";
 import { fetchTodayDirect, fetchWeeklyDirect } from "../api/weatherApi";
 import type { TodayWeatherData, WeatherDay } from "@/types";
@@ -29,6 +23,7 @@ export function useMakeWeather(stn: number): UseKmaWeatherResult {
     async function load() {
       setLoading(true);
       setErrorMsg(null);
+
       try {
         const [today, weekly] = await Promise.allSettled([
           fetchTodayDirect(stn),
@@ -40,14 +35,18 @@ export function useMakeWeather(stn: number): UseKmaWeatherResult {
         if (today.status === "fulfilled" && today.value) {
           setTodayWeather(today.value);
         } else if (today.status === "rejected") {
-          setErrorMsg(today.reason?.message ?? "날씨 오류");
+          setErrorMsg(
+            today.reason?.message ?? "날씨 정보를 불러오지 못했습니다.",
+          );
         }
 
         if (weekly.status === "fulfilled" && weekly.value.length) {
           setWeeklyWeather(weekly.value);
         }
       } catch (err: any) {
-        if (!cancelled) setErrorMsg(err.message ?? "날씨 오류");
+        if (!cancelled) {
+          setErrorMsg(err.message ?? "날씨 정보를 불러오지 못했습니다.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

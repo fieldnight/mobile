@@ -4,7 +4,42 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '@/lib/api';
 import { registerTokenCallbacks } from '@/lib/tokenManager';
 import { queryClient } from '@/providers';
+import { unregisterCurrentDeviceFcmToken } from '@/features/notification/model/fcmTokenService';
+import { useHiveStore } from '@/stores/useHiveStore';
 import type { User, LoginRequest, RegisterRequest, ApiResponse, SignInResponseData, OAuthSignInResponse } from '@/types';
+
+function getResponseHeader(headers: unknown, name: string): string | null {
+  if (!headers || typeof headers !== 'object') return null;
+
+  const getterValue = (headers as { get?: (headerName: string) => unknown }).get?.(name);
+  if (typeof getterValue === 'string') return getterValue;
+
+  const normalizedName = name.toLowerCase();
+  const entry = Object.entries(headers as Record<string, unknown>).find(
+    ([key]) => key.toLowerCase() === normalizedName,
+  );
+  const value = entry?.[1];
+
+  if (Array.isArray(value)) return value.join('; ');
+  return typeof value === 'string' ? value : null;
+}
+
+function getBearerToken(headers: unknown): string | null {
+  return getResponseHeader(headers, 'authorization')?.replace(/^Bearer\s+/i, '') || null;
+}
+
+function getRefreshTokenFromHeaders(headers: unknown): string | null {
+  const setCookieHeader = getResponseHeader(headers, 'set-cookie');
+  if (setCookieHeader) {
+    const match = setCookieHeader.match(/refreshToken=([^;]+)/);
+    if (match) return match[1];
+  }
+
+  return (
+    getResponseHeader(headers, 'x-refresh-token') ||
+    getResponseHeader(headers, 'refresh-token')
+  );
+}
 
 interface AuthState {
   user: User | null;
@@ -16,6 +51,7 @@ interface AuthState {
   socialLogin: (platform: 'KAKAO' | 'NAVER', code: string) => Promise<OAuthSignInResponse>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  withdraw: () => Promise<void>;
   setUser: (user: User | null) => void;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -43,32 +79,16 @@ export const useAuthStore = create<AuthState>()(
           const { data } = response;
 
           if (data.code === '200' || data.code === 'OK') {
-            let accessTokenFromBody = data.data?.accessToken || null;
+            const accessToken =
+              getBearerToken(response.headers) || data.data?.accessToken || null;
+            const refreshToken =
+              data.data?.refreshToken ||
+              getRefreshTokenFromHeaders(response.headers) ||
+              null;
 
-            const authHeader =
-              response.headers['authorization'] ||
-              response.headers['Authorization'] ||
-              response.headers['AUTHORIZATION'];
-            const headerToken = authHeader?.replace(/^Bearer\s+/i, '') || accessTokenFromBody;
-
-            let refreshToken: string | null = data.data?.refreshToken || null;
-
-            if (!refreshToken) {
-              const setCookieHeader = response.headers['set-cookie'];
-              if (setCookieHeader) {
-                const cookieString = Array.isArray(setCookieHeader) ? setCookieHeader.join('; ') : setCookieHeader;
-                const match = cookieString.match(/refreshToken=([^;]+)/);
-                if (match) {
-                  refreshToken = match[1];
-                }
-              }
+            if (!accessToken) {
+              throw new Error('로그인 토큰을 받지 못했습니다. 서버 응답 헤더 설정을 확인해 주세요.');
             }
-
-            if (!refreshToken) {
-              refreshToken = response.headers['x-refresh-token'] || response.headers['refresh-token'] || null;
-            }
-
-            const accessToken = headerToken || null;
 
             // 로그인 성공 시 사용자 정보 및 토큰 설정
             const user: User = {
@@ -79,15 +99,19 @@ export const useAuthStore = create<AuthState>()(
             };
 
             // API 인스턴스에 토큰 설정
-            if (accessToken) {
-              api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            }
+            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
             set({ user, accessToken, refreshToken, isAuthenticated: true, isLoading: false });
           } else {
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 로그인 실패', {
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
@@ -104,25 +128,14 @@ export const useAuthStore = create<AuthState>()(
           const { data } = response;
 
           if (data.code === '200' || data.code === 'OK') {
-            const authHeader =
-              response.headers['authorization'] ||
-              response.headers['Authorization'];
-            const accessToken = authHeader?.replace(/^Bearer\s+/i, '') || null;
+            const accessToken = getBearerToken(response.headers);
+            const refreshToken = getRefreshTokenFromHeaders(response.headers);
 
-            let refreshToken: string | null = null;
-            const setCookieHeader = response.headers['set-cookie'];
-            if (setCookieHeader) {
-              const cookieString = Array.isArray(setCookieHeader) ? setCookieHeader.join('; ') : setCookieHeader;
-              const match = cookieString.match(/refreshToken=([^;]+)/);
-              if (match) refreshToken = match[1];
-            }
-            if (!refreshToken) {
-              refreshToken = response.headers['x-refresh-token'] || response.headers['refresh-token'] || null;
+            if (!accessToken) {
+              throw new Error('로그인 토큰을 받지 못했습니다. 서버 응답 헤더 설정을 확인해 주세요.');
             }
 
-            if (accessToken) {
-              api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            }
+            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
             const user: User = {
               id: '',
@@ -133,15 +146,18 @@ export const useAuthStore = create<AuthState>()(
 
             set({ user, accessToken, refreshToken, isAuthenticated: true, isLoading: false });
 
-            if (data.data.isNewUser) {
-              await api.post('/api/v1/oauth/register', { name: data.data.name });
-            }
-
             return data.data;
           } else {
             throw new Error(data.message);
           }
         } catch (error: any) {
+          console.error('[Auth] 소셜 로그인 실패', {
+            platform,
+            message: error?.message,
+            status: error?.response?.status,
+            data: error?.response?.data,
+            error,
+          });
           set({ isLoading: false });
           throw error;
         }
@@ -171,14 +187,32 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
+          // 인증 헤더가 살아 있을 때 현재 기기의 FCM 등록부터 해제합니다.
+          try {
+            await unregisterCurrentDeviceFcmToken();
+          } catch (error) {
+            // FCM 해제 실패가 사용자의 로그아웃을 막아서는 안 됩니다.
+            console.error('[Auth] 로그아웃 전 FCM 토큰 삭제 실패', { error });
+          }
+
           await api.post('/api/v1/auth/sign-out');
         } catch (error) {
-          console.error('Logout error:', error);
+          console.error('[Auth] 로그아웃 API 실패', { error });
         } finally {
-          // 토큰 제거
           delete api.defaults.headers.common['Authorization'];
-          // React Query 캐시 초기화 (다른 계정 데이터 제거)
           queryClient.clear();
+          useHiveStore.getState().setHives([]);
+          set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+        }
+      },
+
+      withdraw: async () => {
+        try {
+          await api.delete('/api/v1/users/me');
+        } finally {
+          delete api.defaults.headers.common['Authorization'];
+          queryClient.clear();
+          useHiveStore.getState().setHives([]);
           set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
         }
       },
@@ -202,6 +236,8 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         delete api.defaults.headers.common['Authorization'];
+        queryClient.clear();
+        useHiveStore.getState().setHives([]);
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
       },
     }),

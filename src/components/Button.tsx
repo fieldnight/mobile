@@ -1,5 +1,12 @@
+/**
+ * 공용 버튼 컴포넌트
+ * - variant: primary(파랑) | secondary(회색) | outline(외곽선)
+ * - size: sm | md | lg
+ * - loading 상태에서 스피너 표시, 탭 비활성화
+ */
 import React from 'react';
-import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { Pressable, ActivityIndicator } from 'react-native';
+import { PretendardFont } from '@/components/PretendardFont';
 import { clsx } from 'clsx';
 
 interface ButtonProps {
@@ -62,15 +69,15 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={variant === 'outline' ? '#2563eb' : '#ffffff'} />
       ) : (
-        <Text
+        <PretendardFont
+          weight="semibold"
           className={clsx(
-            'font-semibold',
             textSizeStyles[size],
             textColorStyles[variant]
           )}
         >
           {children}
-        </Text>
+        </PretendardFont>
       )}
     </Pressable>
   );

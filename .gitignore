@@ -10,12 +10,19 @@ web-build/
 
 # Native
 .kotlin/
+.android-sdk/
+.tools/
+commandlinetools-*.zip
 *.orig.*
+*.apk
+*.aab
+*.apks
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+google-services.json
 
 # Metro
 .metro-health-check*
@@ -48,6 +55,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local analysis and conversion artifacts
+/tmp/
 
 # documentation (local only)
 error.md

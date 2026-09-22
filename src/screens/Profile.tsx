@@ -1,157 +1,206 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Switch } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useAuthStore } from '@/stores/useAuthStore';
+import { useState } from "react";
+import {
+  View,
+  ScrollView,
+  Pressable,
+  Image,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { PretendardFont } from "@/components/PretendardFont";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useFarmList } from "@/features/farm";
+import { useUploadProfileImage } from "@/features/user";
+import type { UserCrop } from "@/types/farm";
+import FarmDetailModal from "@/components/FarmDetailModal";
 
-interface MenuItemProps {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  onPress: () => void;
-  rightElement?: React.ReactNode;
-  danger?: boolean;
-}
-
-function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuItemProps) {
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  };
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      className="flex-row items-center px-4 py-3 active:bg-gray-50"
-    >
-      <Feather
-        name={icon}
-        size={20}
-        color={danger ? "#FF3B30" : "#8E8E93"}
-        style={{ marginRight: 12 }}
-      />
-      <Text className={`flex-1 text-base ${danger ? 'text-red-500' : 'text-gray-900'}`}>
-        {label}
-      </Text>
-      {rightElement || <Feather name="chevron-right" size={18} color="#C7C7CC" />}
-    </Pressable>
-  );
-}
+const PAGE_SIZE = 3;
 
 export default function Profile() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const { user, setUser } = useAuthStore();
+  const { data: farms = [], isLoading: farmsLoading } = useFarmList();
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [selectedFarm, setSelectedFarm] = useState<UserCrop | null>(null);
+  const { mutate: uploadProfileImage, isPending: isUploading } =
+    useUploadProfileImage();
 
-  const userName = user?.fullName || user?.username || '사용자';
+  const userName = user?.fullName || user?.username || "사용자";
+
+  const handleProfileImagePress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "사진 접근 권한이 필요합니다.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    uploadProfileImage(result.assets[0].uri, {
+      onSuccess: (profileImageUrl) => {
+        if (user) setUser({ ...user, profileImageUrl });
+      },
+      onError: (error) => {
+        Alert.alert("오류", "프로필 사진 업로드에 실패했습니다.");
+        if (__DEV__) console.warn("Profile image upload failed", error);
+      },
+    });
+  };
 
   const handleAddFarmland = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/add-farm');
-  };
-
-  const handleLogout = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    logout();
-    router.replace('/login');
-  };
-
-  const handleDeleteAccount = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: 계정 삭제 확인 모달
-    console.log('계정 삭제');
+    router.push("/add-farm");
   };
 
   return (
-    <ScrollView className="flex-1 bg-gray-100" showsVerticalScrollIndicator={false}>
-      {/* 프로필 섹션 */}
-      <View className="px-4 pt-4 mb-4">
-        <Pressable className="flex-row items-center bg-white rounded-2xl p-4 active:scale-[0.98]">
-          <View className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center mr-3">
-            <Feather name="user" size={28} color="#8E8E93" />
+    <View className="flex-1">
+      <ScrollView
+        className="flex-1 bg-gray-100"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 프로필 섹션 */}
+        <View className="px-4 pt-4 mb-4 gap-2">
+          {/* 이미지 + 이름 */}
+          <View className="flex-row items-center bg-white rounded-2xl p-5">
+            <Pressable
+              onPress={handleProfileImagePress}
+              disabled={isUploading}
+              className="mr-3"
+            >
+              <View className="h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100">
+                {isUploading ? (
+                  <ActivityIndicator size="small" color="#8E8E93" />
+                ) : user?.profileImageUrl ? (
+                  <Image
+                    source={{ uri: user.profileImageUrl }}
+                    className="h-16 w-16"
+                  />
+                ) : (
+                  <Feather name="user" size={32} color="#8E8E93" />
+                )}
+              </View>
+              {/* 카메라 배지 */}
+              {!isUploading && (
+                <View className="absolute bottom-0 right-0 h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gray-500">
+                  <Feather name="camera" size={11} color="#fff" />
+                </View>
+              )}
+            </Pressable>
+            <PretendardFont weight="semibold" className="text-lg text-gray-900">
+              {userName}님
+            </PretendardFont>
           </View>
-          <View className="flex-1">
-            <Text className="text-lg font-semibold text-gray-900">{userName}님</Text>
-            <Text className="text-sm text-gray-600 mt-0.5">프로필 관리</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#C7C7CC" />
-        </Pressable>
-      </View>
 
-      {/* 내 농지 섹션 */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">내 농지</Text>
-        <View className="mx-4 bg-white rounded-2xl overflow-hidden">
-          <Pressable
-            className="flex-row items-center p-4 active:bg-gray-50"
-            onPress={handleAddFarmland}
-          >
-            <View className="w-10 h-10 rounded-xl bg-blue-50 items-center justify-center mr-3">
-              <Feather name="plus" size={20} color="#3B82F6" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-gray-900">농지 추가하기</Text>
-              <Text className="text-sm text-gray-600 mt-0.5">
-                농지를 등록하고 맞춤 서비스를 이용해보세요
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={18} color="#C7C7CC" />
+          {/* 프로필 관리 버튼 */}
+          <Pressable className="flex-row items-center bg-white rounded-2xl px-4 py-4 active:bg-gray-50">
+            <Feather name="edit-2" size={16} color="#6B7280" />
+            <PretendardFont weight="medium" className="ml-3 flex-1 text-base text-gray-700">
+              프로필 관리
+            </PretendardFont>
+            <Feather name="chevron-right" size={16} color="#C7C7CC" />
           </Pressable>
         </View>
-      </View>
 
-      {/* 설정 섹션 */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">설정</Text>
-        <View className="mx-4 bg-white rounded-2xl overflow-hidden">
-          <MenuItem
-            icon="bell"
-            label="알림"
-            onPress={() => setNotificationsEnabled(!notificationsEnabled)}
-            rightElement={
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: "#E5E5EA", true: "#F59E0B" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-          />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem
-            icon="globe"
-            label="언어"
-            onPress={() => {}}
-            rightElement={
-              <View className="flex-row items-center gap-1">
-                <Text className="text-base text-gray-600">한국어</Text>
-                <Feather name="chevron-right" size={18} color="#C7C7CC" />
+        {/* 내 농지 섹션 */}
+        <View className="mb-4">
+          <View className="px-5 mb-2">
+            <PretendardFont weight="semibold" className="text-xs text-gray-600">
+              내 농지
+            </PretendardFont>
+          </View>
+
+          <View className="mx-4 bg-white rounded-2xl overflow-hidden">
+            {farmsLoading ? (
+              <View className="p-4 items-center">
+                <PretendardFont className="text-sm text-gray-600">
+                  로딩중...
+                </PretendardFont>
               </View>
-            }
-          />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="help-circle" label="고객센터" onPress={() => {}} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="file-text" label="이용약관" onPress={() => {}} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="shield" label="개인정보처리방침" onPress={() => {}} />
+            ) : (
+              <>
+                <Pressable
+                  onPress={handleAddFarmland}
+                  className="flex-row items-center px-4 py-4 active:bg-gray-50"
+                >
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+                    <Feather name="plus" size={17} color="#6B7280" />
+                  </View>
+                  <PretendardFont weight="semibold" className="flex-1 text-base text-gray-600">
+                    농지 추가
+                  </PretendardFont>
+                </Pressable>
+                {farms.slice(0, visibleCount).map((farm, index) => (
+                  <View key={farm.id}>
+                    <View className="h-px bg-gray-100 mx-4" />
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedFarm(farm);
+                      }}
+                      className="flex-row items-center px-4 py-4 active:bg-gray-50"
+                    >
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                        <Feather
+                          name={
+                            farm.cultivationType === "CONTROLLED"
+                              ? "home"
+                              : "sun"
+                          }
+                          size={17}
+                          color="#3B82F6"
+                        />
+                      </View>
+                      <View className="flex-1 mr-2">
+                        <PretendardFont
+                          weight="semibold"
+                          className="text-base text-gray-900"
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {farm.name || "이름 없음"}
+                          {farm.variety ? ` · ${farm.variety}` : ""}
+                        </PretendardFont>
+                      </View>
+                      <Feather name="chevron-right" size={16} color="#C7C7CC" />
+                    </Pressable>
+                  </View>
+                ))}
+                {farms.length > visibleCount && (
+                  <>
+                    <View className="h-px bg-gray-100" />
+                    <Pressable
+                      onPress={() => setVisibleCount((v) => v + PAGE_SIZE)}
+                      className="items-center py-4 active:bg-gray-50"
+                    >
+                      <PretendardFont weight="medium" className="text-base text-blue-500">
+                        더보기
+                      </PretendardFont>
+                    </Pressable>
+                  </>
+                )}
+              </>
+            )}
+          </View>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* 계정 섹션 */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold text-gray-600 mb-2 px-5">계정</Text>
-        <View className="mx-4 bg-white rounded-2xl overflow-hidden">
-          <MenuItem icon="log-out" label="로그아웃" onPress={handleLogout} />
-          <View className="h-px bg-gray-100 ml-11" />
-          <MenuItem icon="trash-2" label="계정 삭제" onPress={handleDeleteAccount} danger />
-        </View>
-      </View>
-
-      {/* 버전 정보 */}
-      <View className="items-center py-4 mb-8">
-        <Text className="text-sm text-gray-600">버전 1.0.0</Text>
-      </View>
-    </ScrollView>
+      <FarmDetailModal
+        farm={selectedFarm}
+        onClose={() => setSelectedFarm(null)}
+      />
+    </View>
   );
 }

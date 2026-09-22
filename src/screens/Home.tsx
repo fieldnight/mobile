@@ -1,42 +1,81 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
-import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { ScrollView, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NewsCarousel } from "@/components/NewsCarousel";
+import { PromoBanner } from "@/components/Promobanner";
+import { HomeGridIcon } from "@/components/HomeGridIcon";
+import { HiveStatusBanner } from "@/components/HiveStatusBanner";
+import { AppWelcomeSheet } from "@/components/AppWelcomeSheet";
+import InquiryModal from "@/screens/bee-chat-inquiry";
+
+const WELCOME_HIDE_TODAY_KEY = "webee-welcome-hide-date";
+const WELCOME_HIDE_FOREVER_KEY = "webee-welcome-hide-forever";
+
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
+  ).padStart(2, "0")}`;
+}
 
 export default function Home() {
-  const router = useRouter();
-  return (
-    <View className="flex-1 bg-gray-100">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* 2. 1분 가이드 */}
-        <View className="px-4 mb-6">
-          <Pressable
-            onPress={() => router.push("/report")}
-            className="bg-green-50 rounded-2xl p-4 flex-row items-center active:scale-[0.98]"
-          >
-            <View className="w-10 h-10 rounded-xl bg-green-100 items-center justify-center mr-3">
-              <Feather name="zap" size={18} color="#22C55E" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-gray-900">
-                농번기 필수 기능부터 시작
-              </Text>
-              <Text className="text-sm text-gray-500 mt-0.5">
-                WEBEE가 처음이라면
-              </Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-sm font-medium text-green-600 mr-1">
-                따라해보기
-              </Text>
-              <Feather name="chevron-right" size={20} color="#22C55E" />
-            </View>
-          </Pressable>
-        </View>
+  const [inquiryVisible, setInquiryVisible] = useState(false);
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
 
-        {/* 3. 수정벌 뉴스 캐러셀 */}
-        <NewsCarousel keyword="수정벌" title="수정벌 뉴스" />
+  useEffect(() => {
+    let mounted = true;
+
+    const checkWelcomePreference = async () => {
+      try {
+        const [hideForever, hideDate] = await Promise.all([
+          AsyncStorage.getItem(WELCOME_HIDE_FOREVER_KEY),
+          AsyncStorage.getItem(WELCOME_HIDE_TODAY_KEY),
+        ]);
+
+        if (!mounted) return;
+        setWelcomeVisible(hideForever !== "true" && hideDate !== todayKey());
+      } catch {
+        if (mounted) setWelcomeVisible(true);
+      }
+    };
+
+    checkWelcomePreference();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const hideWelcomeToday = useCallback(async () => {
+    await AsyncStorage.setItem(WELCOME_HIDE_TODAY_KEY, todayKey());
+    setWelcomeVisible(false);
+  }, []);
+
+  const hideWelcomeForever = useCallback(async () => {
+    await AsyncStorage.setItem(WELCOME_HIDE_FOREVER_KEY, "true");
+    setWelcomeVisible(false);
+  }, []);
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: "#F4F5F7" }}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <PromoBanner />
+        <HomeGridIcon onInquiryPress={() => setInquiryVisible(true)} />
+        <HiveStatusBanner />
+        <NewsCarousel keyword="수정벌" />
       </ScrollView>
+
+      <InquiryModal
+        visible={inquiryVisible}
+        onClose={() => setInquiryVisible(false)}
+      />
+
+      <AppWelcomeSheet
+        visible={welcomeVisible}
+        onClose={() => setWelcomeVisible(false)}
+        onHideToday={hideWelcomeToday}
+        onHideForever={hideWelcomeForever}
+      />
     </View>
   );
 }

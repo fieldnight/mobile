@@ -6,7 +6,7 @@
  * - 응답은 CSV 텍스트이며 공백 split으로 필드 파싱
  */
 import { useState, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WEATHER_REGION_KEY, KMA_REGIONS } from "@/constants";
 

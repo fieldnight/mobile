@@ -1,0 +1,10 @@
+
+> webee-mo@1.0.0 start:dev D:\webee-web\mobile
+> expo start --dev-client
+
+env: load .env
+env: export EXPO_PUBLIC_BASE_URL EXPO_PUBLIC_SERVICE_KEY EXPO_PUBLIC_KMA_API_KEY EXPO_PUBLIC_NONGSARO_BASE_URL EXPO_PUBLIC_NONGSARO_API_KEY EXPO_PUBLIC_KAKAO_MAP_API_KEY EXPO_PUBLIC_KAKAO_REST_API_KEY EXPO_PUBLIC_NAVER_CLIENT_ID EXPO_PUBLIC_NAVER_CLIENT_SECRET
+Starting project at D:\webee-web\mobile
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.

@@ -13,28 +13,26 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ResultItem } from "./utils";
-
+ 
 interface PesticideStore {
-  // 필터값 (저장 안 함)
   crop: string;
   usage: string;
   insect: string;
   page: number;
-  // 드롭다운 코드 목록 (영구 저장)
-  aList: string[]; // 작물
-  bList: string[]; // 용도
-  cList: string[]; // 곤충
-  // 전체 데이터 (영구 저장)
+  query: string;          // ← 추가: 상표명/병해충명 검색어
+  aList: string[];
+  bList: string[];
+  cList: string[];
   allItems: ResultItem[];
-  // actions
   setCrop: (v: string) => void;
   setUsage: (v: string) => void;
   setInsect: (v: string) => void;
   setPage: (v: number) => void;
+  setQuery: (v: string) => void;  // ← 추가
   setOptions: (a: string[], b: string[], c: string[]) => void;
   setAllItems: (items: ResultItem[]) => void;
 }
-
+ 
 export const usePesticideStore = create<PesticideStore>()(
   persist(
     (set) => ({
@@ -42,6 +40,7 @@ export const usePesticideStore = create<PesticideStore>()(
       usage: "",
       insect: "",
       page: 1,
+      query: "",
       aList: [],
       bList: [],
       cList: [],
@@ -50,13 +49,13 @@ export const usePesticideStore = create<PesticideStore>()(
       setUsage: (v) => set({ usage: v, page: 1 }),
       setInsect: (v) => set({ insect: v, page: 1 }),
       setPage: (v) => set({ page: v }),
+      setQuery: (v) => set({ query: v, page: 1 }),
       setOptions: (a, b, c) => set({ aList: a, bList: b, cList: c }),
       setAllItems: (items) => set({ allItems: items }),
     }),
     {
       name: "pesticide-store",
       storage: createJSONStorage(() => AsyncStorage),
-      // 필터값/페이지는 저장 제외
       partialize: (s) => ({
         aList: s.aList,
         bList: s.bList,
@@ -66,3 +65,4 @@ export const usePesticideStore = create<PesticideStore>()(
     },
   ),
 );
+ 

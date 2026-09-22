@@ -1,349 +1,369 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  ScrollView,
-  Pressable,
-  Platform,
-  TextInput,
+  Keyboard,
   KeyboardAvoidingView,
-  ActivityIndicator,
-  Text,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
 } from "react-native";
-
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { useNavigation } from "@react-navigation/native";
-
-import InquiryModal from "./bee-chat-inquiry";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import AppHeader from "@/components/AppHeader";
+import { PretendardFont } from "@/components/PretendardFont";
+import { useScrollHeader } from "@/hooks";
+import { useAssistantChat } from "@/features/assistant";
+import {
+  AssistantMessageBubble,
+  AssistantSuggestions,
+  AssistantTypingBubble,
+  ConversationHistorySheet,
+} from "@/features/assistant/components";
 
-// ── 색상 팔레트 ──────────────────────────────────────
-const C = {
-  primary: "#3182F6",
-  bg: "#F4F5F7",
-  white: "#FFFFFF",
-  Text: "#191F28",
-  sec: "#8B95A1",
-  ter: "#B0B8C1",
-  border: "#E5E8EB",
-  userBubble: "#3182F6",
-  botBubble: "#FFFFFF",
-  bee: "#FFD55F",
-};
+const ASSISTANT_CHAT_GUIDE_HIDDEN_KEY = "webee:assistant-chat-guide-hidden";
 
-// ── 타입 ─────────────────────────────────────────────
-export interface ChatMessage {
-  id: string;
-  role: "user" | "bot";
-  Text: string;
-}
-
-// ── 추천 질문 ─────────────────────────────────────────
-const SUGGESTIONS = [
-  "수정벌이 뭐예요?",
-  "딸기 수분에 좋은 벌은?",
-  "서양뒤영벌 관리법",
-  "벌통 적정 온도는?",
-  "수정벌 투입 시기",
-  "꿀벌 vs 뒤영벌 차이",
-];
-
-// ── 봇 아바타 ─────────────────────────────────────────
-function BotAvatar() {
+function CoachText({
+  before,
+  highlight,
+  after,
+}: {
+  before: string;
+  highlight: string;
+  after: string;
+}) {
   return (
-    <View
-      className="items-center justify-center mr-2"
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: C.bee,
-      }}
+    <PretendardFont
+      weight="semibold"
+      className="text-[15px] leading-[23px] text-white"
     >
-      <Text style={{ fontSize: 16 }}>🐝</Text>
-    </View>
+      {before}
+      <PretendardFont weight="bold" className="text-[15px] text-[#1EA7FF]">
+        {highlight}
+      </PretendardFont>
+      {after}
+    </PretendardFont>
   );
 }
 
-// ── 메인 스크린 ───────────────────────────────────────
+function AssistantGuideOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <Pressable onPress={onClose} className="absolute inset-0 z-[1001] bg-black/50">
+
+      <View className="absolute right-1 top-0 h-14 w-14 items-center justify-center">
+        <View className="h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg">
+          <Feather name="clock" size={22} color="#149EF2" />
+        </View>
+      </View>
+
+      <View className="absolute right-6 top-[78px] w-[250px]">
+        <Feather
+          name="corner-right-up"
+          size={30}
+          color="#FFFFFF"
+          style={{ alignSelf: "flex-end", marginBottom: 2, marginRight: 28 }}
+        />
+        <CoachText
+          before="우측 시계 아이콘을 누르면 "
+          highlight="기존 대화내역"
+          after="을 확인할 수 있어요"
+        />
+      </View>
+
+      <View className="absolute left-7 right-7 top-[185px]">
+        <Feather
+          name="corner-left-down"
+          size={30}
+          color="#FFFFFF"
+          style={{ marginBottom: 4, marginLeft: 22 }}
+        />
+        <CoachText
+          before="궁금한 게 막막하면 "
+          highlight="질문 예시"
+          after="를 눌러 바로 답변을 받아보세요"
+        />
+      </View>
+
+      <View className="absolute bottom-[88px] left-6 right-6">
+        <Feather
+          name="corner-left-down"
+          size={30}
+          color="#FFFFFF"
+          style={{ alignSelf: "flex-end", marginBottom: 4, marginRight: 42 }}
+        />
+        <CoachText
+          before="원하는 질문은 아래 "
+          highlight="입력창"
+          after="에 직접 적어 대화할 수 있어요"
+        />
+      </View>
+    </Pressable>
+  );
+}
+
 export default function BeeChatScreen() {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const scrollRef = useRef<ScrollView>(null);
-
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "bot",
-      Text: "안녕하세요! 수정벌 AI 챗봇이에요. 🐝\n수정벌에 관한 궁금한 점을 자유롭게 물어보세요!",
-    },
-  ]);
+  const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [inputText, setInputText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [inquiryVisible, setInquiryVisible] = useState(false);
-  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [noticeVisible, setNoticeVisible] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
 
-  // 첫 유저 메시지 이전인지 여부
-  const hasUserMessage = messages.some((m) => m.role === "user");
+  const {
+    conversations,
+    currentConversationId,
+    visibleMessages,
+    sampleQuestions,
+    isSending,
+    sendMessage,
+    startNewConversation,
+    selectConversation,
+    deleteConversation,
+  } = useAssistantChat();
+
+  const hasUserMessage = visibleMessages.some(
+    (message) => message.role === "user",
+  );
+  const canSend = inputText.trim().length > 0 && !isSending;
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    AsyncStorage.getItem(ASSISTANT_CHAT_GUIDE_HIDDEN_KEY)
+      .then((value) => {
+        if (isMounted && value !== "true") {
+          setNoticeVisible(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setNoticeVisible(true);
+      });
+
     return () => {
-      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+      isMounted = false;
     };
   }, []);
 
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-  }, []);
+  useEffect(() => {
+    scrollToBottom();
+  }, [scrollToBottom, visibleMessages.length, isSending]);
 
-  const handleGoBack = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    navigation.goBack();
-  };
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidShow", scrollToBottom);
+    return () => subscription.remove();
+  }, [scrollToBottom]);
 
-  // 메시지 전송 — 실제 답변 로직은 외부에서 주입하거나 추후 연결
-  const handleSend = useCallback(
-    (Text?: string) => {
-      const msg = (Text ?? inputText).trim();
-      if (!msg || isTyping) return;
+  const sendWithHaptic = useCallback(
+    async (text: string) => {
+      const trimmedText = text.trim();
+      if (!trimmedText || isSending) return;
 
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { id: `user-${Date.now()}`, role: "user", Text: msg },
-      ]);
+      setGuideVisible(false);
       setInputText("");
-      setIsTyping(true);
-      scrollToBottom();
-
-      // TODO: 백엔드 연결 후 실제 응답으로 교체
-      replyTimerRef.current = setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `bot-${Date.now()}`,
-            role: "bot",
-            Text: "답변을 준비 중이에요. 백엔드 연결 후 실제 응답이 표시됩니다.",
-          },
-        ]);
-        setIsTyping(false);
-        scrollToBottom();
-        replyTimerRef.current = null;
-      }, 1000);
+      await sendMessage(trimmedText);
     },
-    [inputText, isTyping, scrollToBottom],
+    [isSending, sendMessage],
   );
 
-  const handleSuggestionPress = (suggestion: string) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    handleSend(suggestion);
-  };
+  const handleSend = useCallback(() => {
+    sendWithHaptic(inputText);
+  }, [inputText, sendWithHaptic]);
+
+  const startGuide = useCallback(() => {
+    setNoticeVisible(false);
+    setGuideVisible(true);
+  }, []);
+
+  const hideGuidePermanently = useCallback(async () => {
+    setNoticeVisible(false);
+    setGuideVisible(false);
+    await AsyncStorage.setItem(ASSISTANT_CHAT_GUIDE_HIDDEN_KEY, "true");
+  }, []);
+
+  const closeGuide = useCallback(() => {
+    setGuideVisible(false);
+  }, []);
+
+  const openHistory = useCallback(() => {
+    setGuideVisible(false);
+    setHistoryVisible(true);
+  }, []);
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-[#F4F5F7]">
-      {/* ── 헤더 ── */}
+    <KeyboardAvoidingView
+      className="flex-1 bg-[#F4F5F7]"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <AppHeader
-        title="채팅 및 문의"
-        onBack={() => navigation.goBack()}
+        title="수정벌 AI 상담"
+        onBack={() => router.back()}
         rightAction={{
-          icon: "mail",
-          onPress: () => setInquiryVisible(true),
-          testId: "button-inquiry",
+          icon: "clock",
+          onPress: openHistory,
+          testId: "button-open-assistant-history",
         }}
+        isScrolled={isScrolled}
       />
-      // 설정 버튼 있는 화면
+
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
+        contentContainerClassName="px-4 pb-2 pt-[72px]"
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={scrollToBottom}
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() =>
-          scrollRef.current?.scrollToEnd({ animated: true })
-        }
       >
-        {/* 추천 질문 — 유저 메시지 없을 때만 */}
-        {!hasUserMessage && (
-          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
-            <Text
-              style={{
-                fontSize: 12,
-                color: C.ter,
+        {!hasUserMessage ? (
+          <AssistantSuggestions
+            questions={sampleQuestions}
+            onSelect={sendWithHaptic}
+          />
+        ) : null}
 
-                marginBottom: 16,
-              }}
-            >
-              추천 질문을 눌러보세요
-            </Text>
-            <View
-              className="flex-row flex-wrap justify-center"
-              style={{ gap: 8, marginBottom: 16 }}
-            >
-              {SUGGESTIONS.map((s, i) => (
-                <Pressable
-                  key={i}
-                  onPress={() => handleSuggestionPress(s)}
-                  className="bg-white"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: C.border,
-                    borderRadius: 20,
-                    paddingHorizontal: 14,
-                    paddingVertical: 8,
-                  }}
-                  data-testid={`button-suggestion-${i}`}
-                >
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: C.primary,
-                      fontWeight: "500",
-                    }}
-                  >
-                    {s}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* 말풍선 목록 */}
-        {messages.map((msg) => (
-          <Animated.View
-            key={msg.id}
-            entering={FadeInDown.duration(300)}
-            style={{
-              flexDirection: "row",
-              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              alignItems: "flex-end",
-              marginBottom: 12,
-            }}
-          >
-            {msg.role === "bot" && <BotAvatar />}
-            <View
-              style={{
-                maxWidth: "75%",
-                backgroundColor:
-                  msg.role === "user" ? C.userBubble : C.botBubble,
-                borderRadius: 18,
-                borderBottomRightRadius: msg.role === "user" ? 4 : 18,
-                borderBottomLeftRadius: msg.role === "bot" ? 4 : 18,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                ...(msg.role === "bot"
-                  ? { borderWidth: 1, borderColor: C.border }
-                  : {}),
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 22,
-                  color: msg.role === "user" ? C.white : C.Text,
-                }}
-              >
-                {msg.Text}
-              </Text>
-            </View>
-          </Animated.View>
+        {visibleMessages.map((message) => (
+          <AssistantMessageBubble key={message.id} message={message} />
         ))}
 
-        {/* 타이핑 인디케이터 */}
-        {isTyping && (
-          <Animated.View
-            entering={FadeIn.duration(200)}
-            className="flex-row items-end"
-            style={{ marginBottom: 12 }}
-          >
-            <BotAvatar />
-            <View
-              className="bg-white"
-              style={{
-                borderRadius: 18,
-                borderBottomLeftRadius: 4,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                borderWidth: 1,
-                borderColor: C.border,
-              }}
-            >
-              <View className="flex-row items-center gap-1">
-                <ActivityIndicator size="small" color={C.sec} />
-                <Text style={{ fontSize: 13, color: C.sec, marginLeft: 6 }}>
-                  답변 작성 중...
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-        )}
+        {isSending ? <AssistantTypingBubble /> : null}
       </ScrollView>
-      {/* ── 입력창 ── */}
-      <View
-        className="bg-white border-t border-[#E5E8EB]"
-        style={{
-          paddingHorizontal: 12,
-          paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 8),
-        }}
-      >
-        <View
-          className="flex-row items-center"
-          style={{
-            backgroundColor: C.bg,
-            borderRadius: 24,
-            paddingHorizontal: 16,
-            paddingVertical: Platform.OS === "ios" ? 10 : 4,
-          }}
+
+      {hasUserMessage ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="grow-0 border-t border-[#E5E8EB] bg-white"
+          contentContainerClassName="gap-2 px-3 py-2"
+          keyboardShouldPersistTaps="handled"
         >
+          {sampleQuestions.slice(0, 8).map((question, index) => (
+            <Pressable
+              key={`${question}-${index}`}
+              onPress={() => sendWithHaptic(question)}
+              disabled={isSending}
+              className={[
+                "rounded-full border border-[#E5E8EB] bg-white px-3.5 py-2",
+                isSending ? "opacity-55" : "active:opacity-70",
+              ].join(" ")}
+            >
+              <PretendardFont
+                weight="medium"
+                className="text-[13px] text-[#8B95A1]"
+              >
+                {question}
+              </PretendardFont>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      <View className="border-t border-[#E5E8EB] bg-white px-3 pb-3 pt-2.5">
+        <View className="min-h-[52px] flex-row items-center rounded-[26px] border border-[#E5E8EB] bg-[#F9FAFB] py-1.5 pl-4 pr-2">
           <TextInput
             value={inputText}
             onChangeText={setInputText}
-            placeholder="수정벌에 대해 물어보세요..."
-            placeholderTextColor={C.ter}
-            style={{
-              flex: 1,
-              fontSize: 15,
-              color: C.Text,
-              maxHeight: 100,
-              paddingVertical: 0,
-            }}
+            placeholder="벌과 작물 상황을 물어보세요"
+            placeholderTextColor="#B0B8C1"
+            editable={!isSending}
             multiline
             returnKeyType="send"
-            onSubmitEditing={() => handleSend()}
-            editable={!isTyping}
+            onSubmitEditing={handleSend}
+            className="min-h-[38px] flex-1 px-0 py-1.5 text-[15px] leading-[21px] text-[#191F28]"
+            textAlignVertical="center"
             data-testid="input-chat-message"
           />
+
           <Pressable
-            onPress={() => handleSend()}
-            disabled={!inputText.trim() || isTyping}
-            className="items-center justify-center ml-2"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor:
-                inputText.trim() && !isTyping ? C.primary : C.border,
-            }}
+            onPress={handleSend}
+            disabled={!canSend}
+            className={[
+              "ml-2.5 h-9 w-9 items-center justify-center rounded-full",
+              canSend ? "bg-[#EA580C]" : "bg-[#E5E8EB]",
+            ].join(" ")}
             data-testid="button-send-message"
           >
-            <Feather name="send" size={16} color={C.white} />
+            <Feather
+              name="send"
+              size={16}
+              color={canSend ? "#FFFFFF" : "#8B95A1"}
+            />
           </Pressable>
         </View>
       </View>
-      {/* ── 문의 모달 ── */}
-      <InquiryModal
-        visible={inquiryVisible}
-        onClose={() => setInquiryVisible(false)}
+
+      <ConversationHistorySheet
+        visible={historyVisible}
+        conversations={conversations}
+        currentConversationId={currentConversationId}
+        onClose={() => setHistoryVisible(false)}
+        onNewConversation={startNewConversation}
+        onSelectConversation={selectConversation}
+        onDeleteConversation={deleteConversation}
       />
+
+      {guideVisible ? <AssistantGuideOverlay onClose={closeGuide} /> : null}
+
+      <Modal
+        visible={noticeVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={startGuide}
+      >
+        <View className="flex-1 items-center justify-center bg-black/50 px-5">
+          <View className="w-full max-w-[360px] rounded-3xl bg-white px-5 pb-5 pt-5">
+            <View className="mb-4 h-11 w-11 items-center justify-center rounded-full bg-[#FFF7ED]">
+              <Feather name="alert-circle" size={22} color="#EA580C" />
+            </View>
+
+            <PretendardFont
+              weight="bold"
+              className="text-[18px] leading-6 text-[#191F28]"
+            >
+              챗봇은 아직 실험 중이에요
+            </PretendardFont>
+
+            <PretendardFont className="mt-3 text-[14px] leading-[22px] text-[#4E5968]">
+              이 화면의 답변은 AI가 생성하며, 현재는 테스트 데이터가 일부
+              포함될 수 있어요. 방제, 구매, 생육 판단처럼 중요한 결정은 현장
+              상황과 전문가 확인을 함께 참고해주세요.
+            </PretendardFont>
+
+            <View className="mt-5 gap-2.5">
+              <Pressable
+                onPress={startGuide}
+                className="h-[50px] items-center justify-center rounded-2xl bg-[#EA580C] active:opacity-80"
+                data-testid="button-start-assistant-guide"
+              >
+                <PretendardFont weight="bold" className="text-[15px] text-white">
+                  시작하기
+                </PretendardFont>
+              </Pressable>
+
+              <Pressable
+                onPress={hideGuidePermanently}
+                className="h-[48px] items-center justify-center rounded-2xl border border-[#E5E8EB] bg-white active:opacity-80"
+                data-testid="button-hide-assistant-guide"
+              >
+                <PretendardFont weight="semibold" className="text-[14px] text-[#6B7684]">
+                  다시 보지 않기
+                </PretendardFont>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

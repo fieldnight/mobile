@@ -21,8 +21,8 @@ export async function getFarmList(): Promise<UserCrop[]> {
 }
 
 // 농지 등록
-export async function createFarm(request: UserCropCreateRequest): Promise<{ id: number }> {
-  const response = await api.post<ApiResponse<{ id: number }>>('/api/v1/profile/crops', request);
+export async function createFarm(request: UserCropCreateRequest): Promise<{ userCropId: number }> {
+  const response = await api.post<ApiResponse<{ userCropId: number }>>('/api/v1/profile/crops', request);
   return response.data.data;
 }
 

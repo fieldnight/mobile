@@ -1,24 +1,123 @@
 import { Feather } from "@expo/vector-icons";
+import { C } from "@/constants/hive-colors";
+import type { HiveTelemetry } from "./hive-telemetry";
 
-interface ControlSetting {
+export interface ControlSetting {
   id: string;
   name: string;
   description: string;
   icon: keyof typeof Feather.glyphMap;
   enabled: boolean;
 }
+
+export interface HiveData {
+  id: string;
+  macAddress: string;
+  name: string;
+  region: string;
+  status: "online" | "offline";
+  temperature: number | null;
+  humidity: number | null;
+  externalTemperature?: number | null;
+  externalHumidity?: number | null;
+  telemetry?: HiveTelemetry;
+  weight: number;
+  beeActivity: "high" | "medium" | "low";
+  lastUpdate: string;
+  /** 실측 시각과 앱 수신 시각은 연결 확인 시각과 별도로 보관합니다. */
+  measuredAt?: number;
+  telemetryReceivedAt?: number;
+  connectionCheckedAt?: number;
+  /** 마지막으로 서버가 오프라인을 확인한 시각. 늦게 도착한 SSE를 구분합니다. */
+  disconnectedAt?: number;
+  location?: string;
+  memo?: string;
+  registeredAt?: string;
+  replacedAt?: string;
+}
+
+export interface ActiveTag {
+  label: string;
+  color: string;
+  bg: string;
+}
+
+export interface HiveControlState {
+  controls: ControlSetting[];
+  heaterOn: boolean;
+  coolerOn: boolean;
+  ventOn: boolean;
+  circOn: boolean;
+}
+
+export interface HiveFormInput {
+  id?: string;
+  macAddress: string;
+  name: string;
+  region: string;
+  location: string;
+  memo?: string;
+  replacedAt?: string;
+}
+
+export function getDisabledState(controls: ControlSetting[]) {
+  const heatingAuto =
+    controls.find((control) => control.id === "heating")?.enabled ?? false;
+  const humidityAuto =
+    controls.find((control) => control.id === "humidity")?.enabled ?? false;
+  const ventilationAuto =
+    controls.find((control) => control.id === "ventilation")?.enabled ?? false;
+
+  return {
+    heaterDisabled: heatingAuto,
+    coolerDisabled: heatingAuto,
+    ventDisabled: humidityAuto || ventilationAuto,
+    circDisabled: humidityAuto || ventilationAuto,
+  };
+}
+
+const TAG_MAP: Record<string, string> = {
+  heating: "온도조절",
+  humidity: "습도조절",
+  ventilation: "환기",
+};
+
+export function buildActiveTags(hiveControl: HiveControlState): ActiveTag[] {
+  const disabled = getDisabledState(hiveControl.controls);
+  const tags: ActiveTag[] = [];
+  const pushTag = (label: string) => {
+    if (!tags.some((tag) => tag.label === label)) {
+      tags.push({ label, color: C.primary, bg: C.primarySoft });
+    }
+  };
+
+  hiveControl.controls.forEach((control) => {
+    if (control.enabled && TAG_MAP[control.id]) {
+      pushTag(TAG_MAP[control.id]);
+    }
+  });
+
+  if (hiveControl.heaterOn && !disabled.heaterDisabled) {
+    pushTag("온도조절");
+  }
+  if (hiveControl.coolerOn && !disabled.coolerDisabled) {
+    pushTag("온도조절");
+  }
+  if (hiveControl.ventOn && !disabled.ventDisabled) {
+    pushTag("환기");
+  }
+  if (hiveControl.circOn && !disabled.circDisabled) {
+    pushTag("환기");
+  }
+
+  return tags;
+}
+
 export const initialControls: ControlSetting[] = [
   {
-    id: "ventilation",
-    name: "환기 시스템",
-    description: "벌통 내부 환기 자동 조절",
-    icon: "wind",
-    enabled: true,
-  },
-  {
     id: "heating",
-    name: "온도 유지",
-    description: "적정 온도(34~35°C) 자동 유지",
+    name: "온도조절",
+    description: "수정벌 활동 적정 온도(24~27°C) 자동 유지",
     icon: "thermometer",
     enabled: true,
   },
@@ -30,23 +129,12 @@ export const initialControls: ControlSetting[] = [
     enabled: false,
   },
   {
-    id: "alert",
-    name: "이상 알림",
-    description: "비정상 상태 감지 시 알림",
-    icon: "bell",
+    id: "ventilation",
+    name: "환기",
+    description: "벌통 내부 공기 흐름 자동 조절",
+    icon: "wind",
     enabled: true,
   },
 ];
 
-export const BoxColor = {
-  primary: "#3182F6",
-  bg: "#F4F5F7",
-  white: "#FFFFFF",
-  text: "#191F28",
-  sec: "#8B95A1",
-  ter: "#B0B8C1",
-  border: "#E5E8EB",
-  success: "#00C853",
-  warning: "#FF9100",
-  error: "#F44336",
-};
+export { C as BoxColor } from "@/constants/hive-colors";

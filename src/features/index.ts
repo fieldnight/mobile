@@ -29,5 +29,18 @@ export {
   useDeleteFarm,
 } from './farm';
 
+// Hive feature
+export {
+  useHiveList,
+  useSyncHiveList,
+  useHiveDetail,
+  useCreateHive,
+  useUpdateHive,
+  useDeleteHive,
+} from './hive';
+
 // News feature
-export { useNews, fetchGoogleNews } from './news';
+export { useNews, useNewsList, useNewsDetail, fetchGoogleNews } from './news';
+
+// Assistant feature
+export { useAssistantChat } from './assistant';

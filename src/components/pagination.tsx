@@ -6,19 +6,24 @@
  */
 
 import { memo } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
+import { PretendardFont } from "@/components/PretendardFont";
+import { C } from "@/constants/hive-colors";
 
 interface PaginationProps {
   page: number;
   totalPages: number;
   onPage: (p: number) => void;
-  groupSize?: number; // 한 번에 보여줄 페이지 수 (기본 5)
+  groupSize?: number;
+  size?: "default" | "large";
 }
 
 const Pagination = memo(
-  ({ page, totalPages, onPage, groupSize = 5 }: PaginationProps) => {
+  ({ page, totalPages, onPage, groupSize = 5, size = "default" }: PaginationProps) => {
     if (totalPages <= 1) return null;
+    const isLarge = size === "large";
+    const buttonClassName = `${isLarge ? "h-11 w-11" : "h-9 w-9"} items-center justify-center rounded-lg`;
 
     const group = Math.floor((page - 1) / groupSize);
     const start = group * groupSize + 1;
@@ -26,62 +31,70 @@ const Pagination = memo(
     const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
     return (
-      <View style={styles.pagination}>
-        {/* 이전 */}
+      <View className="flex-row items-center justify-center gap-1 py-2">
         <Pressable
           onPress={() => page > 1 && onPage(page - 1)}
           disabled={page <= 1}
-          style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}
+          className={`${buttonClassName} ${
+            page <= 1 ? "opacity-40" : ""
+          }`}
         >
           <Feather
             name="chevron-left"
-            size={20}
-            color={page <= 1 ? "#9ca3af" : "#111827"}
+            size={isLarge ? 24 : 20}
+            color={page <= 1 ? C.ter : C.text}
           />
         </Pressable>
 
-        {/* 앞 그룹 */}
         {start > 1 && (
-          <Pressable onPress={() => onPage(start - 1)} style={styles.pageBtn}>
-            <Text style={styles.pageBtnText}>···</Text>
+          <Pressable
+            onPress={() => onPage(start - 1)}
+            className={buttonClassName}
+          >
+            <PretendardFont weight="medium" style={{ fontSize: isLarge ? 17 : 14, color: C.sec }}>
+              ···
+            </PretendardFont>
           </Pressable>
         )}
 
-        {/* 페이지 번호 */}
         {pages.map((p) => (
           <Pressable
             key={p}
             onPress={() => onPage(p)}
-            style={[styles.pageBtn, p === page && styles.pageBtnActive]}
+            className={buttonClassName}
+            style={{ backgroundColor: p === page ? C.primary : "transparent" }}
           >
-            <Text
-              style={[
-                styles.pageBtnText,
-                p === page && styles.pageBtnTextActive,
-              ]}
+            <PretendardFont
+              weight={p === page ? "bold" : "medium"}
+              style={{ fontSize: isLarge ? 17 : 14, color: p === page ? C.white : C.sec }}
             >
               {p}
-            </Text>
+            </PretendardFont>
           </Pressable>
         ))}
 
-        {/* 뒤 그룹 */}
         {end < totalPages && (
-          <Pressable onPress={() => onPage(end + 1)} style={styles.pageBtn}>
-            <Text style={styles.pageBtnText}>···</Text>
+          <Pressable
+            onPress={() => onPage(end + 1)}
+            className={buttonClassName}
+          >
+            <PretendardFont weight="medium" style={{ fontSize: isLarge ? 17 : 14, color: C.sec }}>
+              ···
+            </PretendardFont>
           </Pressable>
         )}
 
-        {/* 다음 */}
         <Pressable
           onPress={() => page < totalPages && onPage(page + 1)}
           disabled={page >= totalPages}
-          style={[styles.pageBtn, page >= totalPages && styles.pageBtnDisabled]}
+          className={`${buttonClassName} ${
+            page >= totalPages ? "opacity-40" : ""
+          }`}
         >
           <Feather
             name="chevron-right"
-            size={20}
-            color={page >= totalPages ? "#9ca3af" : "#111827"}
+            size={isLarge ? 24 : 20}
+            color={page >= totalPages ? C.ter : C.text}
           />
         </Pressable>
       </View>
@@ -90,35 +103,3 @@ const Pagination = memo(
 );
 
 export default Pagination;
-
-const styles = StyleSheet.create({
-  pagination: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 8,
-  },
-  pageBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  pageBtnActive: {
-    backgroundColor: "#fde047",
-  },
-  pageBtnDisabled: {
-    opacity: 0.4,
-  },
-  pageBtnText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6b7280",
-  },
-  pageBtnTextActive: {
-    color: "#111827",
-    fontWeight: "700",
-  },
-});

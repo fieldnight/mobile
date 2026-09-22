@@ -1,0 +1,1 @@
+export { useUploadProfileImage } from './hooks';

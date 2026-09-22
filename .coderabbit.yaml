@@ -1,0 +1,7 @@
+language: "ko-KR"
+reviews:
+  poem: false
+  auto_review:
+    base_branches:
+      - "develop"
+      - "master"

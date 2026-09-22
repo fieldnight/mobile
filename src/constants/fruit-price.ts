@@ -62,10 +62,12 @@ export const COLUMNS = [
   { key: "scsbd_dt", label: "낙찰일시", baseWidth: 70 },
   { key: "corp_nm", label: "법인명", baseWidth: 100 },
   { key: "gds_mclsf_nm", label: "중분류명", baseWidth: 80 },
+  { key: "gds_sclsf_nm", label: "소분류명", baseWidth: 80 },
   { key: "plor_nm", label: "원산지명", baseWidth: 80 },
   { key: "scsbd_prc", label: "낙찰가(원)", baseWidth: 90 },
   { key: "qty", label: "수량", baseWidth: 55 },
   { key: "unit_qty", label: "단위물량", baseWidth: 65 },
+  { key: "pkg_nm", label: "포장명", baseWidth: 70 },
 ];
 
 export const DETAIL_FIELDS = [

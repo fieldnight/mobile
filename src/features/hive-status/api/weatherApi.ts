@@ -1,12 +1,4 @@
-/**
- * 기상청 API Hub (apihub.kma.go.kr) 호출 유틸
- * - fetchTodayDirect  : 현재 시각 기준 최근 3시간 관측값 + 당일 최고·최저 기온
- * - fetchWeeklyDirect : 최근 7일 일별 기상 데이터
- * - parseCondition    : 운량·강수량 → 날씨 상태·아이콘 변환
- * - 응답은 CSV 텍스트이며 공백 split으로 필드 파싱
- */
-
-import { KMA_API_KEY } from "@/constants";
+import { PUBLIC_CONFIG } from "@/lib/publicConfig";
 import type { TodayWeatherData, WeatherCondition, WeatherDay } from "@/types";
 
 export function getKstNow() {
@@ -14,48 +6,79 @@ export function getKstNow() {
 }
 
 function round1(v: number): number | null {
-  return v !== -99 && v !== -9 ? Math.round(v * 10) / 10 : null;
+  return Number.isFinite(v) && v !== -99 && v !== -9
+    ? Math.round(v * 10) / 10
+    : null;
 }
 
 function roundInt(v: number): number | null {
-  return v !== -9 ? Math.round(v) : null;
+  return Number.isFinite(v) && v !== -9 ? Math.round(v) : null;
 }
 
 export function parseCondition(caTot: number, rnDay: number): WeatherCondition {
-  if (rnDay > 0 && rnDay !== -9)
+  if (rnDay > 0 && rnDay !== -9) {
     return { condition: "비", icon: "cloud-rain", iconColor: "#42A5F5" };
+  }
+
   if (caTot >= 0 && caTot !== -9) {
-    if (caTot <= 2)
+    if (caTot <= 2) {
       return { condition: "맑음", icon: "sun", iconColor: "#FFB300" };
-    if (caTot <= 5)
+    }
+    if (caTot <= 5) {
       return { condition: "구름조금", icon: "cloud", iconColor: "#B0BEC5" };
-    if (caTot <= 8)
+    }
+    if (caTot <= 8) {
       return { condition: "구름많음", icon: "cloud", iconColor: "#607D8B" };
+    }
     return { condition: "흐림", icon: "cloud", iconColor: "#455A64" };
   }
+
   return { condition: "맑음", icon: "sun", iconColor: "#FFB300" };
 }
 
 function parseKmaLines(text: string) {
-  return text.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
+  return text.split("\n").filter((line) => {
+    const trimmed = line.trim();
+    return trimmed && !trimmed.startsWith("#");
+  });
 }
 
 function checkKmaError(text: string): string | null {
+  if (text.includes("유효한 인증키가 아닙니다")) {
+    return "KMA API 인증키가 유효하지 않습니다.";
+  }
+
   if (!text.includes('"result"')) return null;
+
   try {
     const err = JSON.parse(text);
-    return err.result?.status === 403
-      ? "API_LIMIT"
-      : (err.result?.message ?? "KMA_ERROR");
+    const status = err.result?.status;
+    const message = err.result?.message;
+
+    if (status === 403) return message ?? "KMA API 호출 한도를 초과했습니다.";
+    return message ?? "KMA API 오류가 발생했습니다.";
   } catch {
     return null;
   }
 }
 
+function assertKmaConfig() {
+  if (!PUBLIC_CONFIG.kmaApiKey) {
+    throw new Error("KMA API 인증키가 설정되지 않았습니다.");
+  }
+}
+
 function kmaUrl(path: string, params: Record<string, string | number>) {
-  const qs = Object.entries({ ...params, help: 0, authKey: KMA_API_KEY })
-    .map(([k, v]) => `${k}=${v}`)
+  assertKmaConfig();
+
+  const qs = Object.entries({
+    ...params,
+    help: 0,
+    authKey: PUBLIC_CONFIG.kmaApiKey,
+  })
+    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
     .join("&");
+
   return `https://apihub.kma.go.kr/api/typ01/url/${path}?${qs}`;
 }
 
@@ -77,8 +100,8 @@ export async function fetchTodayDirect(
   ]);
 
   const hourlyText = await hourlyRes.text();
-  const kmaErr = checkKmaError(hourlyText);
-  if (kmaErr) throw new Error(kmaErr);
+  const hourlyError = checkKmaError(hourlyText);
+  if (hourlyError) throw new Error(hourlyError);
 
   const lines = parseKmaLines(hourlyText);
   if (!lines.length) return null;
@@ -86,6 +109,9 @@ export async function fetchTodayDirect(
   const f = lines[0].trim().split(/\s+/);
 
   const dailyText = await dailyRes.text();
+  const dailyError = checkKmaError(dailyText);
+  if (dailyError) throw new Error(dailyError);
+
   const dailyLines = parseKmaLines(dailyText);
   let high: number | null = null;
   let low: number | null = null;
@@ -113,8 +139,8 @@ export async function fetchWeeklyDirect(stn: number): Promise<WeatherDay[]> {
   const res = await fetch(kmaUrl("kma_sfcdd3.php", { tm1, tm2, stn }));
   const text = await res.text();
 
-  const kmaErr = checkKmaError(text);
-  if (kmaErr) throw new Error(kmaErr);
+  const kmaError = checkKmaError(text);
+  if (kmaError) throw new Error(kmaError);
 
   const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -124,20 +150,20 @@ export async function fetchWeeklyDirect(stn: number): Promise<WeatherDay[]> {
 
     const dateStr = f[0];
     const date = new Date(
-      parseInt(dateStr.slice(0, 4)),
-      parseInt(dateStr.slice(4, 6)) - 1,
-      parseInt(dateStr.slice(6, 8)),
+      parseInt(dateStr.slice(0, 4), 10),
+      parseInt(dateStr.slice(4, 6), 10) - 1,
+      parseInt(dateStr.slice(6, 8), 10),
     );
+    const condition = parseCondition(parseFloat(f[31]), parseFloat(f[38]));
 
     acc.push({
       day: DAY_NAMES[date.getDay()],
-      date: `${parseInt(dateStr.slice(4, 6))}/${parseInt(dateStr.slice(6, 8))}`,
+      date: `${parseInt(dateStr.slice(4, 6), 10)}/${parseInt(dateStr.slice(6, 8), 10)}`,
       high: round1(parseFloat(f[11])),
       low: round1(parseFloat(f[13])),
       humidity: roundInt(parseFloat(f[18])),
-      ...parseCondition(parseFloat(f[31]), parseFloat(f[38])),
-      icon: parseCondition(parseFloat(f[31]), parseFloat(f[38]))
-        .icon as WeatherDay["icon"],
+      ...condition,
+      icon: condition.icon as WeatherDay["icon"],
     });
     return acc;
   }, []);
