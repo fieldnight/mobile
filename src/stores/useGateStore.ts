@@ -18,6 +18,7 @@ function createGateData(input: GateFormInput): GateData {
     gateId: input.gateId ?? 0,
     macAddress: input.macAddress,
     name: input.name,
+    region: input.region,
     location: input.location,
     memo: input.memo ?? "",
     registeredAt: todayLabel(),
@@ -35,10 +36,11 @@ interface GateStoreState {
 
 /**
  * 개폐기 기기 등록 store
- * - 등록(POST /api/v1/gates)은 서버에 반영되고, 성공 후 이 store에 결과를 저장합니다.
- * - 목록 조회 API가 없어 등록된 개폐기 "목록" 자체는 계속 로컬(AsyncStorage)에만 보관합니다.
- * - 수정(updateGate)은 서버에 PATCH 엔드포인트가 아직 없어 로컬에만 반영됩니다.
- *   나중에 백엔드에 수정 API가 생기면 updateGate만 서버 호출로 교체하면 됩니다.
+ * - 서버(/api/v1/gates)가 목록/수정/삭제의 source of truth입니다. 이 store는 그 결과를
+ *   AsyncStorage에 캐시해 앱을 다시 열었을 때 서버 응답 전에도 마지막 목록을 보여줍니다.
+ * - addGate/updateGate/deleteGate는 서버 요청이 성공한 뒤 화면(useGateSync 등)에서
+ *   호출해 로컬 캐시를 맞춰주는 용도입니다. 실제 서버 동기화는
+ *   src/features/door-opener/hooks/useGateDeviceApi.ts의 훅들이 담당합니다.
  */
 export const useGateStore = create<GateStoreState>()(
   persist(
@@ -55,6 +57,7 @@ export const useGateStore = create<GateStoreState>()(
               ? {
                   ...gate,
                   name: input.name,
+                  region: input.region,
                   location: input.location,
                   memo: input.memo ?? "",
                 }

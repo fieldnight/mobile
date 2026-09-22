@@ -2,11 +2,11 @@ import { api } from "@/lib/api";
 import type { Period } from "@/types";
 
 /**
- * 개폐기 "하드웨어" 등록/리포트 API 레이어 (POST /api/v1/gates 등)
+ * 개폐기 "하드웨어" CRUD/리포트 API 레이어 (/api/v1/gates)
  * - src/features/door-opener/api/gateActionsApi.ts의 "Gate Action"과는 다른 백엔드 리소스입니다.
  *   그쪽은 벌통에 딸린 개폐기 스케줄 카드(HiveGateActionApi)이고, 이 파일은 개폐기 하드웨어
- *   자체(등록, 온습도/벌 카운트 리포트)를 다룹니다. 이름 충돌을 피하기 위해 GateDevice 접두어를
- *   사용합니다.
+ *   자체(등록/목록/상세/수정/삭제, 온습도·벌 카운트 리포트)를 다룹니다. 이름 충돌을 피하기 위해
+ *   GateDevice 접두어를 사용합니다.
  */
 interface ApiResponse<T> {
   code: string;
@@ -23,6 +23,35 @@ export interface RegisterGateDeviceRequest {
   location?: string;
   macAddress: string;
   memo?: string;
+}
+
+export interface UpdateGateDeviceRequest {
+  name: string;
+  region?: string;
+  location?: string;
+  memo?: string;
+}
+
+export interface GateSummary {
+  gateId: number;
+  name: string;
+  region: string | null;
+  location: string | null;
+  macAddress: string;
+  memo: string | null;
+  isConnected: boolean;
+  createdAt: string;
+}
+
+export interface GateListResponse {
+  totalCount: number;
+  gates: GateSummary[];
+}
+
+export interface GateDetail extends GateSummary {
+  lastConnectedAt: string | null;
+  createdAt: string;
+  modifiedAt: string | null;
 }
 
 export interface GateTelemetryPoint {
@@ -104,6 +133,71 @@ export async function registerGateDevice(
   } catch (error) {
     console.error("[Gate Device API] 개폐기 등록 실패", {
       body,
+      error: getGateDeviceErrorLog(error),
+    });
+    throw error;
+  }
+}
+
+/** 내 개폐기 전체 목록을 조회합니다. */
+export async function getGateDeviceList(): Promise<GateListResponse> {
+  try {
+    const res = await api.get<ApiResponse<GateListResponse>>("/api/v1/gates");
+    console.log("[Gate Device API] 개폐기 목록 조회 성공", {
+      totalCount: res.data.data.totalCount,
+    });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Gate Device API] 개폐기 목록 조회 실패", {
+      error: getGateDeviceErrorLog(error),
+    });
+    throw error;
+  }
+}
+
+/** 개폐기 상세 정보를 조회합니다. */
+export async function getGateDeviceDetail(
+  gateId: string | number,
+): Promise<GateDetail> {
+  try {
+    const res = await api.get<ApiResponse<GateDetail>>(`/api/v1/gates/${gateId}`);
+    console.log("[Gate Device API] 개폐기 상세 조회 성공", { gateId });
+    return res.data.data;
+  } catch (error) {
+    console.error("[Gate Device API] 개폐기 상세 조회 실패", {
+      gateId,
+      error: getGateDeviceErrorLog(error),
+    });
+    throw error;
+  }
+}
+
+/** 개폐기 정보(이름/지역/위치/메모)를 수정합니다. */
+export async function updateGateDevice(
+  gateId: string | number,
+  body: UpdateGateDeviceRequest,
+): Promise<void> {
+  try {
+    await api.put(`/api/v1/gates/${gateId}`, body);
+    console.log("[Gate Device API] 개폐기 수정 성공", { gateId, body });
+  } catch (error) {
+    console.error("[Gate Device API] 개폐기 수정 실패", {
+      gateId,
+      body,
+      error: getGateDeviceErrorLog(error),
+    });
+    throw error;
+  }
+}
+
+/** 개폐기를 삭제합니다. 서버에서 텔레메트리/벌 카운트/명령 기록도 함께 삭제됩니다. */
+export async function deleteGateDevice(gateId: string | number): Promise<void> {
+  try {
+    await api.delete(`/api/v1/gates/${gateId}`);
+    console.log("[Gate Device API] 개폐기 삭제 성공", { gateId });
+  } catch (error) {
+    console.error("[Gate Device API] 개폐기 삭제 실패", {
+      gateId,
       error: getGateDeviceErrorLog(error),
     });
     throw error;
