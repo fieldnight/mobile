@@ -30,6 +30,7 @@ export function mergeHive(previous: HiveData | undefined, incoming: HiveData): H
     humidity: previous.humidity,
     externalTemperature: previous.externalTemperature,
     externalHumidity: previous.externalHumidity,
+    telemetry: previous.telemetry,
     measuredAt: previous.measuredAt,
     telemetryReceivedAt: previous.telemetryReceivedAt,
   });

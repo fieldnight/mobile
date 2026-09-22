@@ -15,6 +15,15 @@ vm.runInNewContext(source, context);
 const merge = (responses, period = '일간', fallback = []) => JSON.parse(JSON.stringify(context.exports.mergeTelemetryData(fallback, responses, period)));
 const response = (values) => ({ data: values.map(([label, value]) => ({ label, value })) });
 
+test('issues survive null measurements and deduplicate across sensor responses', () => {
+  const issue = { code: 'SENSOR_READ_FAIL', timestamp: 'UNSYNCED_BOOT' };
+  const data = merge({
+    INTERNAL_TEMPERATURE: { data: [{ label: '00:00', value: null, issues: [issue] }] },
+    INTERNAL_HUMIDITY: { data: [{ label: '0시', value: null, issues: [issue] }] },
+  });
+  assert.deepEqual(data[0].issues, [issue]); assert.equal(data[0].hasData, false);
+});
+
 test('midnight zero is retained; absent sensors stay null', () => {
   const data = merge({ INTERNAL_TEMPERATURE: response([['00:00', 0]]) });
   assert.equal(data.length, 1);

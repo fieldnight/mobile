@@ -24,6 +24,7 @@ import { Card } from "@/components/hive/hive-shared";
 import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { HiveHardwareStatus } from "@/features/hive-status/components/HiveHardwareStatus";
 import { useSyncHiveList } from "@/features/hive";
 import { useHiveTelemetrySse, type HiveTelemetryEvent } from "@/features/hive-control/hooks";
 import {
@@ -136,7 +137,8 @@ export default function HiveLiveScreen() {
 
   const currentHive = hives.find((hive) => hive.id === hiveId);
 
-  if (telemetryQuery.isError && !telemetryQuery.isFetching) {
+  useEffect(() => {
+    if (!telemetryQuery.isError || telemetryQuery.isFetching) return;
     console.error("[Hive Live] 온습도 데이터 조회 실패", {
       hiveId,
       from: from.toISOString(),
@@ -144,7 +146,7 @@ export default function HiveLiveScreen() {
       error: telemetryQuery.error,
     });
     showToast("온습도 데이터를 불러오지 못했어요", "error");
-  }
+  }, [telemetryQuery.isError, telemetryQuery.isFetching, telemetryQuery.error, hiveId, from, interval, showToast]);
 
   return (
     <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
@@ -234,11 +236,12 @@ export default function HiveLiveScreen() {
               <PretendardFont weight="medium" style={{ fontSize: 12, color: C.sec }}>
                 {isViewingCurrentHour && currentHive?.status === "online"
                   ? "실시간 수신 중"
-                  : "지난 기록"}
+                  : isViewingCurrentHour ? "실시간 수신 대기" : "지난 기록"}
               </PretendardFont>
             </View>
           </View>
 
+          <HiveHardwareStatus hive={currentHive} />
           <PretendardFont weight="bold" style={{ fontSize: 13, color: C.textAlt, marginBottom: 6 }}>
             날짜
           </PretendardFont>

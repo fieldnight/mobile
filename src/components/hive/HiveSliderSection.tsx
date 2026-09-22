@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { HiveData } from "@/types/hive-control";
@@ -74,7 +75,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <View
       className="flex-1 rounded-xl p-2.5"
-      style={{ backgroundColor: "#F8FAFC" }}
+      style={{ backgroundColor: C.bgAlt }}
     >
       <PretendardFont style={{ fontSize: 11, color: C.text }}>
         {label}
@@ -96,8 +97,8 @@ function MetricPair({
   humidity,
 }: {
   title: string;
-  temperature: number;
-  humidity: number;
+  temperature: number | null;
+  humidity: number | null;
 }) {
   return (
     <View className="mb-4">
@@ -109,7 +110,7 @@ function MetricPair({
       </PretendardFont>
       <View
         className="rounded-xl px-4 py-3"
-        style={{ backgroundColor: "#F8FAFC" }}
+        style={{ backgroundColor: C.bgAlt }}
       >
         <PretendardFont
           weight="bold"
@@ -118,7 +119,7 @@ function MetricPair({
           minimumFontScale={0.86}
           style={{ fontSize: 19.5, color: C.text }}
         >
-          온도 {temperature.toFixed(1)}°C · 습도 {humidity.toFixed(0)}%
+          온도 {(temperature?.toFixed(1) ?? "—")}°C · 습도 {(humidity?.toFixed(0) ?? "—")}%
         </PretendardFont>
       </View>
     </View>
@@ -146,41 +147,21 @@ function PanelMetric({
   humidity,
 }: {
   title: string;
-  temperature: number;
-  humidity: number;
+  temperature: number | null;
+  humidity: number | null;
 }) {
   return (
     <View>
       <PretendardFont weight="bold" style={{ fontSize: 12, color: C.textSx }}>
         {title}
       </PretendardFont>
-      <View className="mt-0.5 flex-row items-center gap-1.5">
-        <View className="flex-row items-center gap-1">
-          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
-            온도
-          </PretendardFont>
-          <View
-            className="rounded-lg px-1.5 py-0.5"
-            style={{ backgroundColor: "rgba(237, 119, 57, 0.11)" }}
-          >
-            <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartTemp }}>
-              {temperature.toFixed(1)}°C
-            </PretendardFont>
-          </View>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
-            습도
-          </PretendardFont>
-          <View
-            className="rounded-lg px-1.5 py-0.5"
-            style={{ backgroundColor: "rgba(37, 99, 235, 0.09)" }}
-          >
-            <PretendardFont weight="bold" style={{ fontSize: 19, color: C.chartHumidity }}>
-              {humidity.toFixed(0)}%
-            </PretendardFont>
-          </View>
-        </View>
+      <View className="mt-0.5 flex-row items-baseline gap-3">
+        <PretendardFont weight="bold" style={{ fontSize: 19, color: C.text }}>
+          {(temperature?.toFixed(1) ?? "—")}°C
+        </PretendardFont>
+        <PretendardFont weight="bold" style={{ fontSize: 19, color: C.text }}>
+          {(humidity?.toFixed(0) ?? "—")}%
+        </PretendardFont>
       </View>
     </View>
   );
@@ -196,10 +177,17 @@ function SensorPanel({
     <View
       className="flex-1 p-4 rounded-xl gap-3"
       style={{
-        backgroundColor: "rgba(255, 255, 255, 0.312)",
+        position: "relative",
+        backgroundColor: "rgba(255, 255, 255, 0.82)",
+        borderWidth: 1,
+        borderColor: C.border,
+        shadowColor: C.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        elevation: 2,
       }}
     >
-      <PretendardFont style={{ fontSize: 12, color: C.sec }}>{hive.lastUpdate}</PretendardFont>
       {hive.measuredAt != null && <>
       <PanelMetric
         title="내부"
@@ -208,10 +196,21 @@ function SensorPanel({
       />
       <PanelMetric
         title="외부"
-        temperature={hive.externalTemperature ?? hive.temperature}
-        humidity={hive.externalHumidity ?? hive.humidity}
+        temperature={hive.externalTemperature ?? null}
+        humidity={hive.externalHumidity ?? null}
       />
       </>}
+      <PretendardFont
+        style={{
+          position: "absolute",
+          right: 12,
+          bottom: 8,
+          fontSize: 11,
+          color: C.sec,
+        }}
+      >
+        {hive.lastUpdate}
+      </PretendardFont>
     </View>
   );
 }
@@ -234,7 +233,14 @@ function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
   return (
     <View className="mb-5">
       <View
-        style={{ position: "relative", minHeight: 260 }}
+        style={{
+          position: "relative",
+          minHeight: 260,
+          backgroundColor: "rgba(255, 255, 255, 0.72)",
+          borderWidth: 1,
+          borderColor: C.border,
+          elevation: 0,
+        }}
         className="overflow-hidden rounded-[24px] px-5 py-6"
       >
         <Image
@@ -245,14 +251,14 @@ function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
             right: -24,
             width: 170,
             height: 190,
-            opacity: 0.24,
+            opacity: 0.16,
           }}
           resizeMode="contain"
         />
 
         <View
           className="rounded-2xl p-4"
-          style={{ backgroundColor: "rgba(255, 255, 255, 0.56)" }}
+          style={{ backgroundColor: C.bgAlt }}
         >
           <View className="mb-2 flex-row items-center gap-2">
             <View
@@ -317,22 +323,14 @@ export function HiveSliderSection({
     return (
       <View className="mt-1 gap-3">
         {hives.map((hive) => (
-          <View
-            key={hive.id}
-            className="rounded-[20px] p-4"
-            style={{
-              borderWidth: 1,
-              borderColor: "rgba(0,0,0,0.05)",
-              backgroundColor: "rgba(255, 255, 255, 0.474)",
-            }}
-          >
+          <Card key={hive.id} translucent>
             <HiveBeeBoxCard
               hive={hive}
               onPress={() => onHivePress(hive.id)}
               onEdit={onEditHive ? () => onEditHive(hive) : undefined}
               onDelete={onDeleteHive ? () => onDeleteHive(hive) : undefined}
             />
-          </View>
+          </Card>
         ))}
       </View>
     );
@@ -506,8 +504,8 @@ function HiveBeeBoxCard({
             />
             <MetricPair
               title="외부"
-              temperature={hive.externalTemperature ?? hive.temperature}
-              humidity={hive.externalHumidity ?? hive.humidity}
+              temperature={hive.externalTemperature ?? null}
+              humidity={hive.externalHumidity ?? null}
             />
           </>
         ) : (

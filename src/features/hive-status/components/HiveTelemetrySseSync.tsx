@@ -32,13 +32,7 @@ export function HiveTelemetrySseSync() {
     (event: HiveTelemetryEvent) => {
       const hiveId = String(event.hiveId);
 
-      updateHiveTelemetry(hiveId, {
-        internalTemperature: event.internalTemperature,
-        internalHumidity: event.internalHumidity,
-        externalTemperature: event.externalTemperature,
-        externalHumidity: event.externalHumidity,
-        recordedAt: event.recordedAt,
-      });
+      updateHiveTelemetry(hiveId, event);
 
       // 열려 있는 통계 화면만 최신 집계값을 다시 조회합니다.
       queryClient.invalidateQueries({

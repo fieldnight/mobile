@@ -4,7 +4,7 @@ import { C } from "@/constants/hive-colors";
 import type { HiveTelemetryHourRecord } from "../hooks/useHiveTelemetryHourData";
 
 const TABLE_COLS: Array<{
-  key: keyof Omit<HiveTelemetryHourRecord, "label">;
+  key: keyof Omit<HiveTelemetryHourRecord, "label" | "issues">;
   label: string;
   unit: string;
   format: (value: number) => string;
@@ -80,7 +80,7 @@ export function LiveTelemetryTable({ records }: LiveTelemetryTableProps) {
       {[...records].reverse().map((record, index) => (
         <View
           key={`${record.label}-${index}`}
-          className="flex-row"
+          className="flex-row flex-wrap"
           style={{
             borderBottomWidth: 1,
             borderBottomColor: C.border,
@@ -103,6 +103,12 @@ export function LiveTelemetryTable({ records }: LiveTelemetryTableProps) {
               </View>
             );
           })}
+          {record.issues?.map((issue) => (
+            <PretendardFont key={JSON.stringify([issue.code, issue.timestamp])}
+              style={{ width: "100%", paddingHorizontal: 4, marginTop: 6, fontSize: 12, color: C.error }}>
+              장치 점검 · {issue.code}{issue.timestamp ? ` · ${issue.timestamp === "UNSYNCED_BOOT" ? "기기 시간 동기화 전" : issue.timestamp}` : ""}
+            </PretendardFont>
+          ))}
         </View>
       ))}
     </View>
