@@ -13,10 +13,8 @@ import {
   useWindowDimensions,
   ImageBackground,
   ActivityIndicator,
-  Pressable,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 
@@ -145,7 +143,7 @@ export default function HiveStatsScreen() {
           padding: Spacing.lg,
           paddingTop: Spacing.xs,
           paddingBottom: insets.bottom + 40,
-          gap: Spacing.xl,
+          gap: Spacing.sm,
         }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!chartInteracting}
@@ -164,7 +162,7 @@ export default function HiveStatsScreen() {
         />
 
         {hasHives ? (
-          <View style={{ gap: Spacing.xl }}>
+          <View style={{ gap: Spacing.sm }}>
             <PeriodCard
               period={period}
               onSelect={(nextPeriod) => {
@@ -185,30 +183,10 @@ export default function HiveStatsScreen() {
                 />
               }
             >
-              <View className="mb-3 flex-row items-center justify-between gap-2">
-                <View className="flex-1">
-                  <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                    {period === "일간" ? "오늘의 센서 기록" : `${period} 센서 기록`}
-                  </PretendardFont>
-                  <PretendardFont style={{ marginTop: 4, fontSize: 12, color: C.sec }}>
-                    {period === "일간" ? "시간별 기록 · 최근 측정 구간부터 표시" : "선택한 기간의 측정 기록"}
-                  </PretendardFont>
-                </View>
-                <Pressable
-                  onPress={() => void telemetryQuery.refetch()}
-                  accessibilityRole="button"
-                  accessibilityLabel="센서 기록 새로고침"
-                  accessibilityState={{ disabled: telemetryQuery.isFetching }}
-                  disabled={telemetryQuery.isFetching}
-                  style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
-                >
-                  {telemetryQuery.isFetching ? <ActivityIndicator color={C.primary} /> : <Feather name="refresh-cw" size={19} color={C.sec} />}
-                </Pressable>
-              </View>
               {telemetryQuery.isError && (
                 <View accessibilityRole="alert" className="mb-3 rounded-xl p-3" style={{ backgroundColor: "#FFF4E5" }}>
                   <PretendardFont style={{ fontSize: 13, color: "#92400E" }}>
-                    기록을 불러오지 못했어요. 새로고침해 주세요.{statData.length ? " 이전에 불러온 기록을 표시하고 있어요." : ""}
+                    기록을 불러오지 못했어요.{statData.length ? " 이전에 불러온 기록을 표시하고 있어요." : ""}
                   </PretendardFont>
                 </View>
               )}

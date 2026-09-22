@@ -1,11 +1,13 @@
 /**
  * 벌통 통계 공통 UI
  * - Card: 통계/제어 화면에서 재사용하는 흰색 카드 컨테이너입니다.
+ * - SolidToggleButton: 스마트벌통 메인의 "실시간 센서값 보기" 버튼과 동일한 스타일의 선택형 버튼입니다.
  * - MiniChart: 온도·습도 단일 차트. 데이터 레이블을 SVG 밖 절대위치로 렌더링해 PretendardFont를 적용합니다.
  */
-import React from "react";
+import React, { useState } from "react";
 import {
   Dimensions,
+  Pressable,
   ScrollView,
   View,
   type NativeScrollEvent,
@@ -36,34 +38,100 @@ export function Card({
   delay = 0,
   className,
   style,
+  translucent = false,
 }: {
   children: React.ReactNode;
   delay?: number;
   className?: string;
   style?: ViewStyle;
+  /** 벌통 화면들의 배경 이미지 위에서 쓰는 반투명 카드 스타일 */
+  translucent?: boolean;
 }) {
   return (
     <Animated.View
       entering={FadeInDown.delay(delay).duration(300).springify()}
       className={className}
       style={[
-        {
-          backgroundColor: "#FFFFFF",
-          borderRadius: 20,
-          padding: 15,
-          borderWidth: 1,
-          borderColor: "rgba(0, 0, 0, 0.04)",
-          shadowColor: "#64748B",
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.1,
-          shadowRadius: 20,
-          elevation: 4,
-        },
+        translucent
+          ? {
+              backgroundColor: "rgba(255, 255, 255, 0.72)",
+              borderRadius: 20,
+              padding: 15,
+              borderWidth: 1,
+              borderColor: "rgba(0, 0, 0, 0.04)",
+              elevation: 0,
+            }
+          : {
+              backgroundColor: "#FFFFFF",
+              borderRadius: 20,
+              padding: 15,
+              borderWidth: 1,
+              borderColor: "rgba(0, 0, 0, 0.04)",
+              shadowColor: "#64748B",
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.1,
+              shadowRadius: 20,
+              elevation: 4,
+            },
         style,
       ]}
     >
       {children}
     </Animated.View>
+  );
+}
+
+/**
+ * 스마트벌통 메인의 "실시간 센서값 보기" 버튼과 동일한 색·텍스트 크기·보더 각도·패딩을 쓰는
+ * 선택형(토글) 버튼입니다. 리포트의 조회 기간 / 보기 방식 버튼 등에서 재사용합니다.
+ */
+export function SolidToggleButton({
+  label,
+  active,
+  onPress,
+  testID,
+  flex = true,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  testID?: string;
+  flex?: boolean;
+}) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <View style={flex ? { flex: 1 } : undefined}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ selected: active }}
+        hitSlop={8}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          borderRadius: 12,
+          paddingVertical: 8,
+          backgroundColor: active ? C.text : C.white,
+          borderWidth: 1,
+          borderColor: active ? C.text : C.border,
+          opacity: pressed ? 0.8 : 1,
+        }}
+        testID={testID}
+      >
+        <PretendardFont
+          weight="bold"
+          numberOfLines={1}
+          style={{ fontSize: 14, color: active ? C.white : C.sec }}
+        >
+          {label}
+        </PretendardFont>
+      </Pressable>
+    </View>
   );
 }
 
