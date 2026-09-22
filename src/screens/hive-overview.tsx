@@ -155,7 +155,15 @@ export default function HiveOverviewScreen() {
 function AddHiveStrip({ onPress }: { onPress: () => void }) {
   return (
     <Pressable onPress={onPress} className="active:opacity-80">
-      <View className="flex-row items-center justify-between rounded-2xl border border-white/50 bg-white/70 px-4 py-3">
+      <View
+        className="flex-row items-center justify-between rounded-2xl px-4 py-3"
+        style={{
+          borderWidth: 1,
+          borderColor: C.border,
+          backgroundColor: "rgba(255, 255, 255, 0.72)",
+          elevation: 0,
+        }}
+      >
         <View className="flex-row items-center gap-2.5">
           <View className="h-8 w-8 items-center justify-center rounded-full bg-gray-900">
             <Feather name="plus" size={16} color={C.white} />

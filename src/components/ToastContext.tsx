@@ -13,10 +13,11 @@ interface ToastState {
   visible: boolean;
   message: string;
   type: ToastType;
+  duration?: number;
 }
 
 interface ToastContextValue {
-  show: (message: string, type?: ToastType) => void;
+  show: (message: string, type?: ToastType, duration?: number) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -28,8 +29,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     type: "success",
   });
 
-  const show = useCallback((message: string, type: ToastType = "success") => {
-    setState({ visible: true, message, type });
+  const show = useCallback((message: string, type: ToastType = "success", duration?: number) => {
+    setState({ visible: true, message, type, duration });
   }, []);
 
   const hide = useCallback(() => {
@@ -43,6 +44,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         visible={state.visible}
         message={state.message}
         type={state.type}
+        duration={state.duration}
         onHide={hide}
       />
     </ToastContext.Provider>

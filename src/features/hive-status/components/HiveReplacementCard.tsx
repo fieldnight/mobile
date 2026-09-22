@@ -187,14 +187,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
 
   return (
     <>
-      <Card
-        delay={180}
-        className="mb-10"
-        style={{
-          backgroundColor: "rgba(255,255,255,0.72)",
-          elevation: 0,
-        }}
-      >
+      <Card delay={180} className="mb-10" translucent>
         <View className="mb-4">
           <View className="flex-row items-center justify-between" style={{ gap: 8 }}>
             <View className="flex-1">

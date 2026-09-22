@@ -114,8 +114,11 @@ export const BounceScrollView = forwardRef<ScrollView, BounceScrollViewProps>(
         scrollEventThrottle={props.scrollEventThrottle ?? 16}
         {...panResponder.panHandlers}
         {...props}
+        contentContainerStyle={undefined}
       >
-        <Animated.View style={animatedStyle}>{children}</Animated.View>
+        <Animated.View style={[props.contentContainerStyle, animatedStyle]}>
+          {children}
+        </Animated.View>
       </ScrollView>
     );
   },
