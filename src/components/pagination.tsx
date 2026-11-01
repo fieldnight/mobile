@@ -62,11 +62,12 @@ const Pagination = memo(
             key={p}
             onPress={() => onPage(p)}
             className={buttonClassName}
-            style={{ backgroundColor: p === page ? C.primary : "transparent" }}
+            style={{ backgroundColor: p === page ? C.bgAlt : "transparent" }}
           >
+            {/* 현재 쪽은 검은 면 대신 옅은 회색 면 + 진한 글자로만 표시합니다. */}
             <PretendardFont
               weight={p === page ? "bold" : "medium"}
-              style={{ fontSize: isLarge ? 17 : 14, color: p === page ? C.white : C.sec }}
+              style={{ fontSize: isLarge ? 17 : 14, color: p === page ? C.text : C.sec }}
             >
               {p}
             </PretendardFont>

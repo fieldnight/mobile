@@ -87,10 +87,9 @@ function LoadingTips() {
   }, []);
 
   return (
-    <View style={{ paddingVertical: 60, alignItems: "center", gap: 16 }}>
-      <ActivityIndicator size="large" color={C.primary} />
-      <View style={{ alignItems: "center", gap: 8, paddingHorizontal: 32 }}>
-        <Feather name={tip.icon as any} size={22} color={C.primary} />
+    <View style={{ paddingVertical: 40, alignItems: "center", gap: 12 }}>
+      <ActivityIndicator color={C.sec} />
+      <View style={{ alignItems: "center", paddingHorizontal: 32 }}>
         <PretendardFont style={{ color: C.sec, fontSize: 13, textAlign: "center", lineHeight: 20 }}>
           {tip.text}
         </PretendardFont>
@@ -115,15 +114,8 @@ function DetailModal({
         style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
         onPress={onClose}
       >
-        <Pressable className="bg-white rounded-2xl overflow-hidden">
-          <View
-            className="flex-row items-center justify-between px-5 py-4"
-            style={{
-              backgroundColor: C.bg,
-              borderBottomWidth: 1,
-              borderColor: C.border,
-            }}
-          >
+        <Pressable className="bg-white rounded-xl overflow-hidden">
+          <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
             <PretendardFont
               weight="bold"
               style={{ fontSize: 16, color: C.text }}
@@ -203,8 +195,7 @@ function ZoomableTable({
           <View
             className="flex-row"
             style={{
-              backgroundColor: C.bg,
-              borderBottomWidth: 2,
+              borderBottomWidth: 1,
               borderColor: C.border,
             }}
           >
@@ -215,15 +206,13 @@ function ZoomableTable({
                   width: col.baseWidth,
                   paddingHorizontal: 8,
                   paddingVertical: 8,
-                  borderRightWidth: 1,
-                  borderColor: C.border,
                 }}
               >
                 <PretendardFont
                   weight="semibold"
                   style={{
                     fontSize: BASE_FONT - 1,
-                    color: C.sec,
+                    color: C.ter,
                     textAlign: "center",
                   }}
                 >
@@ -237,10 +226,7 @@ function ZoomableTable({
               key={i}
               onPress={() => onRowPress(row)}
               className="flex-row border-b active:opacity-70"
-              style={{
-                borderColor: C.border,
-                backgroundColor: i % 2 === 0 ? C.white : C.bg,
-              }}
+              style={{ borderColor: C.bg }}
             >
               {COLUMNS.map((col) => (
                 <View
@@ -248,9 +234,7 @@ function ZoomableTable({
                   style={{
                     width: col.baseWidth,
                     paddingHorizontal: 8,
-                    paddingVertical: 8,
-                    borderRightWidth: 1,
-                    borderColor: C.border,
+                    paddingVertical: 9,
                     justifyContent: "center",
                   }}
                 >
@@ -307,9 +291,7 @@ function ClassifyDropdown({
           justifyContent: "space-between",
           height: 40,
           paddingHorizontal: 10,
-          backgroundColor: C.white,
-          borderWidth: 1,
-          borderColor: C.border,
+          backgroundColor: C.bgAlt,
           borderRadius: 8,
           opacity: disabled ? 0.4 : 1,
         }}
@@ -339,8 +321,8 @@ function ClassifyDropdown({
           <Pressable
             style={{
               backgroundColor: C.white,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
               maxHeight: "65%",
               paddingBottom: 32,
             }}
@@ -648,17 +630,6 @@ export default function FruitPriceScreen() {
         >
           {/* ── Card 1: 내 맞춤 시세 ── */}
           <Card style={{ padding: 0, overflow: "hidden" }} delay={0}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingTop: 10,
-                paddingBottom: 4,
-              }}
-            >
-              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                내 맞춤 시세
-              </PretendardFont>
-            </View>
             <InterestMarketSection
               currentMarketCode={marketCode}
               currentLargeCode={largeCode}
@@ -672,14 +643,8 @@ export default function FruitPriceScreen() {
 
           {/* ── Card 2: 도매시장 시세 설정 ── */}
           <Card style={{ padding: 0, overflow: "hidden" }} delay={100}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingTop: 10,
-                paddingBottom: 4,
-              }}
-            >
-              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+            <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+              <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
                 도매시장 시세
               </PretendardFont>
             </View>
@@ -690,10 +655,9 @@ export default function FruitPriceScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingHorizontal: 12,
-                paddingVertical: 5,
-                borderTopWidth: 1,
-                borderTopColor: C.bg,
+                paddingLeft: 6,
+                paddingRight: 8,
+                paddingVertical: 2,
               }}
             >
               <View
@@ -704,15 +668,15 @@ export default function FruitPriceScreen() {
                   hitSlop={16}
                   style={{ padding: 6, opacity: atMinDate ? 0.3 : 1 }}
                 >
-                  <Feather name="chevron-left" size={22} color={C.text} />
+                  <Feather name="chevron-left" size={20} color={C.textAlt} />
                 </Pressable>
                 <Pressable
                   onPress={() => setShowDatePicker(true)}
                   style={{ paddingHorizontal: 8, paddingVertical: 4 }}
                 >
                   <PretendardFont
-                    weight="bold"
-                    style={{ fontSize: 17, color: C.primary }}
+                    weight="semibold"
+                    style={{ fontSize: 15, color: C.text, fontVariant: ["tabular-nums"] }}
                   >
                     {selectedDate}
                   </PretendardFont>
@@ -722,55 +686,24 @@ export default function FruitPriceScreen() {
                   hitSlop={16}
                   style={{ padding: 6, opacity: atMaxDate ? 0.3 : 1 }}
                 >
-                  <Feather name="chevron-right" size={22} color={C.text} />
+                  <Feather name="chevron-right" size={20} color={C.textAlt} />
                 </Pressable>
               </View>
 
               <Pressable
                 onPress={handleRefresh}
                 disabled={isLoading}
-                className="flex-row items-center gap-1.5 active:opacity-80"
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 12,
-                  zIndex: 10,
-                  backgroundColor: C.primary,
-                  borderRadius: 999,
-                  paddingHorizontal: 11,
-                  paddingVertical: 6,
-                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="새로고침"
+                className="h-9 w-9 items-center justify-center rounded-lg active:opacity-60"
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color={C.white} />
+                  <ActivityIndicator size="small" color={C.sec} />
                 ) : (
-                  <Feather name="refresh-cw" size={13} color={C.white} />
+                  <Feather name="refresh-cw" size={16} color={C.sec} />
                 )}
-
-                <PretendardFont
-                  weight="semibold"
-                  style={{ fontSize: 12, color: C.white }}
-                >
-                  {isLoading ? "로딩중" : "새로고침"}
-                </PretendardFont>
               </Pressable>
-            </View>
-
-            {/* 7일 안내 */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 12,
-                paddingBottom: 6,
-                gap: 5,
-              }}
-            >
-              <Feather name="info" size={11} color={C.ter} />
-              <PretendardFont style={{ fontSize: 11, color: C.ter }}>
-                최근 7일 이내 데이터만 제공돼요 ({getMinDateKST()} ~{" "}
-                {getTodayKST()})
-              </PretendardFont>
             </View>
 
             {/* 도매시장 선택 */}
@@ -784,11 +717,8 @@ export default function FruitPriceScreen() {
               style={{
                 flexDirection: "row",
                 gap: 8,
-                paddingHorizontal: 12,
-                paddingTop: 4,
-                paddingBottom: 10,
-                borderTopWidth: 1,
-                borderTopColor: C.bg,
+                paddingHorizontal: 14,
+                paddingBottom: 14,
               }}
             >
               <ClassifyDropdown
@@ -850,33 +780,13 @@ export default function FruitPriceScreen() {
               />
             </View>
 
-            {/* 힌트 */}
-            <PretendardFont
-              style={{
-                fontSize: 11,
-                color: C.ter,
-                textAlign: "center",
-                paddingVertical: 6,
-                backgroundColor: C.bg,
-              }}
-            >
-              두 손가락으로 확대 · 행 탭하면 상세정보
-            </PretendardFont>
-
             {/* 에러 */}
             {errorMsg && (
               <View
-                style={{
-                  margin: 12,
-                  padding: 12,
-                  backgroundColor: "#FEF2F2",
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: "#FECACA",
-                }}
+                style={{ paddingHorizontal: 14, paddingVertical: 12 }}
               >
-                <PretendardFont style={{ color: "#DC2626", fontSize: 13 }}>
-                  ⚠️ {errorMsg}
+                <PretendardFont style={{ color: C.error, fontSize: 13 }}>
+                  {errorMsg}
                 </PretendardFont>
               </View>
             )}
@@ -889,11 +799,10 @@ export default function FruitPriceScreen() {
             ) : (
               !errorMsg && (
                 <View
-                  style={{ paddingVertical: 60, alignItems: "center", gap: 8 }}
+                  style={{ paddingVertical: 40, alignItems: "center" }}
                 >
-                  <Feather name="inbox" size={36} color={C.ter} />
-                  <PretendardFont style={{ color: C.ter, fontSize: 14 }}>
-                    조회된 데이터가 없습니다.
+                  <PretendardFont style={{ color: C.sec, fontSize: 14 }}>
+                    조회된 시세가 없어요
                   </PretendardFont>
                 </View>
               )
@@ -905,20 +814,13 @@ export default function FruitPriceScreen() {
         <View
           style={{
             backgroundColor: C.white,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
             borderTopWidth: 1,
             borderTopColor: C.border,
-            shadowColor: C.primary,
-            shadowOffset: { width: 0, height: -10 },
-            shadowOpacity: 0.15,
-            shadowRadius: 14,
-            elevation: 8,
           }}
         >
           {/* 빠른 검색 */}
           <View
-            style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 }}
+            style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6 }}
           >
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View
@@ -935,19 +837,17 @@ export default function FruitPriceScreen() {
                     onPress={() => handleQuickItem(name)}
                     className="active:opacity-80"
                     style={{
-                      paddingHorizontal: 14,
+                      paddingHorizontal: 12,
                       paddingVertical: 6,
-                      borderRadius: 999,
-                      backgroundColor: quickItem === name ? C.primary : C.bg,
-                      borderWidth: 1,
-                      borderColor: quickItem === name ? C.primary : C.border,
+                      borderRadius: 6,
+                      backgroundColor: quickItem === name ? C.primary : C.bgAlt,
                     }}
                   >
                     <PretendardFont
                       weight="semibold"
                       style={{
                         fontSize: 13,
-                        color: quickItem === name ? C.white : C.sec,
+                        color: quickItem === name ? C.white : C.textAlt,
                       }}
                     >
                       {name}
@@ -966,10 +866,8 @@ export default function FruitPriceScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderTopWidth: 1,
-                borderTopColor: C.bg,
+                paddingHorizontal: 14,
+                paddingVertical: 2,
               }}
             >
               <PretendardFont style={{ color: C.ter, fontSize: 13 }}>

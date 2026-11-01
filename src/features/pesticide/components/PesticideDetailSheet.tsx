@@ -116,7 +116,7 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
         <Pressable className="flex-1 bg-black/40" onPress={onClose} />
 
         {/* 시트 본체 */}
-        <View className="bg-white rounded-t-3xl" style={{ maxHeight: "75%" }}>
+        <View className="bg-white rounded-t-2xl" style={{ maxHeight: "75%" }}>
           {/* 핸들 */}
           <View className="items-center pt-3 pb-1">
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: C.border }} />
@@ -129,7 +129,7 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
           >
             <View style={{ flex: 1 }}>
               <View className="flex-row items-center gap-2">
-                <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 20, color: C.text }}>
+                <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 18, color: C.text }}>
                   {item?.brandNm}
                 </PretendardFont>
                 {/* 이미 저장된 항목 표시 */}
@@ -174,10 +174,10 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
               // 이미 저장된 항목 → 닫기 버튼
               <Pressable
                 onPress={onClose}
-                className="h-[58px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
+                className="h-[52px] rounded-lg flex-row items-center justify-center gap-2 active:opacity-80"
                 style={{ backgroundColor: C.primary }}
               >
-                <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.white }}>
+                <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.white }}>
                   닫기
                 </PretendardFont>
               </Pressable>
@@ -186,7 +186,7 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
               <Pressable
                 onPress={handleSave}
                 disabled={isPending}
-                className="h-[58px] rounded-2xl flex-row items-center justify-center gap-2 active:opacity-80"
+                className="h-[52px] rounded-lg flex-row items-center justify-center gap-2 active:opacity-80"
                 style={{ backgroundColor: isPending ? C.border : C.primary }}
               >
                 {isPending ? (
@@ -194,7 +194,7 @@ export function PesticideDetailSheet({ item, onClose }: Props) {
                 ) : (
                   <>
                     <Feather name="star" size={20} color={C.white} />
-                    <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.white }}>
+                    <PretendardFont weight="semibold" style={{ fontSize: 16, color: C.white }}>
                       관심 농약 저장
                     </PretendardFont>
                   </>

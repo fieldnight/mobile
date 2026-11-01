@@ -1,14 +1,17 @@
-import { Children, useMemo, useState } from "react";
+import { Children, useMemo, useState, type ReactNode } from "react";
 import {
   Pressable,
   ScrollView,
   View,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ViewStyle,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 
 import AppHeader from "@/components/AppHeader";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -17,42 +20,28 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { C as HiveC } from "@/constants/hive-colors";
 import { HEADER_HEIGHT, useScrollHeader } from "@/hooks";
 
+// 리포트 결과는 앱 공통 무채색 팔레트를 그대로 씁니다(벌통 화면과 같은 톤).
 const C = {
   ...HiveC,
-  bg: "#1A2A3B",
-  surface: "#24384D",
-  surfaceAlt: "#2E465E",
-  text: "#F8FBFE",
-  textAlt: "#D8E3EC",
-  sec: "#B2C1CF",
-  ter: "#93A5B7",
-  border: "#425B72",
-  sectionBorder: "#506B83",
-  bgAlt: "#2E465E",
-  primary: "#82CDE8",
-  primarySoft: "#2D5369",
-  recommendCtaBg: "#294A5F",
-  recommendCtaBorder: "#4A7890",
-  selected: "#2D5369",
-  infoBg: "#294A5F",
-  success: "#58DDA8",
-  warning: "#F7C66F",
-  error: "#FF94A4",
+  surface: HiveC.white,
+  surfaceAlt: HiveC.bgAlt,
+  primarySoft: HiveC.bgAlt,
+  infoBg: HiveC.bgAlt,
+  selected: "#E8EBEF",
+  recommendCtaBg: HiveC.bgAlt,
+  recommendCtaBorder: HiveC.border,
 };
 
-function Card({ children, style, ...props }) {
+type FeatherIcon = keyof typeof Feather.glyphMap;
+type Grade = "A" | "B" | "C" | "D";
+/** [최소, 최대] 권장 범위 */
+type Range = readonly number[];
+
+function Card({ children, style, ...props }: { children: ReactNode; style?: ViewStyle; delay?: number }) {
   return (
     <BaseCard
       {...props}
-      style={{
-        backgroundColor: C.surface,
-        borderColor: C.border,
-        shadowColor: "#000000",
-        shadowOpacity: 0.16,
-        shadowRadius: 12,
-        elevation: 1,
-        ...(style || {}),
-      }}
+      style={{ ...(style || {}) }}
     >
       {children}
     </BaseCard>
@@ -116,6 +105,8 @@ const STAGE_INFO = {
   },
 };
 
+type StageInfo = (typeof STAGE_INFO)[keyof typeof STAGE_INFO];
+
 const FALLBACK = {
   farmId: "산청 딸기농장",
   location: "경상남도 산청군",
@@ -176,12 +167,12 @@ const WEEKLY_SHIPMENT_BOUNDS = {
   over600: { low: 600, high: 900 },
 };
 
-function number(value, fallback) {
+function number(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && value !== "" ? parsed : fallback;
 }
 
-function addDays(dateValue, days) {
+function addDays(dateValue: unknown, days: number) {
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))
     ? new Date(`${dateValue}T00:00:00`)
     : new Date();
@@ -189,11 +180,11 @@ function addDays(dateValue, days) {
   return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일`;
 }
 
-function clamp(value, min = 0, max = 100) {
+function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
-function scoreForRange(value, range) {
+function scoreForRange(value: number, range: Range) {
   const [minimum, maximum] = range;
   if (value >= minimum && value <= maximum) return 100;
 
@@ -201,21 +192,21 @@ function scoreForRange(value, range) {
   return clamp(100 - distance * 15);
 }
 
-function gradeForScore(score) {
+function gradeForScore(score: number): Grade {
   if (score >= 75) return "A";
   if (score >= 55) return "B";
   if (score >= 40) return "C";
   return "D";
 }
 
-function colorForGrade(grade) {
+function colorForGrade(grade: Grade) {
   if (grade === "A") return C.success;
   if (grade === "B") return C.primary;
   if (grade === "C") return C.warning;
   return C.error;
 }
 
-function statusForRange(value, range, isUnknown) {
+function statusForRange(value: number, range: Range, isUnknown: boolean) {
   if (isUnknown) return "기록 없음";
   const [minimum, maximum] = range;
   if (value >= minimum && value <= maximum) return "맞는 편";
@@ -224,14 +215,14 @@ function statusForRange(value, range, isUnknown) {
   return distance <= 3 ? "조금 조정" : "차이가 큼";
 }
 
-function gradeDescription(grade) {
+function gradeDescription(grade: Grade) {
   if (grade === "A") return "A · 75~100점 · 비교농가 중 좋은 구간";
   if (grade === "B") return "B · 55~74점 · 비교농가 중 보통 이상 구간";
   if (grade === "C") return "C · 40~54점 · 조정이 필요한 구간";
   return "D · 0~39점 · 우선 점검 구간";
 }
 
-function ScoreBar({ label, score, color, note }) {
+function ScoreBar({ label, score, color, note }: { label: string; score: number; color: string; note?: string }) {
   return (
     <View className="mb-5">
       <View className="mb-2 flex-row items-end justify-between">
@@ -274,42 +265,20 @@ function ScoreBar({ label, score, color, note }) {
   );
 }
 
-function SectionTitle({ icon, title, subtitle }) {
-  const accent =
-    {
-      award: "#B69AF8",
-      layers: C.primary,
-      calendar: "#9BA9BB",
-      "bar-chart-2": C.warning,
-      thermometer: "#FB923C",
-      "trending-up": C.success,
-      package: "#60A5FA",
-      hexagon: C.warning,
-      "check-circle": C.success,
-    }[icon] || C.primary;
-
+/** 섹션 제목. icon은 호출부 호환용으로만 받고 그리지 않습니다(장식 아이콘이 글자를 가리지 않게). */
+function SectionTitle({ title, subtitle }: { icon?: FeatherIcon; title: string; subtitle?: string }) {
   return (
-    <View className="mb-4">
-      <View className="flex-row items-center" style={{ gap: 9 }}>
-        <View
-          className="h-9 w-9 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: C.surfaceAlt,
-          }}
-        >
-          <Feather name={icon} size={18} color={accent} />
-        </View>
-        <PretendardFont
-          weight="bold"
-          className="flex-1 text-[19px] leading-6"
-          style={{ color: C.text }}
-        >
-          {title}
-        </PretendardFont>
-      </View>
+    <View className="mb-3">
+      <PretendardFont
+        weight="bold"
+        className="text-[17px] leading-6"
+        style={{ color: C.text }}
+      >
+        {title}
+      </PretendardFont>
       {subtitle ? (
         <PretendardFont
-          className="mt-2 text-[14px] leading-5"
+          className="mt-1 text-[13px] leading-5"
           style={{ color: C.sec }}
         >
           {subtitle}
@@ -326,12 +295,19 @@ function StageGradeRow({
   grade,
   isCurrent,
   hasEnvironmentInput,
+}: {
+  code: string;
+  stage: StageInfo;
+  score: number;
+  grade: Grade | null;
+  isCurrent: boolean;
+  hasEnvironmentInput: boolean;
 }) {
   const gradeColor = grade ? colorForGrade(grade) : C.sec;
 
   return (
     <View
-      className="mb-2.5 flex-row items-center rounded-2xl border p-3.5"
+      className="mb-2.5 flex-row items-center rounded-[10px] border p-3.5"
       style={{
         backgroundColor: isCurrent ? C.recommendCtaBg : C.surfaceAlt,
         borderColor: isCurrent ? C.recommendCtaBorder : C.border,
@@ -344,7 +320,7 @@ function StageGradeRow({
         }}
       >
         <PretendardFont
-          weight="black"
+          weight="bold"
           className="text-[15px]"
           style={{ color: isCurrent ? C.white : C.textAlt }}
         >
@@ -362,7 +338,7 @@ function StageGradeRow({
             {stage.shortName}
           </PretendardFont>
           <View
-            className="ml-2 rounded-full px-2 py-1"
+            className="ml-2 rounded-md px-2 py-1"
             style={{ backgroundColor: isCurrent ? C.primary : C.bgAlt }}
           >
             <PretendardFont
@@ -384,7 +360,7 @@ function StageGradeRow({
 
       <View className="ml-2 min-w-[52px] items-end">
         <PretendardFont
-          weight="black"
+          weight="bold"
           className="text-2xl"
           style={{ color: gradeColor }}
         >
@@ -409,6 +385,13 @@ function ComparisonRow({
   target,
   status,
   targetPrefix = "이 시기 권장 범위",
+}: {
+  icon?: FeatherIcon;
+  label: string;
+  current: string;
+  target: string;
+  status: string;
+  targetPrefix?: string;
 }) {
   const good = ["맞는 편", "기준 안", "대기시간 지남"].includes(status);
   const unknown = ["기록 없음", "입력 부족", "확인 필요"].includes(status);
@@ -419,17 +402,11 @@ function ComparisonRow({
       : ["조금 조정", "경계"].includes(status)
         ? C.warning
         : C.error;
-  const statusBackground = good
-    ? "#123529"
-    : unknown
-      ? C.surfaceAlt
-      : ["조금 조정", "경계"].includes(status)
-        ? "#3A2E19"
-        : "#3A1E29";
+  const statusBackground = C.surfaceAlt;
 
   return (
     <View
-      className="mb-3 rounded-2xl border p-4"
+      className="mb-3 rounded-[10px] border p-4"
       style={{ backgroundColor: C.surfaceAlt, borderColor: C.border }}
     >
       <View className="flex-row items-center">
@@ -447,7 +424,7 @@ function ComparisonRow({
           {label}
         </PretendardFont>
         <View
-          className="rounded-full px-2.5 py-1"
+          className="rounded-md px-2.5 py-1"
           style={{ backgroundColor: statusBackground }}
         >
           <PretendardFont
@@ -479,7 +456,7 @@ function ComparisonRow({
   );
 }
 
-function ConditionRow({ icon = "check", label, value }) {
+function ConditionRow({ icon = "check", label, value }: { icon?: FeatherIcon; label: string; value: string }) {
   return (
     <View className="mb-3 flex-row items-start">
       <View
@@ -504,13 +481,13 @@ function ConditionRow({ icon = "check", label, value }) {
   );
 }
 
-function QuickFacts({ items }) {
+function QuickFacts({ items }: { items: { icon: FeatherIcon; label: string }[] }) {
   return (
     <View className="flex-row flex-wrap gap-2">
       {items.map((item) => (
         <View
           key={`${item.icon}-${item.label}`}
-          className="flex-row items-center rounded-full px-3 py-2"
+          className="flex-row items-center rounded-md px-3 py-2"
           style={{ backgroundColor: C.surfaceAlt }}
         >
           <Feather name={item.icon} size={15} color={C.primary} />
@@ -534,6 +511,13 @@ function ResultSections({
   onPageChange,
   onScroll,
   scrollEventThrottle,
+}: {
+  children: ReactNode;
+  oneAtATime: boolean;
+  width: number;
+  onPageChange: (page: number) => void;
+  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  scrollEventThrottle: number;
 }) {
   const sections = Children.toArray(children);
 
@@ -584,10 +568,12 @@ function ResultSections({
   );
 }
 
-function ForecastPeriod({ title, period, low, middle, high, emphasized }) {
+function ForecastPeriod({ title, period, low, middle, high, emphasized = false }: {
+  title: string; period: string; low: number; middle: number; high: number; emphasized?: boolean;
+}) {
   return (
     <View
-      className="rounded-2xl border p-4"
+      className="rounded-[10px] border p-4"
       style={{
         backgroundColor: emphasized ? C.recommendCtaBg : C.bgAlt,
         borderColor: emphasized ? C.recommendCtaBorder : C.border,
@@ -604,7 +590,7 @@ function ForecastPeriod({ title, period, low, middle, high, emphasized }) {
         {title}
       </PretendardFont>
       <PretendardFont
-        weight="black"
+        weight="bold"
         className="mt-3 text-[25px]"
         style={{ color: C.primary }}
       >
@@ -640,7 +626,7 @@ export default function ReportResultScreen() {
   }, [params.data]);
   const isExampleReport = input.reportMode === "sample";
 
-  const stage = STAGE_INFO[input.stage] || STAGE_INFO.S3;
+  const stage = STAGE_INFO[input.stage as keyof typeof STAGE_INFO] || STAGE_INFO.S3;
   const area = number(input.areaM2, 660);
   const dayTemp = number(input.dayTemp, 26);
   const nightTemp = number(input.nightTemp, 10);
@@ -705,7 +691,7 @@ export default function ReportResultScreen() {
         ? 0.85
         : 1;
   const weeklyBounds =
-    WEEKLY_SHIPMENT_BOUNDS[input.weeklyShipmentRange] ??
+    WEEKLY_SHIPMENT_BOUNDS[input.weeklyShipmentRange as keyof typeof WEEKLY_SHIPMENT_BOUNDS] ??
     WEEKLY_SHIPMENT_BOUNDS.none;
   const predictionDays = Math.min(90, stage.remainingWeeks * 7);
   const predictionWeeks = predictionDays / 7;
@@ -713,7 +699,7 @@ export default function ReportResultScreen() {
     predictionDays % 7 === 0 ? 0 : 1,
   );
   const forecastEndDate = addDays(input.analysisDate, predictionDays);
-  const forecastForDays = (days) => {
+  const forecastForDays = (days: number) => {
     const weeks = days / 7;
 
     return {
@@ -867,15 +853,13 @@ export default function ReportResultScreen() {
         onBack={() => router.back()}
         rightAction={{ icon: "x", onPress: goHome }}
         isScrolled={isScrolled}
-        tone="dark"
       />
 
       <View
-        className="border-b px-5 pb-3"
+        className="px-4 pb-2"
         style={{
-          paddingTop: HEADER_HEIGHT + 10,
-          borderColor: C.border,
-          backgroundColor: C.surface,
+          paddingTop: HEADER_HEIGHT + 4,
+          backgroundColor: C.bg,
         }}
       >
         <View className="flex-row items-center justify-between">
@@ -883,30 +867,21 @@ export default function ReportResultScreen() {
             <View className="flex-row items-center">
               <PretendardFont
                 weight="bold"
-                className="text-lg"
+                className="text-[16px]"
                 style={{ color: C.text }}
               >
                 {isExampleReport ? "예시 농장 분석 결과" : "농장 분석 결과"}
               </PretendardFont>
               {isExampleReport ? (
-                <View
-                  className="ml-2 rounded-full px-2 py-1"
-                  style={{ backgroundColor: C.recommendCtaBg }}
-                >
-                  <PretendardFont
-                    weight="bold"
-                    className="text-[11px]"
-                    style={{ color: C.primary }}
-                  >
-                    체험용
-                  </PretendardFont>
-                </View>
+                <PretendardFont className="ml-1.5 text-[12px]" style={{ color: C.ter }}>
+                  체험용
+                </PretendardFont>
               ) : null}
             </View>
             <PretendardFont
-              className="mt-1 text-sm"
+              className="mt-0.5 text-[13px]"
               numberOfLines={1}
-              style={{ color: C.textAlt }}
+              style={{ color: C.sec }}
             >
               {input.farmId} · {input.location || "지역 미입력"}
             </PretendardFont>
@@ -916,39 +891,23 @@ export default function ReportResultScreen() {
               setOneAtATime((current) => !current);
               setResultPage(0);
             }}
-            className="h-11 flex-row items-center rounded-xl border px-3 active:opacity-70"
-            style={{
-              backgroundColor: oneAtATime ? C.primary : C.surfaceAlt,
-              borderColor: oneAtATime ? C.primary : C.recommendCtaBorder,
-            }}
+            className="h-9 flex-row items-center rounded-lg px-3 active:opacity-70"
+            style={{ backgroundColor: C.white }}
           >
-            <Feather
-              name={oneAtATime ? "list" : "columns"}
-              size={17}
-              color={oneAtATime ? C.white : C.primary}
-            />
             <PretendardFont
-              weight="bold"
-              className="ml-2 text-[14px]"
-              style={{ color: oneAtATime ? C.white : C.primary }}
+              weight="semibold"
+              className="text-[13px]"
+              style={{ color: C.textAlt }}
             >
               {oneAtATime ? "전체 이어보기" : "하나씩 보기"}
             </PretendardFont>
           </Pressable>
         </View>
         {oneAtATime ? (
-          <View className="mt-3 flex-row items-center justify-between">
+          <View className="mt-1 flex-row items-center justify-end">
             <PretendardFont
-              weight="semibold"
               className="text-[13px]"
-              style={{ color: C.textAlt }}
-            >
-              화면을 옆으로 밀어 다음 결과를 보세요
-            </PretendardFont>
-            <PretendardFont
-              weight="bold"
-              className="text-[13px]"
-              style={{ color: C.primary }}
+              style={{ color: C.sec, fontVariant: ["tabular-nums"] }}
             >
               {resultPage + 1} / {input.useBumblebee ? 10 : 9}
             </PretendardFont>
@@ -969,18 +928,14 @@ export default function ReportResultScreen() {
             title={`현재 단계 · ${stage.shortName}`}
             subtitle={gradeDescription(grade)}
           />
-          <View className="mt-6 flex-row items-center justify-between">
+          <View className="mt-2 flex-row items-center justify-between">
             <View
-              className="h-28 w-28 items-center justify-center rounded-full border-[6px]"
-              style={{
-                borderColor: C.primary,
-                backgroundColor: C.primarySoft,
-              }}
+              className="items-start justify-center"
             >
               <PretendardFont
-                weight="black"
+                weight="bold"
                 className="text-5xl"
-                style={{ color: C.primary }}
+                style={{ color: C.text }}
               >
                 {grade}
               </PretendardFont>
@@ -996,7 +951,7 @@ export default function ReportResultScreen() {
                 종합 점수
               </PretendardFont>
               <PretendardFont
-                weight="black"
+                weight="bold"
                 className="mt-1 text-[34px]"
                 style={{ color: C.text }}
               >
@@ -1005,23 +960,14 @@ export default function ReportResultScreen() {
                   점
                 </PretendardFont>
               </PretendardFont>
-              <View
-                className="mt-2 rounded-full px-3 py-1.5"
-                style={{ backgroundColor: C.bgAlt }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  className="text-[13px]"
-                  style={{ color: C.textAlt }}
-                >
-                  대략 입력한 정보 기준
-                </PretendardFont>
-              </View>
+              <PretendardFont className="mt-1 text-[12px]" style={{ color: C.ter }}>
+                입력한 정보 기준
+              </PretendardFont>
             </View>
           </View>
 
           <View
-            className="mt-6 rounded-2xl p-4"
+            className="mt-6 rounded-[10px] p-4"
             style={{ backgroundColor: C.recommendCtaBg }}
           >
             <PretendardFont
@@ -1064,7 +1010,7 @@ export default function ReportResultScreen() {
           ))}
 
           <View
-            className="mt-1 flex-row items-start rounded-2xl p-4"
+            className="mt-1 flex-row items-start rounded-[10px] p-4"
             style={{ backgroundColor: C.bgAlt }}
           >
             <Feather name="info" size={18} color={C.primary} />
@@ -1129,13 +1075,13 @@ export default function ReportResultScreen() {
           <ScoreBar
             label="하우스 온도·습기"
             score={environmentScore}
-            color="#FB923C"
+            color={C.text}
             note={`온도 70% + 습도 30% · 현재 딸기 모습의 권장범위와 비교`}
           />
           <ScoreBar
             label="딸기가 자라는 상태"
             score={growthScore}
-            color="#B69AF8"
+            color={C.text}
             note={`‘${input.growthComparedLabel}’ 자가평가 · 입력 구간 ${input.growthScoreRangeLabel}`}
           />
           {hasShipment ? (
@@ -1147,7 +1093,7 @@ export default function ReportResultScreen() {
             />
           ) : (
             <View
-              className="rounded-2xl p-4"
+              className="rounded-[10px] p-4"
               style={{ backgroundColor: C.bgAlt }}
             >
               <PretendardFont
@@ -1210,7 +1156,7 @@ export default function ReportResultScreen() {
           {hasShipment ? (
             <>
               <View
-                className="mb-4 rounded-2xl border p-4"
+                className="mb-4 rounded-[10px] border p-4"
                 style={{ backgroundColor: C.bgAlt, borderColor: C.border }}
               >
                 <View className="flex-row items-start justify-between">
@@ -1296,7 +1242,7 @@ export default function ReportResultScreen() {
             </>
           ) : (
             <View
-              className="rounded-2xl p-4"
+              className="rounded-[10px] p-4"
               style={{ backgroundColor: C.recommendCtaBg }}
             >
               <PretendardFont
@@ -1331,7 +1277,7 @@ export default function ReportResultScreen() {
           {hasShipment ? (
             <>
               <View
-                className="mb-4 rounded-2xl p-4"
+                className="mb-4 rounded-[10px] p-4"
                  style={{ backgroundColor: C.surfaceAlt }}
               >
                 <QuickFacts
@@ -1369,7 +1315,7 @@ export default function ReportResultScreen() {
               </View>
 
               <View
-                className="mt-4 rounded-2xl border p-4"
+                className="mt-4 rounded-[10px] border p-4"
                 style={{
                   backgroundColor: C.recommendCtaBg,
                   borderColor: C.recommendCtaBorder,
@@ -1403,7 +1349,7 @@ export default function ReportResultScreen() {
               </View>
 
               <View
-                className="mt-3 flex-row items-start rounded-2xl p-4"
+                className="mt-3 flex-row items-start rounded-[10px] p-4"
                 style={{ backgroundColor: C.bgAlt }}
               >
                 <Feather name="alert-circle" size={18} color={C.primary} />
@@ -1418,7 +1364,7 @@ export default function ReportResultScreen() {
             </>
           ) : (
             <View
-              className="rounded-2xl p-4"
+              className="rounded-[10px] p-4"
               style={{ backgroundColor: C.recommendCtaBg }}
             >
               <PretendardFont
@@ -1449,14 +1395,14 @@ export default function ReportResultScreen() {
 
             <View className="mb-3 flex-row gap-3">
               <View
-                className="flex-1 rounded-2xl p-4"
+                className="flex-1 rounded-[10px] p-4"
                 style={{ backgroundColor: C.recommendCtaBg }}
               >
                 <PretendardFont className="text-sm" style={{ color: C.textAlt }}>
                   관리등급
                 </PretendardFont>
                 <PretendardFont
-                  weight="black"
+                  weight="bold"
                   className="mt-1 text-xl"
                   style={{ color: C.primary }}
                 >
@@ -1464,14 +1410,14 @@ export default function ReportResultScreen() {
                 </PretendardFont>
               </View>
               <View
-                className="flex-1 rounded-2xl p-4"
+                className="flex-1 rounded-[10px] p-4"
                 style={{ backgroundColor: C.primarySoft }}
               >
                 <PretendardFont className="text-sm" style={{ color: C.textAlt }}>
                   온도 적합도 proxy
                 </PretendardFont>
                 <PretendardFont
-                  weight="black"
+                  weight="bold"
                   className="mt-1 text-2xl"
                   style={{ color: C.primary }}
                 >
@@ -1481,7 +1427,7 @@ export default function ReportResultScreen() {
             </View>
 
             <View
-              className="mb-4 rounded-2xl border p-4"
+              className="mb-4 rounded-[10px] border p-4"
               style={{
                 backgroundColor: C.recommendCtaBg,
                 borderColor: C.recommendCtaBorder,
@@ -1562,7 +1508,7 @@ export default function ReportResultScreen() {
 
             <Pressable
               onPress={() => setEvidenceVisible(true)}
-              className="mt-2 flex-row items-center justify-center rounded-2xl border py-3.5 active:opacity-60"
+              className="mt-2 flex-row items-center justify-center rounded-[10px] border py-3.5 active:opacity-60"
               style={{ backgroundColor: C.bgAlt, borderColor: C.border }}
             >
               <Feather name="book-open" size={17} color={C.primary} />
@@ -1611,7 +1557,7 @@ export default function ReportResultScreen() {
                 className="mr-3 h-8 w-8 items-center justify-center rounded-full"
                 style={{ backgroundColor: C.recommendCtaBg }}
               >
-                <Feather name={item.icon} size={16} color={C.primary} />
+                <Feather name={item.icon as FeatherIcon} size={16} color={C.primary} />
               </View>
               <View className="flex-1">
                 <PretendardFont
@@ -1666,7 +1612,7 @@ export default function ReportResultScreen() {
       >
         <Pressable
           onPress={() => router.back()}
-          className="h-16 flex-1 flex-row items-center justify-center rounded-2xl border"
+          className="h-16 flex-1 flex-row items-center justify-center rounded-[10px] border"
           style={{ backgroundColor: C.surfaceAlt, borderColor: C.border }}
         >
           <Feather name="edit-3" size={19} color={C.textAlt} />
@@ -1680,7 +1626,7 @@ export default function ReportResultScreen() {
         </Pressable>
         <Pressable
           onPress={goHome}
-          className="h-16 flex-[1.25] flex-row items-center justify-center rounded-2xl"
+          className="h-16 flex-[1.25] flex-row items-center justify-center rounded-[10px]"
           style={{ backgroundColor: C.primary }}
         >
           <Feather name="check" size={21} color={C.white} />
@@ -1724,7 +1670,7 @@ export default function ReportResultScreen() {
         />
 
         <View
-          className="mt-2 rounded-2xl p-4"
+          className="mt-2 rounded-[10px] p-4"
           style={{ backgroundColor: C.recommendCtaBg }}
         >
           <PretendardFont

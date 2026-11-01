@@ -1,6 +1,6 @@
 /**
  * 벌통 통계 공통 UI
- * - Card: 통계/제어 화면에서 재사용하는 흰색 카드 컨테이너입니다.
+ * - Card: 통계/제어 화면에서 재사용하는 흰색 카드 컨테이너입니다. 그림자 없이 면 대비로만 구분합니다.
  * - SolidToggleButton: 스마트벌통 메인의 "실시간 센서값 보기" 버튼과 동일한 스타일의 선택형 버튼입니다.
  * - MiniChart: 온도·습도 단일 차트. 데이터 레이블을 SVG 밖 절대위치로 렌더링해 PretendardFont를 적용합니다.
  */
@@ -14,6 +14,7 @@ import {
   type NativeSyntheticEvent,
   type ViewStyle,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -36,12 +37,15 @@ const LABEL_HEIGHT = 18;
 export function Card({
   children,
   delay = 0,
+  duration = 300,
   className,
   style,
   translucent = false,
 }: {
   children: React.ReactNode;
   delay?: number;
+  /** 아래에서 떠오르는 등장 모션 길이(ms) */
+  duration?: number;
   className?: string;
   style?: ViewStyle;
   /** 벌통 화면들의 배경 이미지 위에서 쓰는 반투명 카드 스타일 */
@@ -49,30 +53,15 @@ export function Card({
 }) {
   return (
     <Animated.View
-      entering={FadeInDown.delay(delay).duration(300).springify()}
+      entering={FadeInDown.delay(delay).duration(duration).springify()}
       className={className}
       style={[
-        translucent
-          ? {
-              backgroundColor: "rgba(255, 255, 255, 0.72)",
-              borderRadius: 20,
-              padding: 15,
-              borderWidth: 1,
-              borderColor: "rgba(0, 0, 0, 0.04)",
-              elevation: 0,
-            }
-          : {
-              backgroundColor: "#FFFFFF",
-              borderRadius: 20,
-              padding: 15,
-              borderWidth: 1,
-              borderColor: "rgba(0, 0, 0, 0.04)",
-              shadowColor: "#64748B",
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.1,
-              shadowRadius: 20,
-              elevation: 4,
-            },
+        // 토스식 면 구분: 회색 캔버스 위 흰 면만 두고 그림자·테두리·큰 라운드는 쓰지 않습니다.
+        {
+          backgroundColor: translucent ? "rgba(255, 255, 255, 0.72)" : "#FFFFFF",
+          borderRadius: 12,
+          padding: 14,
+        },
         style,
       ]}
     >
@@ -114,7 +103,7 @@ export function SolidToggleButton({
           alignItems: "center",
           justifyContent: "center",
           gap: 8,
-          borderRadius: 12,
+          borderRadius: 8,
           paddingVertical: 8,
           backgroundColor: active ? C.text : C.white,
           borderWidth: 1,
@@ -220,7 +209,7 @@ export function MiniChart({
   minVal: number;
   maxVal: number;
   color?: string;
-  scrollRef?: React.Ref<ScrollView>;
+  scrollRef?: React.Ref<ScrollViewInstance>;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }) {
   const chartWidth = chartWidthFor(data);

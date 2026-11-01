@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,11 +7,14 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 
 import AppHeader from "@/components/AppHeader";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -424,6 +427,14 @@ const PESTICIDE_SAFETY_OPTIONS = [
   },
 ];
 
+type FeatherIcon = keyof typeof Feather.glyphMap;
+/** 선택지 하나. 선택지마다 면적·일수 같은 숫자 정보가 더 붙기도 합니다. */
+interface ChoiceOption {
+  value: string;
+  label: string;
+  helper?: string;
+}
+
 const EMPTY_INPUT = {
   farmId: "",
   location: "",
@@ -446,6 +457,8 @@ const EMPTY_INPUT = {
   openFlowerDensity: "unknown",
   pesticideSafety: "unknown",
 };
+
+type ReportInput = typeof EMPTY_INPUT;
 
 const SAMPLE_INPUT = {
   farmId: "산청 딸기농장",
@@ -470,7 +483,7 @@ const SAMPLE_INPUT = {
   pesticideSafety: "none7d",
 };
 
-function findOption(options, value) {
+function findOption<T extends { value: string }>(options: readonly T[], value: string): T {
   return options.find((option) => option.value === value) ?? options[0];
 }
 
@@ -496,30 +509,22 @@ function getAnalysisDate() {
   };
 }
 
-function Section({ icon, title, description, children }) {
+function Section({ icon, title, description, children }: {
+  icon: FeatherIcon; title: string; description?: string; children: ReactNode;
+}) {
   return (
     <Card style={{ padding: 18 }}>
-      <View className="mb-5">
-        <View className="flex-row items-center" style={{ gap: 9 }}>
-          <View
-            style={{
-              width: 3.5,
-              height: 18,
-              borderRadius: 2,
-              backgroundColor: C.primary,
-            }}
-          />
-          <PretendardFont
-            weight="bold"
-            className="text-[19px] leading-6"
-            style={{ color: C.text }}
-          >
-            {title}
-          </PretendardFont>
-        </View>
+      <View className="mb-4">
+        <PretendardFont
+          weight="bold"
+          className="text-[17px] leading-6"
+          style={{ color: C.text }}
+        >
+          {title}
+        </PretendardFont>
         {description ? (
           <PretendardFont
-            className="mt-2 text-[15px] leading-6"
+            className="mt-1 text-[14px] leading-5"
             style={{ color: C.sec }}
           >
             {description}
@@ -536,9 +541,17 @@ function TextField({
   value,
   onChangeText,
   placeholder,
-  optional,
+  optional = false,
   locked = false,
   onLockedPress,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  optional?: boolean;
+  locked?: boolean;
+  onLockedPress?: () => void;
 }) {
   return (
     <View className="mb-4">
@@ -558,11 +571,11 @@ function TextField({
       </View>
       <Pressable
         onPress={locked ? onLockedPress : undefined}
-        className="h-12 flex-row items-center rounded-2xl px-4"
+        className="h-12 flex-row items-center rounded-[10px] px-4"
         style={{
-          backgroundColor: locked ? "#F1F4F7" : "#F7F9FB",
+          backgroundColor: locked ? "#F5F6F8" : "#F5F6F8",
           borderWidth: 1,
-          borderColor: locked ? "#E1E6EB" : "#E7ECF0",
+          borderColor: locked ? "#E5E8EB" : "#E5E8EB",
         }}
       >
         <TextInput
@@ -590,6 +603,15 @@ function ChoiceGroup({
   columns = 2,
   locked = false,
   onLockedPress,
+}: {
+  title: string;
+  helper?: string;
+  options: readonly ChoiceOption[];
+  value: string;
+  onChange: (value: string) => void;
+  columns?: 1 | 2 | 3;
+  locked?: boolean;
+  onLockedPress?: () => void;
 }) {
   const width = columns === 3 ? "31.8%" : columns === 1 ? "100%" : "48.5%";
 
@@ -624,21 +646,21 @@ function ChoiceGroup({
                 }
                 if (!selected) onChange(option.value);
               }}
-              className="justify-center rounded-2xl px-3 py-3 active:opacity-80"
-              android_ripple={{ color: "#DCECF4" }}
+              className="justify-center rounded-[10px] px-3 py-3 active:opacity-80"
+              android_ripple={{ color: "#E8EBEF" }}
               style={{
                 width,
                 minHeight: option.helper ? 66 : 52,
                 borderWidth: selected ? 1.5 : 0,
-                borderColor: selected ? "#4F91AF" : "transparent",
-                backgroundColor: selected ? "#DCEFF7" : "#EDF1F4",
+                borderColor: selected ? "#191F28" : "transparent",
+                backgroundColor: selected ? "#FFFFFF" : "#F5F6F8",
               }}
             >
               <PretendardFont
                 weight={selected ? "bold" : "semibold"}
                 className="text-[15px] leading-5"
                 style={{
-                  color: selected ? "#245C74" : "#65717C",
+                  color: selected ? "#191F28" : "#4E5968",
                   paddingRight: selected ? 22 : 0,
                 }}
               >
@@ -649,7 +671,7 @@ function ChoiceGroup({
                   weight="medium"
                   className="mt-1 text-[13px] leading-[18px]"
                   style={{
-                    color: selected ? "#5D8192" : C.sec,
+                    color: selected ? "#4E5968" : C.sec,
                     paddingRight: selected ? 22 : 0,
                   }}
                 >
@@ -665,7 +687,7 @@ function ChoiceGroup({
                     top: option.helper ? 14 : 18,
                   }}
                 >
-                  <Feather name="check-circle" size={16} color="#3D88A8" />
+                  <Feather name="check-circle" size={16} color="#191F28" />
                 </View>
               ) : null}
             </Pressable>
@@ -676,15 +698,15 @@ function ChoiceGroup({
   );
 }
 
-function QuickFacts({ items, onMore }) {
+function QuickFacts({ items, onMore }: { items: { icon: FeatherIcon; label: string }[]; onMore?: () => void }) {
   return (
     <View className="mb-5">
       <View className="flex-row flex-wrap gap-2">
         {items.map((item) => (
           <View
             key={`${item.icon}-${item.label}`}
-            className="flex-row items-center rounded-full px-3 py-2"
-            style={{ backgroundColor: "#EEF2F6" }}
+            className="flex-row items-center rounded-md px-3 py-2"
+            style={{ backgroundColor: "#F5F6F8" }}
           >
             <Feather name={item.icon} size={15} color={C.primary} />
             <PretendardFont
@@ -699,7 +721,7 @@ function QuickFacts({ items, onMore }) {
         {onMore ? (
           <Pressable
             onPress={onMore}
-            className="flex-row items-center rounded-full px-3 py-2 active:opacity-60"
+            className="flex-row items-center rounded-md px-3 py-2 active:opacity-60"
             style={{ backgroundColor: C.primarySoft }}
           >
             <Feather name="help-circle" size={15} color={C.primary} />
@@ -717,7 +739,7 @@ function QuickFacts({ items, onMore }) {
   );
 }
 
-function ReportBenefit({ icon, children }) {
+function ReportBenefit({ icon, children }: { icon: FeatherIcon; children: ReactNode }) {
   return (
     <View className="mb-3 flex-row items-start">
       <View
@@ -745,7 +767,7 @@ const WIZARD_STEPS = [
   { number: 5, label: "호박벌" },
 ];
 
-function WizardProgress({ currentStep }) {
+function WizardProgress({ currentStep }: { currentStep: number }) {
   return (
     <View>
       <View className="flex-row items-center justify-between">
@@ -765,12 +787,12 @@ function WizardProgress({ currentStep }) {
                 className="h-8 w-8 items-center justify-center rounded-full"
                 style={{
                   backgroundColor: current
-                    ? "#3F88A8"
+                    ? "#191F28"
                     : completed
-                      ? "#DCECF4"
-                      : "#F3F6F8",
+                      ? "#E8EBEF"
+                      : "#F5F6F8",
                   borderWidth: current ? 0 : 1,
-                  borderColor: completed ? "#BFD9E5" : "#E1E7EC",
+                  borderColor: completed ? "#191F28" : "#E5E8EB",
                 }}
               >
                 <PretendardFont
@@ -780,8 +802,8 @@ function WizardProgress({ currentStep }) {
                     color: current
                       ? C.white
                       : completed
-                        ? "#47758A"
-                        : "#98A4AF",
+                        ? "#4E5968"
+                        : "#8B95A1",
                   }}
                 >
                   {step.number}
@@ -792,7 +814,7 @@ function WizardProgress({ currentStep }) {
                   className="mx-1 h-0.5 flex-1"
                   style={{
                     backgroundColor:
-                      index < currentStep ? "#A9CFDF" : "#E3E8ED",
+                      index < currentStep ? "#8B95A1" : "#E5E8EB",
                   }}
                 />
               ) : null}
@@ -820,6 +842,11 @@ function WizardPage({
   children,
   onScroll,
   scrollEventThrottle,
+}: {
+  width: number;
+  children: ReactNode;
+  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  scrollEventThrottle: number;
 }) {
   return (
     <ScrollView
@@ -845,8 +872,8 @@ export default function ReportScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
-  const pagerRef = useRef(null);
-  const [form, setForm] = useState(EMPTY_INPUT);
+  const pagerRef = useRef<ScrollViewInstance>(null);
+  const [form, setForm] = useState<ReportInput>(EMPTY_INPUT);
   const [isLoading, setIsLoading] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
@@ -881,7 +908,7 @@ export default function ReportScreen() {
     showToast("예시 리포트라서 입력 내용을 변경할 수 없어요.", "info");
   };
 
-  const setValue = (key, value) => {
+  const setValue = <K extends keyof ReportInput>(key: K, value: ReportInput[K]) => {
     if (isSampleMode) {
       showSampleLockedToast();
       return;
@@ -907,7 +934,7 @@ export default function ReportScreen() {
     onLockedPress: showSampleLockedToast,
   };
 
-  const goToStep = (nextStep) => {
+  const goToStep = (nextStep: number) => {
     if (nextStep < 0 || nextStep >= WIZARD_STEPS.length) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1039,25 +1066,19 @@ export default function ReportScreen() {
         <ScrollView
           className="flex-1"
           contentContainerStyle={{
-            padding: 16,
-            paddingTop: HEADER_HEIGHT + 18,
+            paddingHorizontal: 14,
+            paddingTop: HEADER_HEIGHT + 8,
             paddingBottom: 28,
-            gap: 16,
+            gap: 10,
           }}
           showsVerticalScrollIndicator={false}
           onScroll={onScroll}
           scrollEventThrottle={scrollEventThrottle}
         >
           <Card style={{ padding: 20 }}>
-            <View
-              className="h-14 w-14 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: C.recommendCtaBg }}
-            >
-              <Feather name="bar-chart-2" size={27} color={C.primary} />
-            </View>
             <PretendardFont
-              weight="black"
-              className="mt-5 text-[24px] leading-8"
+              weight="bold"
+              className="text-[20px] leading-7"
               style={{ color: C.text }}
             >
               우리 농장 딸기,{`\n`}지금 잘 크고 있을까요?
@@ -1080,8 +1101,8 @@ export default function ReportScreen() {
               한 번에 정리해드릴게요.
             </PretendardFont>
             <View
-              className="mt-5 flex-row items-center rounded-2xl p-4"
-              style={{ backgroundColor: C.recommendCtaBg }}
+              className="mt-5 flex-row items-center rounded-[10px] p-4"
+              style={{ backgroundColor: C.bgAlt }}
             >
               <Feather name="check-circle" size={21} color={C.success} />
               <PretendardFont
@@ -1096,15 +1117,9 @@ export default function ReportScreen() {
 
           <Card>
             <View className="flex-row items-center">
-              <View
-                className="h-10 w-10 items-center justify-center rounded-full"
-                style={{ backgroundColor: C.recommendCtaBg }}
-              >
-                <Feather name="database" size={20} color={C.primary} />
-              </View>
               <PretendardFont
                 weight="bold"
-                className="ml-3 text-xl"
+                className="text-[17px]"
                 style={{ color: C.text }}
               >
                 어떤 데이터를 참고했나요?
@@ -1119,11 +1134,11 @@ export default function ReportScreen() {
               ].map((item) => (
                 <View
                   key={item.label}
-                  className="flex-1 items-center rounded-2xl px-2 py-4"
+                  className="flex-1 items-center rounded-[10px] px-2 py-4"
                   style={{ backgroundColor: C.bgAlt }}
                 >
                   <PretendardFont
-                    weight="black"
+                    weight="bold"
                     className="text-lg"
                     style={{ color: C.primary }}
                   >
@@ -1221,7 +1236,7 @@ export default function ReportScreen() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowIntro(false);
             }}
-            className="h-16 flex-row items-center justify-center rounded-2xl"
+            className="h-16 flex-row items-center justify-center rounded-[10px]"
             style={{ backgroundColor: C.primary }}
           >
             <PretendardFont weight="bold" className="mr-2 text-[17px] text-white">
@@ -1295,21 +1310,21 @@ export default function ReportScreen() {
           >
             <Pressable
               onPress={fillSample}
-              className="mb-5 flex-row items-center justify-center rounded-2xl border py-3 active:opacity-80"
+              className="mb-5 flex-row items-center justify-center rounded-[10px] border py-3 active:opacity-80"
               style={{
-                backgroundColor: isSampleMode ? "#E9F3F7" : "#F4F8FA",
-                borderColor: isSampleMode ? "#8BB8CB" : "#D7E5EB",
+                backgroundColor: isSampleMode ? "#FFFFFF" : "#F5F6F8",
+                borderColor: isSampleMode ? "#191F28" : "#E5E8EB",
               }}
             >
               <Feather
                 name={isSampleMode ? "lock" : "zap"}
                 size={17}
-                color={isSampleMode ? "#467B91" : "#6C93A4"}
+                color={isSampleMode ? "#4E5968" : "#4E5968"}
               />
               <PretendardFont
                 weight="semibold"
                 className="ml-2 text-[15px]"
-                style={{ color: isSampleMode ? "#355F71" : "#526B77" }}
+                style={{ color: isSampleMode ? "#191F28" : "#4E5968" }}
               >
                 {isSampleMode
                   ? "예시 농장 적용됨 · 입력 잠김"
@@ -1478,8 +1493,8 @@ export default function ReportScreen() {
             description="사용 중인 농가만 간단한 관찰값을 추가해요."
           >
             <View
-              className="mb-5 flex-row items-center justify-between rounded-2xl p-4"
-              style={{ backgroundColor: "#EEF2F6" }}
+              className="mb-5 flex-row items-center justify-between rounded-[10px] p-4"
+              style={{ backgroundColor: "#F5F6F8" }}
             >
               <View className="flex-1 pr-3">
                 <PretendardFont
@@ -1533,8 +1548,8 @@ export default function ReportScreen() {
                   columns={1}
                 />
                 <View
-                  className="mb-5 rounded-2xl p-4"
-                  style={{ backgroundColor: "#EEF2F6" }}
+                  className="mb-5 rounded-[10px] p-4"
+                  style={{ backgroundColor: "#F5F6F8" }}
                 >
                   <PretendardFont
                     weight="semibold"
@@ -1607,8 +1622,8 @@ export default function ReportScreen() {
               </>
             ) : (
               <View
-                className="rounded-2xl p-4"
-                style={{ backgroundColor: C.recommendCtaBg }}
+                className="rounded-[10px] p-4"
+                style={{ backgroundColor: C.bgAlt }}
               >
                 <PretendardFont
                   className="text-[15px] leading-6"
@@ -1634,7 +1649,7 @@ export default function ReportScreen() {
           <Pressable
             onPress={() => goToStep(currentStep - 1)}
             disabled={currentStep === 0 || isLoading}
-            className="h-14 flex-row items-center justify-center rounded-2xl"
+            className="h-14 flex-row items-center justify-center rounded-[10px]"
             style={{
               width: 112,
               backgroundColor: C.bgAlt,
@@ -1658,7 +1673,7 @@ export default function ReportScreen() {
                 : () => goToStep(currentStep + 1)
             }
             disabled={isLoading}
-            className="h-14 flex-1 flex-row items-center justify-center rounded-2xl"
+            className="h-14 flex-1 flex-row items-center justify-center rounded-[10px]"
             style={{ backgroundColor: C.primary }}
           >
             {isLoading ? (
@@ -1703,8 +1718,8 @@ export default function ReportScreen() {
         snapHeight={0.72}
       >
         <View
-          className="mb-5 rounded-2xl p-4"
-          style={{ backgroundColor: C.recommendCtaBg }}
+          className="mb-5 rounded-[10px] p-4"
+          style={{ backgroundColor: C.bgAlt }}
         >
           <PretendardFont
             weight="bold"
@@ -1740,8 +1755,8 @@ export default function ReportScreen() {
         </ReportBenefit>
 
         <View
-          className="mt-2 rounded-2xl p-4"
-          style={{ backgroundColor: "#EEF2F6" }}
+          className="mt-2 rounded-[10px] p-4"
+          style={{ backgroundColor: "#F5F6F8" }}
         >
           <PretendardFont
             weight="semibold"
@@ -1781,8 +1796,8 @@ export default function ReportScreen() {
         </ReportBenefit>
 
         <View
-          className="mt-2 rounded-2xl p-4"
-          style={{ backgroundColor: C.recommendCtaBg }}
+          className="mt-2 rounded-[10px] p-4"
+          style={{ backgroundColor: C.bgAlt }}
         >
           <PretendardFont
             weight="semibold"

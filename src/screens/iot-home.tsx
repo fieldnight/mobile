@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Dimensions,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
@@ -53,12 +54,16 @@ import type { NfcDoorCardConfig } from "@/features/door-opener/components/nfcDoo
 import { DEFAULT_NFC_DOOR_CARDS } from "@/features/door-opener/components/nfcDoorCards";
 import {
   buildDoorOpenerRuntimeState,
-  getDoorOpenerRuntimeText,
   loadDoorOpenerRuntimeState,
-  saveDoorOpenerRuntimeState,
   type DoorOpenerRuntimeState,
 } from "@/features/door-opener/model/doorOpenerRuntime";
 import { createMockDoorDeviceStats } from "@/features/door-opener/model/mockDoorStats";
+import { mergeDoorBucket, mergeDoorCounters, type DoorCounterState } from "@/features/door-opener/model/doorStatsMerge";
+import { useDoorDeviceState } from "@/stores/useDoorDeviceState";
+import { gateDisplayName, normalizeGateMac, runtimeFromServerCommand } from "@/features/door-opener/model/deviceCardState";
+import { DeviceCardStatus, DeviceCardStatusList } from "@/features/door-opener/components/DeviceCardStatus";
+import { getCurrentGateCommand } from "@/features/door-opener/api/gateCommandsApi";
+import { migrateDeviceCards } from "@/features/door-opener/model/migrateDeviceCards";
 import type { GateActionAppConnectionStatus } from "@/features/door-opener/components/NfcDoorCardSection";
 import {
   setActiveHceCard,
@@ -79,10 +84,14 @@ const SCREEN_H = Dimensions.get("window").height;
 const H_PAD = 18;
 const GAP = 16;
 const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2 - 1;
-const HERO_BANNER_H = SCREEN_H * 0.34;
-const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.62, 260);
-/** 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도. 기존 220에서 20% 줄여 배경이 더 보이게 합니다. */
-const CARD_SHEET_OVERLAP = 220 * 0.8;
+const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.5, 200);
+/** 제품 사진은 위쪽 절반만 보이게 잘라 상단 여백을 줄입니다(아래 절반은 카드 시트가 덮음). */
+const HERO_BANNER_H = Math.round(HERO_IMAGE_SIZE * 0.5) + 12;
+/**
+ * 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도.
+ * 크게 겹치면 개폐기 사진이 카드 사이에 끼어 보여, 사진 아래 그림자만 살짝 덮게 둡니다.
+ */
+const CARD_SHEET_OVERLAP = 16;
 const STATS_PANEL_PAD = 16;
 const STATS_PAGE_GAP = 12;
 const STATS_PAGE_W = SCREEN_W - H_PAD * 2 - STATS_PANEL_PAD * 2;
@@ -183,7 +192,7 @@ const SAMPLE_HOURLY_STATS: HourlyStatsPoint[] = [
   },
 ];
 
-interface DoorDeviceStats {
+interface DoorDeviceStats extends DoorCounterState {
   deviceId: string;
   runtimeState?: DoorOpenerRuntimeState;
   bootCounts?: BeeTrafficCounts;
@@ -251,6 +260,7 @@ function todayKey() {
 
 export default function DoorOpenerScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ tab?: string; deviceId?: string }>();
   const hives = useHiveStore((s) => s.hives);
   const gates = useGateStore((s) => s.gates);
   const gateMode = useGateModeStore((s) => s.mode);
@@ -258,17 +268,20 @@ export default function DoorOpenerScreen() {
   const [trafficCounts, setTrafficCounts] = useState<BeeTrafficCounts>(
     EMPTY_BEE_TRAFFIC_COUNTS,
   );
-  const [runtimeState, setRuntimeState] =
-    useState<DoorOpenerRuntimeState | null>(null);
   const [appConnectionStatus, setAppConnectionStatus] =
     useState<GateActionAppConnectionStatus>("idle");
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [activeTab, setActiveTab] = useState<DoorOpenerTab>("control");
+  const [activeTab, setActiveTab] = useState<DoorOpenerTab>(params.tab === "stats" ? "stats" : "control");
   const [statsState, setStatsState] = useState<DoorStatsState>({ devices: {} });
   const [statsCacheHydrated, setStatsCacheHydrated] = useState(false);
-  const [selectedStatsDeviceId, setSelectedStatsDeviceId] = useState<
-    string | undefined
-  >();
+  const statsReadyRef = useRef(false);
+  const pendingStatsRef = useRef<HceStatsEvent[]>([]);
+  const [selectedStatsDeviceId, setSelectedStatsDeviceId] = useState<string | undefined>(normalizeGateMac(params.deviceId));
+  useEffect(() => {
+    if (params.tab === "stats") setActiveTab("stats");
+    const mac = normalizeGateMac(params.deviceId);
+    if (mac) setSelectedStatsDeviceId(mac);
+  }, [params.tab, params.deviceId]);
   const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
   const activeHceCardRef = useRef<NfcDoorCardConfig | null>(null);
   useSyncHiveList();
@@ -319,7 +332,9 @@ export default function DoorOpenerScreen() {
     const restoreRuntime = async () => {
       const restored = await loadDoorOpenerRuntimeState();
       if (!restored || cancelled) return;
-      setRuntimeState(restored);
+      if (restored.deviceId) useDoorDeviceState.getState().confirm({
+        deviceId: restored.deviceId, runtime: restored, source: "offline", confirmedAt: restored.activatedAt,
+      });
       if (restored.counts) setTrafficCounts(restored.counts);
     };
 
@@ -331,7 +346,7 @@ export default function DoorOpenerScreen() {
 
   // Keep the most recently received NFC statistics while navigating away from
   // this screen or restarting the app. The ESP32 remains the source of truth:
-  // the next statistics-card tap replaces these values with a fresh snapshot.
+  // each tap merges the device's incremental history into this cache.
   useEffect(() => {
     let cancelled = false;
 
@@ -341,8 +356,13 @@ export default function DoorOpenerScreen() {
         if (!raw || cancelled) return;
         const cached: unknown = JSON.parse(raw);
         if (!isDoorStatsState(cached)) return;
+        for (const device of Object.values(cached.devices)) {
+          if (device.runtimeState && !device.isMock) useDoorDeviceState.getState().confirm({
+            deviceId: device.deviceId, runtime: device.runtimeState, source: "offline", confirmedAt: device.runtimeState.activatedAt,
+          });
+        }
         setStatsState(cached);
-        if (cached.lastDeviceId) setSelectedStatsDeviceId(cached.lastDeviceId);
+        if (cached.lastDeviceId) setSelectedStatsDeviceId(current => current ?? cached.lastDeviceId);
       } catch (error) {
         console.warn("[DoorOpener] Failed to restore stats cache", error);
       } finally {
@@ -378,21 +398,18 @@ export default function DoorOpenerScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const runtimeText = useMemo(
-    () => getDoorOpenerRuntimeText(runtimeState, new Date(nowTick)),
-    [nowTick, runtimeState],
-  );
-
   const handleHceResult = useCallback(
     (event: HceResultEvent, card: NfcDoorCardConfig) => {
+      if (event.status !== "ok") return;
       /* 통계 카드는 조회 전용이므로, 화면의 진행 중 개폐 설정을 덮어쓰지 않는다. */
       if (card.mode === "count_status") {
         if (event.counts) setTrafficCounts(event.counts);
         return;
       }
       const nextRuntimeState = buildDoorOpenerRuntimeState(card, event);
-      setRuntimeState(nextRuntimeState);
-      saveDoorOpenerRuntimeState(nextRuntimeState);
+      if (event.deviceId) useDoorDeviceState.getState().confirm({
+        deviceId: event.deviceId, runtime: nextRuntimeState, source: "offline", confirmedAt: nextRuntimeState.activatedAt,
+      });
 
       if (event.counts) {
         setTrafficCounts(event.counts);
@@ -421,7 +438,9 @@ export default function DoorOpenerScreen() {
             [deviceId]: {
               ...current,
               runtimeState: nextRuntimeState,
-              bootCounts: event.counts ?? current.bootCounts,
+              ...(event.counts ? mergeDoorCounters(current, {
+                type: "boot", raw: event.result, counts: event.counts,
+              }) : {}),
               lastUpdatedAt: Date.now(),
             },
           },
@@ -434,8 +453,12 @@ export default function DoorOpenerScreen() {
 
   const handleHceStats = useCallback((event: HceStatsEvent) => {
     if (event.type === "unknown") return;
+    // Restore persisted totals before applying a tap received during startup.
+    if (!statsReadyRef.current) {
+      pendingStatsRef.current.push(event);
+      return;
+    }
     // NFC v2 keeps the short result free of counters; ST|BOOT carries them.
-    if (event.type === "boot") setTrafficCounts(event.counts);
     const deviceId = getKnownApduDeviceId(
       "deviceId" in event ? event.deviceId : undefined,
     );
@@ -462,34 +485,21 @@ export default function DoorOpenerScreen() {
         lastUpdatedAt: Date.now(),
       };
 
-      if (event.type === "begin") {
-        /* 새 통계 수신마다 이전 날짜의 캐시를 버리고 오늘 스냅샷으로 교체한다. */
-        updated.bootCounts = {
-          entranceIn: 0,
-          entranceOut: 0,
-          exitIn: 0,
-          exitOut: 0,
-        };
-        updated.buckets = [];
-        updated.climateSamples = [];
-        updated.hourlyActive = undefined;
-      }
-
       if (event.type === "boot") {
-        updated.bootCounts = event.counts;
+        Object.assign(updated, mergeDoorCounters(current, event));
       }
 
       if (event.type === "bucket") {
         const existingIndex = updated.buckets.findIndex(
           (bucket) => bucket.start === event.start && bucket.end === event.end,
         );
-        const bucket: HceStatsBucket = {
+        const bucket = mergeDoorBucket(updated.buckets[existingIndex], {
           deviceId: event.deviceId,
           start: event.start,
           end: event.end,
           closed: event.closed,
           counts: event.counts,
-        };
+        }, updated.counterSession);
 
         if (existingIndex >= 0) {
           updated.buckets[existingIndex] = bucket;
@@ -498,7 +508,7 @@ export default function DoorOpenerScreen() {
         }
 
         updated.buckets.sort((a, b) => a.start.localeCompare(b.start));
-        updated.bootCounts = sumBucketTrafficCounts(updated.buckets);
+        // Buckets break down the same events; never add them to the total again.
       }
 
       if (event.type === "climate") {
@@ -535,9 +545,32 @@ export default function DoorOpenerScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!statsCacheHydrated) return;
+    statsReadyRef.current = true;
+    const pending = pendingStatsRef.current;
+    pendingStatsRef.current = [];
+    pending.forEach(handleHceStats);
+  }, [statsCacheHydrated, handleHceStats]);
+
   const handleHceCardActivated = useCallback((card: NfcDoorCardConfig) => {
     activeHceCardRef.current = card;
   }, []);
+
+  // Reconcile known server applications by their appliedAt timestamp. A null
+  // current rule does not mean no card: immediate ON/OFF leave no active rule.
+  useEffect(() => {
+    void migrateDeviceCards(gates);
+    let cancelled = false;
+    void Promise.allSettled(gates.filter(gate => gate.gateId > 0).map(async gate => {
+      const current = await getCurrentGateCommand(gate);
+      if (cancelled || !current) return;
+      const runtime = runtimeFromServerCommand(current, gate.macAddress);
+      if (runtime) useDoorDeviceState.getState().confirm({ deviceId: gate.macAddress,
+        runtime, source: "online", confirmedAt: runtime.activatedAt });
+    }));
+    return () => { cancelled = true; };
+  }, [gates, gateMode]);
 
   // The HCE service can respond after the card modal closes or while the
   // statistics tab is shown, so subscriptions belong to the screen itself.
@@ -707,23 +740,28 @@ export default function DoorOpenerScreen() {
             {...controlPanResponder.panHandlers}
           >
             <Animated.View
-              className="rounded-t-[28px] px-[18px] pt-5 gap-4"
+              className="rounded-t-2xl px-[18px] pt-4 gap-3"
               style={[
                 {
-                  // 탭 축소분만큼 올리되, 좁은 화면에서도 상단 안내를 덮지 않습니다.
-                  marginTop: -Math.min(HERO_BANNER_H, CARD_SHEET_OVERLAP + tabsHeight - 42),
+                  paddingHorizontal: H_PAD,
+                  paddingTop: 14,
+                  gap: 12,
+                  // 사진 바로 아래에서 시작합니다(사진 위로 카드를 띄우지 않음).
+                  marginTop: -CARD_SHEET_OVERLAP,
                 },
                 controlStretchStyle,
               ]}
             >
               <Animated.View entering={FadeInDown.delay(110).duration(380)}>
+                {gateMode === "offline" ? <DeviceCardStatusList
+                  deviceIds={Object.keys(statsState.devices).filter(id => !statsState.devices[id].isMock)}
+                  now={new Date(nowTick)}
+                /> : null}
                 <NfcDoorCardSection
                   cardWidth={CARD_W}
                   deleting={deleting}
                   onToggleDeleting={() => setDeleting((value) => !value)}
                   onHceCardActivated={handleHceCardActivated}
-                  runtimeState={runtimeState}
-                  runtimeText={runtimeText}
                   hiveId={activeHive?.id}
                   onSyncStatusChange={setAppConnectionStatus}
                   gateMode={gateMode}
@@ -749,9 +787,6 @@ export default function DoorOpenerScreen() {
           </Animated.View>
           ) : (
           <Animated.View entering={FadeInDown.delay(110).duration(380)}>
-            <PretendardFont style={{ color: C.sec, fontSize: 13, marginBottom: 12 }}>
-              오프라인 리포트 · NFC로 받은 기록만 표시해요.
-            </PretendardFont>
             <DoorStatsPanel
               stats={statsState}
               now={new Date(nowTick)}
@@ -847,14 +882,26 @@ function DoorStatsPanel({
   appConnectionStatus: GateActionAppConnectionStatus;
   gateConnectionStatus: GateConnectionCheckStatus;
 }) {
-  const pagerRef = useRef<ScrollView>(null);
-  const devices = Object.values(stats.devices).sort((a, b) => {
+  const pagerRef = useRef<ScrollViewInstance>(null);
+  const records = useDoorDeviceState(state => state.records);
+  const registeredGates = useGateStore(state => state.gates);
+  const deviceMap = Object.fromEntries(Object.entries(stats.devices).map(([id, device]) => {
+    const record = records[normalizeGateMac(device.deviceId) ?? ""];
+    return [id, record ? { ...device, runtimeState: record.runtime ?? undefined } : device];
+  }));
+  for (const id of [...Object.keys(records), ...registeredGates.map(gate => gate.macAddress)]) {
+    const mac = normalizeGateMac(id);
+    if (mac && !Object.values(deviceMap).some(device => normalizeGateMac(device.deviceId) === mac)) {
+      deviceMap[mac] = { deviceId: mac, buckets: [], climateSamples: [], runtimeState: records[mac]?.runtime ?? undefined };
+    }
+  }
+  const devices = Object.values(deviceMap).sort((a, b) => {
     if (a.deviceId === stats.lastDeviceId) return -1;
     if (b.deviceId === stats.lastDeviceId) return 1;
     return a.deviceId.localeCompare(b.deviceId);
   });
   const selectedDevice =
-    (selectedDeviceId ? stats.devices[selectedDeviceId] : undefined) ??
+    (selectedDeviceId ? deviceMap[selectedDeviceId] : undefined) ??
     devices[0];
   const selectedIndex = Math.max(
     0,
@@ -886,7 +933,7 @@ function DoorStatsPanel({
   return (
     <View className="mb-8">
       <DoorOpenerHeroVisual
-        counts={selectedDevice?.bootCounts ?? fallbackCounts}
+        counts={selectedDevice ? selectedDevice.bootCounts ?? EMPTY_BEE_TRAFFIC_COUNTS : fallbackCounts}
         latestClimate={latestClimate}
         appConnectionStatus={appConnectionStatus}
         gateConnectionStatus={gateConnectionStatus}
@@ -894,7 +941,7 @@ function DoorStatsPanel({
 
       <DoorAiReportCard
         device={selectedDevice}
-        fallbackCounts={fallbackCounts}
+        fallbackCounts={selectedDevice ? EMPTY_BEE_TRAFFIC_COUNTS : fallbackCounts}
       />
 
       {devices.length > 0 ? (
@@ -950,6 +997,7 @@ function DeviceStatsPage({
   device: DoorDeviceStats;
   now: Date;
 }) {
+  const gates = useGateStore(state => state.gates);
   const hourlyStats = getHourlyStatsPoints(
     device.buckets,
     device.climateSamples,
@@ -957,8 +1005,8 @@ function DeviceStatsPage({
 
   return (
     <View
-      className="mt-4 rounded-3xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.474)" }}
+      className="mt-3 rounded-xl p-4"
+      style={{ backgroundColor: C.white }}
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-1 flex-row items-center" style={{ gap: 8 }}>
@@ -967,7 +1015,7 @@ function DeviceStatsPage({
             numberOfLines={1}
             style={{ flexShrink: 1, fontSize: 17, color: C.text }}
           >
-            {device.deviceId}
+            {gateDisplayName(device.deviceId, gates)}
           </PretendardFont>
         </View>
         {device.lastUpdatedAt ? (
@@ -983,26 +1031,14 @@ function DeviceStatsPage({
         ) : null}
       </View>
 
-      {device.isMock ? null : device.runtimeState ? (
-        <DeviceRuntimeCard state={device.runtimeState} now={now} />
-      ) : (
-        <View
-          className="mt-3 rounded-3xl p-4"
-          style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 16, color: C.text }}
-          >
-            진행중 카드 없음
-          </PretendardFont>
-        </View>
-      )}
+      {device.isMock ? null : <View style={{ marginTop: 8, paddingHorizontal: 0, backgroundColor: C.white }}>
+        <DeviceCardStatus deviceId={device.deviceId} now={now} />
+      </View>}
 
       {device.hourlyActive === false ? (
         <PretendardFont
           weight="semibold"
-          style={{ marginTop: 12, fontSize: 14, color: "#F8D15C" }}
+          style={{ marginTop: 12, fontSize: 13, color: C.warning }}
         >
           아직 시간별 집계가 시작되지 않았어요. 앱 카드를 찍어 폰 시간을 전달해
           주세요.
@@ -1134,7 +1170,7 @@ function DoorAiReportCard({
         }
         disabled={!hasData || loading}
         onPress={handleCardPress}
-        className="mt-3 rounded-3xl px-5 py-4 active:opacity-85"
+        className="mt-3 rounded-xl px-5 py-4 active:opacity-85"
         style={{
           minHeight: 116,
           backgroundColor: "rgba(248,209,92,0.96)",
@@ -1447,7 +1483,7 @@ function DoorAiReportModal({
                 onPress={onRefresh}
                 className="min-h-12 flex-1 items-center justify-center rounded-xl active:opacity-75"
                 style={{
-                  backgroundColor: "#F8D15C",
+                  backgroundColor: C.bgAlt,
                   opacity: loading ? 0.7 : 1,
                 }}
               >
@@ -2174,18 +2210,18 @@ function createDoorFieldSolutions(
 
 function getDoorAiStatusMeta(status?: DoorAiReportStatus) {
   if (status === "GOOD") {
-    return { label: "좋음", color: "#116349", backgroundColor: "#DDF5E9" };
+    return { label: "좋음", color: C.success, backgroundColor: C.bgAlt };
   }
   if (status === "CAUTION") {
-    return { label: "주의", color: "#963E27", backgroundColor: "#FFE2D7" };
+    return { label: "주의", color: C.warning, backgroundColor: C.bgAlt };
   }
   if (status === "NORMAL") {
-    return { label: "보통", color: "#2C5F87", backgroundColor: "#DDEFFC" };
+    return { label: "보통", color: C.textAlt, backgroundColor: C.bgAlt };
   }
   return {
     label: "분석 전",
     color: "#5B6470",
-    backgroundColor: "rgba(255,255,255,0.58)",
+    backgroundColor: C.bgAlt,
   };
 }
 
@@ -2210,7 +2246,7 @@ function HourlyStatsChartCard({
   const series: StatsChartSeries[] = [
     {
       label: "들어온 벌",
-      color: "#B7F3E5",
+      color: "#191F28",
       points: points.map((point) => ({
         label: point.label,
         value: point.entered,
@@ -2218,7 +2254,7 @@ function HourlyStatsChartCard({
     },
     {
       label: "나간 벌",
-      color: "#F8D15C",
+      color: "#B0B8C1",
       points: points.map((point) => ({
         label: point.label,
         value: point.exited,
@@ -2248,7 +2284,7 @@ function HourlyStatsChartCard({
 
   return (
     <View
-      className="rounded-3xl p-4"
+      className="rounded-xl p-4"
       style={{ backgroundColor: "rgba(255, 255, 255, 0.474)" }}
     >
       <View className="flex-row gap-5">
@@ -2366,7 +2402,7 @@ function HourlyStatsChartCard({
                   style={{
                     fontSize: 20,
                     lineHeight: 24,
-                    color: "#1B9C79",
+                    color: C.text,
                     textShadowColor: "rgba(255,255,255,0.6)",
                     textShadowOffset: { width: 0, height: 1 },
                     textShadowRadius: 3,
@@ -2379,7 +2415,7 @@ function HourlyStatsChartCard({
                   style={{
                     fontSize: 20,
                     lineHeight: 24,
-                    color: "#B8860B",
+                    color: C.sec,
                     textShadowColor: "rgba(255,255,255,0.6)",
                     textShadowOffset: { width: 0, height: 1 },
                     textShadowRadius: 3,
@@ -2452,68 +2488,6 @@ function HourlyStatsChartCard({
   );
 }
 
-function DeviceRuntimeCard({
-  state,
-  now,
-}: {
-  state: DoorOpenerRuntimeState;
-  now: Date;
-}) {
-  const runtimeText = getDoorOpenerRuntimeText(state, now);
-  const active = state.status === "ok" && state.mode !== "count_status";
-
-  return (
-    <View
-      className="mt-3 rounded-3xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
-    >
-      <PretendardFont
-        weight="bold"
-        style={{ fontSize: 16, color: active ? "#B8860B" : C.text }}
-      >
-        {active ? "현재 진행중 카드" : "마지막 찍은 카드"} · {state.title}
-      </PretendardFont>
-      {runtimeText ? (
-        <PretendardFont
-          weight="bold"
-          style={{
-            marginTop: 6,
-            fontSize: 14.5,
-            lineHeight: 20,
-            color: C.text,
-          }}
-        >
-          {runtimeText}
-        </PretendardFont>
-      ) : (
-        <PretendardFont
-          weight="medium"
-          style={{
-            marginTop: 6,
-            fontSize: 14,
-            lineHeight: 20,
-            color: C.textAlt,
-          }}
-        >
-          즉시 실행 카드라 다음 예약 시간은 없어요.
-        </PretendardFont>
-      )}
-      <PretendardFont
-        weight="medium"
-        numberOfLines={1}
-        style={{
-          marginTop: 5,
-          display: "none",
-          fontSize: 12.5,
-          color: C.ter,
-        }}
-      >
-        APDU · {state.result}
-      </PretendardFont>
-    </View>
-  );
-}
-
 function StatsCountsCard({
   title,
   counts,
@@ -2523,7 +2497,7 @@ function StatsCountsCard({
 }) {
   return (
     <View
-      className="mt-3 rounded-3xl p-4"
+      className="mt-3 rounded-xl p-4"
       style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
     >
       <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>

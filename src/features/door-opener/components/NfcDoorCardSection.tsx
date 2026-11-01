@@ -5,7 +5,7 @@
  * - 삭제: ConfirmSheet (바텀시트) — Alert.alert 대체
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { executeGateCard } from "../api/gateCommandsApi";
+import { executeGateCard, getGateConnection } from "../api/gateCommandsApi";
 import { getGateDeviceErrorMessage } from "../api/gateDeviceApi";
 import {
   createGateCountCard,
@@ -23,6 +23,7 @@ import {
   LayoutAnimation,
   PanResponder,
   Pressable,
+  ScrollView,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -44,11 +45,9 @@ import {
   isSameCardSettings,
   type NfcDoorCardConfig,
 } from "./nfcDoorCards";
-import {
-  getDoorOpenerRuntimeText,
-  isDoorOpenerRuntimeActive,
-  type DoorOpenerRuntimeState,
-} from "../model/doorOpenerRuntime";
+import { buildDoorOpenerRuntimeState } from "../model/doorOpenerRuntime";
+import { useDoorDeviceState } from "@/stores/useDoorDeviceState";
+import { normalizeGateMac } from "../model/deviceCardState";
 import {
   loadStoredNfcDoorCards,
   saveStoredNfcDoorCards,
@@ -60,8 +59,11 @@ import {
   type GateCardAssignments,
 } from "../model/gateCardAssignments";
 
-const GRID_GAP = 16;
-const GRID_COLUMNS = 2;
+/** 가로 캐러셀 카드 간격·너비. 벌통 카드 줄(HiveCardRail)처럼 좁은 카드를 옆으로 넘깁니다. */
+const RAIL_GAP = 10;
+const RAIL_CARD_W = 132;
+/** 부모(iot-home) 좌우 여백만큼 캐러셀을 화면 끝까지 넓혀, 카드가 가장자리에서 잘려 보이게 합니다. */
+const RAIL_BLEED = 18;
 
 export type GateActionAppConnectionStatus =
   | "idle"
@@ -74,8 +76,6 @@ export function NfcDoorCardSection({
   deleting,
   onToggleDeleting,
   onHceCardActivated,
-  runtimeState,
-  runtimeText,
   hiveId,
   onSyncStatusChange,
   gateMode,
@@ -85,8 +85,6 @@ export function NfcDoorCardSection({
   deleting: boolean;
   onToggleDeleting: () => void;
   onHceCardActivated?: (card: NfcDoorCardConfig) => void;
-  runtimeState?: DoorOpenerRuntimeState | null;
-  runtimeText?: string | null;
   hiveId?: string | number;
   onSyncStatusChange?: (status: GateActionAppConnectionStatus) => void;
   gateMode: GateOperatingMode;
@@ -100,7 +98,6 @@ export function NfcDoorCardSection({
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [activeCard, setActiveCard]     = useState<NfcDoorCardConfig | null>(null);
   const [adding, setAdding]             = useState(false);
-  const [pendingReplacement, setPendingReplacement] = useState<NfcDoorCardConfig | null>(null);
   /** 삭제 확인 중인 카드 */
   const [pendingDelete, setPendingDelete] = useState<NfcDoorCardConfig | null>(null);
   /** 온라인 모드에서 "적용할 개폐기 선택" 시트를 띄울 카드 */
@@ -125,7 +122,6 @@ export function NfcDoorCardSection({
   useEffect(() => {
     if (gateMode === "online") setActiveCard(null);
     else setGateSelectCard(null);
-    setPendingReplacement(null);
   }, [gateMode]);
 
   useEffect(() => {
@@ -162,6 +158,22 @@ export function NfcDoorCardSection({
 
   useEffect(() => {
     if (!cardsHydrated) return;
+    for (const [cardId, ids] of Object.entries(gateAssignments)) {
+      const card = cards.find(item => item.id === cardId);
+      if (!card || card.mode === "count_status") continue;
+      for (const id of ids) {
+        const gate = gates.find(item => item.id === id);
+        const mac = normalizeGateMac(gate?.macAddress);
+        if (!mac || useDoorDeviceState.getState().records[mac]) continue;
+        const runtime = buildDoorOpenerRuntimeState(card, { status: "ok", result: "legacy:online", deviceId: mac });
+        runtime.activatedAt = 0;
+        useDoorDeviceState.getState().confirm({ deviceId: mac, runtime, source: "online", confirmedAt: 0 });
+      }
+    }
+  }, [cardsHydrated, gateAssignments, cards, gates]);
+
+  useEffect(() => {
+    if (!cardsHydrated) return;
     saveStoredNfcDoorCards(cards).catch((error) => {
       console.warn("[NFC Door Cards] 카드 저장 실패", error);
     });
@@ -169,10 +181,9 @@ export function NfcDoorCardSection({
 
   // 서버 카드 CRUD(PR #195)는 30분 단위 등 일부 설정을 표현하지 못해,
   // 카드 원본은 계속 로컬(AsyncStorage)에 전체 정보로 보관합니다.
-  const cell = useMemo(
-    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.66 + GRID_GAP }),
-    [cardWidth],
-  );
+  // 카드 높이는 예전 2열 그리드 한 칸 높이를 그대로 씁니다.
+  const cardHeight = Math.round(cardWidth * 0.759);
+  const cell = useMemo(() => ({ width: RAIL_CARD_W + RAIL_GAP }), []);
   const cellRef = useRef(cell);
   cellRef.current = cell;
 
@@ -236,23 +247,19 @@ export function NfcDoorCardSection({
         const gridCardCount = cardsRef.current.filter(
           (card) => card.mode !== "count_status" && card.mode !== "count_control",
         ).length;
+        // 한 줄 캐러셀이라 가로 이동량만으로 자리를 계산합니다.
         const colDelta = Math.round(gesture.dx / currentCell.width);
-        const rowDelta = Math.round(gesture.dy / currentCell.height);
         const targetIndex = Math.max(
           0,
-          Math.min(gridCardCount - 1, dragStartIndexRef.current + rowDelta * GRID_COLUMNS + colDelta),
+          Math.min(gridCardCount - 1, dragStartIndexRef.current + colDelta),
         );
         if (targetIndex !== dragCurrentIndexRef.current) {
           reorderCards(dragCurrentIndexRef.current, targetIndex);
           dragCurrentIndexRef.current = targetIndex;
         }
-        const startCol   = dragStartIndexRef.current % GRID_COLUMNS;
-        const startRow   = Math.floor(dragStartIndexRef.current / GRID_COLUMNS);
-        const currentCol = dragCurrentIndexRef.current % GRID_COLUMNS;
-        const currentRow = Math.floor(dragCurrentIndexRef.current / GRID_COLUMNS);
         dragOffset.setValue({
-          x: gesture.dx - (currentCol - startCol) * currentCell.width,
-          y: gesture.dy - (currentRow - startRow) * currentCell.height,
+          x: gesture.dx - (dragCurrentIndexRef.current - dragStartIndexRef.current) * currentCell.width,
+          y: 0,
         });
       },
       onPanResponderRelease: finishDrag,
@@ -303,12 +310,10 @@ export function NfcDoorCardSection({
 
   /** 삭제 요청 — ConfirmSheet 열기 */
   const requestDelete = (card: NfcDoorCardConfig) => {
-    const isAppliedCard =
-      gateMode === "offline" &&
-      isDoorOpenerRuntimeActive(runtimeState ?? null) &&
-      runtimeState?.cardId === card.id;
+    const isAppliedCard = Object.values(useDoorDeviceState.getState().records)
+      .some(record => record.runtime?.cardId === card.id);
     if (isAppliedCard) {
-      showToast("현재 개폐기에 적용 중인 카드는 삭제할 수 없어요. 새 카드를 추가해 적용해 주세요.", "error");
+      showToast("개폐기에 마지막으로 적용한 카드는 삭제할 수 없어요. 다른 카드를 적용한 뒤 삭제해주세요.", "error");
       return;
     }
     setPendingDelete(card);
@@ -360,12 +365,6 @@ export function NfcDoorCardSection({
 
   const handleCardPress = (card: NfcDoorCardConfig) => {
     if (deleting || draggingCardIdRef.current || commandPendingRef.current) return;
-    const currentCardId = runtimeState?.cardId;
-    const hasRunningCard = isDoorOpenerRuntimeActive(runtimeState ?? null) && currentCardId;
-    if (gateMode === "offline" && hasRunningCard && currentCardId !== card.id && card.mode !== "count_status") {
-      setPendingReplacement(card);
-      return;
-    }
     // 온라인 모드에서는 NFC 태깅 대신 "적용할 개폐기"를 먼저 고릅니다.
     // 온라인 모드에서는 NFC를 활성화하지 않습니다.
     if (gateMode === "online") {
@@ -393,13 +392,27 @@ export function NfcDoorCardSection({
     setCommandPending(true);
     setGateSelectCard(null);
     setLastSelectedGateIds(selectedGateIds);
-    showToast("개폐기에 명령을 보내고 결과를 확인하고 있어요.", "info");
+    showToast("개폐기의 현재 설정과 처리 결과를 확인하고 있어요.", "info");
     try {
       const results = await Promise.allSettled(selectedGateIds.map(async id => {
         const gate = gates.find(item => item.id === id);
         if (!gate) throw new Error("등록된 개폐기를 찾지 못했어요.");
+        // Older servers may not support connection lookup; keep their command path.
+        const connection = await getGateConnection(gate).catch(() => null);
+        if (connection && !connection.isConnected) {
+          throw new Error("개폐기가 Wi-Fi에 연결되어 있지 않아요. 개폐기의 Wi-Fi 연결을 확인하거나 NFC로 사용해주세요.");
+        }
         const result = await executeGateCard(gate, targetCard);
-        return { id, deferred: result.detail === "SERVO_DEFERRED" };
+        if (targetCard.mode !== "count_status") {
+          const confirmedAt = Date.now();
+          const previous = useDoorDeviceState.getState().records[normalizeGateMac(gate.macAddress) ?? ""];
+          const runtime = buildDoorOpenerRuntimeState(targetCard, {
+            result: `online:${result.commandId}`, status: "ok", deviceId: gate.macAddress,
+          });
+          if (result.detail === "ALREADY_APPLIED" && previous?.runtime) runtime.activatedAt = previous.runtime.activatedAt;
+          useDoorDeviceState.getState().confirm({ deviceId: gate.macAddress, runtime, source: "online", confirmedAt });
+        }
+        return { id, deferred: result.detail === "SERVO_DEFERRED", already: result.detail === "ALREADY_APPLIED" };
       }));
       const succeeded = results.flatMap(result => result.status === "fulfilled" ? [result.value.id] : []);
       if (succeeded.length && targetCard.mode !== "count_status") {
@@ -408,6 +421,7 @@ export function NfcDoorCardSection({
         await saveGateCardAssignments(next);
       }
       const deferred = results.filter(result => result.status === "fulfilled" && result.value.deferred).length;
+      const already = results.filter(result => result.status === "fulfilled" && result.value.already).length;
       const deferredMessage = deferred ? ` ${deferred}곳은 통로 센서 감지로 문 움직임을 기다리고 있어요.` : "";
       const failed = results.find(result => result.status === "rejected");
       if (failed?.status === "rejected") {
@@ -415,7 +429,10 @@ export function NfcDoorCardSection({
       } else if (deferred) {
         showToast(`명령을 접수했어요.${deferredMessage}`, "info");
       } else {
-        showToast(`${selectedGateIds.length}곳에서 ${targetCard.title} 명령 처리를 확인했어요.`, "success");
+        const existingMessage = targetCard.mode === "open_now" ? "이미 열려 있어요."
+          : targetCard.mode === "close_now" ? "이미 닫혀 있어요." : "이미 같은 설정이 적용돼 있어요.";
+        showToast(already === selectedGateIds.length ? existingMessage
+          : `${selectedGateIds.length}곳에서 ${targetCard.title} 명령 처리를 확인했어요.${already ? ` ${already}곳은 이미 같은 설정이에요.` : ""}`, "success");
       }
     } catch (error) {
       showToast(getGateDeviceErrorMessage(error, "결과 기록을 저장하지 못했어요."), "error");
@@ -443,11 +460,11 @@ export function NfcDoorCardSection({
           onToggleDeleting();
         }}
         hitSlop={6}
-        className="items-center justify-center rounded-2xl active:opacity-75"
+        className="items-center justify-center rounded-lg active:opacity-75"
         style={{
-          height: 34,
-          paddingHorizontal: 14,
-          backgroundColor: deleting ? C.gatePrimary : C.stCardBg,
+          height: 32,
+          paddingHorizontal: 12,
+          backgroundColor: deleting ? C.gatePrimary : C.white,
         }}
       >
         <PretendardFont
@@ -462,8 +479,8 @@ export function NfcDoorCardSection({
         hitSlop={6}
         accessibilityRole="button"
         accessibilityLabel="추가하기"
-        className="items-center justify-center rounded-2xl active:opacity-75"
-        style={{ width: 34, height: 34, backgroundColor: C.stCardBg }}
+        className="items-center justify-center rounded-lg active:opacity-75"
+        style={{ width: 32, height: 32, backgroundColor: C.white }}
       >
         <Feather name="plus" size={18} color={C.text} />
       </Pressable>
@@ -486,21 +503,23 @@ export function NfcDoorCardSection({
       />
 
       {!gridCollapsed ? (
-        <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={draggingCardId == null}
+          style={{ marginHorizontal: -RAIL_BLEED }}
+          contentContainerStyle={{ paddingHorizontal: RAIL_BLEED, gap: RAIL_GAP }}
+        >
           {gridCards.map((card) => {
             const dragging = draggingCardId === card.id;
-            const active =
-              gateMode === "offline" &&
-              isDoorOpenerRuntimeActive(runtimeState ?? null) &&
-              runtimeState?.cardId === card.id;
-            const cardRuntimeText = active
-              ? runtimeText ?? getDoorOpenerRuntimeText(runtimeState ?? null)
-              : null;
+            const active = false;
+            const cardRuntimeText = null;
             return (
               <NfcDoorCard
                 key={card.id}
                 card={card}
-                size={cardWidth}
+                size={RAIL_CARD_W}
+                height={cardHeight}
                 editable={deleting && !active}
                 dragging={dragging}
                 active={active}
@@ -513,11 +532,11 @@ export function NfcDoorCardSection({
               />
             );
           })}
-        </View>
+        </ScrollView>
       ) : null}
 
       {countControlCards.length > 0 ? (
-        <View className="mt-6">
+        <View className="mt-5">
           <CollapsibleSectionHeader
             title="벌 마릿수 제어"
             count={countControlCards.length}
@@ -526,21 +545,22 @@ export function NfcDoorCardSection({
           />
 
           {!countControlCollapsed ? (
-            <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginHorizontal: -RAIL_BLEED }}
+              contentContainerStyle={{ paddingHorizontal: RAIL_BLEED, gap: RAIL_GAP }}
+            >
               {countControlCards.map((card) => {
                 const dragging = false;
-                const active =
-                  gateMode === "offline" &&
-                  isDoorOpenerRuntimeActive(runtimeState ?? null) &&
-                  runtimeState?.cardId === card.id;
-                const cardRuntimeText = active
-                  ? runtimeText ?? getDoorOpenerRuntimeText(runtimeState ?? null)
-                  : null;
+                const active = false;
+                const cardRuntimeText = null;
                 return (
                   <NfcDoorCard
                     key={card.id}
                     card={card}
-                    size={cardWidth}
+                    size={RAIL_CARD_W}
+                    height={cardHeight}
                     editable={deleting && !active}
                     dragging={dragging}
                     active={active}
@@ -550,7 +570,7 @@ export function NfcDoorCardSection({
                   />
                 );
               })}
-            </View>
+            </ScrollView>
           ) : null}
         </View>
       ) : null}
@@ -559,12 +579,7 @@ export function NfcDoorCardSection({
       <CountControlDetailModal
         card={countDetailCard}
         visible={countDetailCard != null}
-        active={
-          gateMode === "offline" &&
-          isDoorOpenerRuntimeActive(runtimeState ?? null) &&
-          runtimeState?.cardId === countDetailCard?.id
-        }
-        runtimeLabel={runtimeText ?? getDoorOpenerRuntimeText(runtimeState ?? null)}
+        active={false}
         onClose={() => setCountDetailCard(null)}
         onApply={() => {
           const card = countDetailCard;
@@ -581,6 +596,7 @@ export function NfcDoorCardSection({
       {/* 카드 활성화 모달 (NFC 태깅 뷰) */}
       <NfcDoorCardModal
         card={activeCard}
+        cards={cards}
         visible={activeCard != null}
         onClose={() => setActiveCard(null)}
         onActivated={onHceCardActivated}
@@ -610,18 +626,7 @@ export function NfcDoorCardSection({
         onConfirm={confirmDelete}
       />
 
-      <ConfirmSheet
-        visible={pendingReplacement != null}
-        onClose={() => setPendingReplacement(null)}
-        title="진행 중인 설정을 바꿀까요?"
-        message={`${runtimeText ?? "현재 설정"}을/를 멈추고 ${pendingReplacement?.title ?? "새 카드"}로 바꿉니다. 새 카드가 개폐기에 적용되면 이전 시간 설정은 해제돼요.`}
-        confirmLabel="새 카드로 바꾸기"
-        cancelLabel="유지하기"
-        onConfirm={() => {
-          setActiveCard(pendingReplacement);
-          setPendingReplacement(null);
-        }}
-      />
+
     </View>
   );
 }

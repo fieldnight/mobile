@@ -42,8 +42,8 @@ function SearchInput({
   return (
     <View>
       <View
-        className="flex-row items-center rounded-xl px-3 gap-2"
-        style={{ backgroundColor: C.bg, height: 42 }}
+        className="flex-row items-center rounded-lg px-3 gap-2"
+        style={{ backgroundColor: C.bgAlt, height: 42 }}
       >
         <Feather name="search" size={17} color={C.ter} />
         <TextInput
@@ -71,14 +71,10 @@ function SearchInput({
 
       {showSuggestions && (
         <View
-          className="mt-1 bg-white rounded-xl"
+          className="mt-1 bg-white rounded-lg"
           style={{
             borderWidth: 1,
             borderColor: C.border,
-            elevation: 6,
-            shadowColor: "#000",
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
             zIndex: 100,
           }}
         >
@@ -92,7 +88,7 @@ function SearchInput({
               <Feather name="clock" size={16} color={C.ter} />
               <PretendardFont
                 weight="regular"
-                style={{ fontSize: 16, color: C.sec, flex: 1 }}
+                style={{ fontSize: 15, color: C.text, flex: 1 }}
                 numberOfLines={1}
               >
                 {s}
@@ -111,10 +107,7 @@ const ResultRow = memo(({ item, index, onPress }: { item: ResultItem; index: num
   <Pressable
     onPress={() => onPress(item)}
     className="flex-row border-b active:opacity-70"
-    style={{
-      borderColor: C.border,
-      backgroundColor: index % 2 === 0 ? C.white : C.bg,
-    }}
+    style={{ borderColor: C.bg }}
   >
     {COLS.map(({ key, width }) => (
       <PretendardFont
@@ -124,7 +117,7 @@ const ResultRow = memo(({ item, index, onPress }: { item: ResultItem; index: num
         style={{
           width,
           paddingHorizontal: 10,
-          paddingVertical: 10,
+          paddingVertical: 11,
           fontSize: 14,
           lineHeight: 19,
           color: C.text,
@@ -149,7 +142,7 @@ function TableBody({
   onRowPress: (item: ResultItem) => void;
 }) {
   if (isFetching) {
-    return <ActivityIndicator size="large" color={C.primary} style={{ marginVertical: 48 }} />;
+    return <ActivityIndicator color={C.sec} style={{ marginVertical: 40 }} />;
   }
   if (items.length === 0) {
     return <>{emptyState ?? null}</>;
@@ -214,7 +207,7 @@ export default function PesticideTable() {
       <View>
         <View
           className="flex-row"
-          style={{ backgroundColor: C.bgAlt, borderBottomWidth: 2, borderColor: C.border }}
+          style={{ borderBottomWidth: 1, borderColor: C.border }}
         >
           {COLS.map(({ label, width }) => (
             <PretendardFont
@@ -226,10 +219,7 @@ export default function PesticideTable() {
                 paddingVertical: 9,
                 fontSize: 13,
                 lineHeight: 18,
-                color: C.sec,
-                textAlign: "center",
-                borderRightWidth: 1,
-                borderColor: C.border,
+                color: C.ter,
               }}
             >
               {label}
@@ -242,13 +232,9 @@ export default function PesticideTable() {
           onRowPress={handleRowPress}
           emptyState={
             showDefaultEmptyState ? (
-              <View className="items-center justify-center py-12 px-4">
-                <Feather name="search" size={40} color={C.ter} />
-                <PretendardFont
-                  weight="regular"
-                  style={{ fontSize: 17, color: C.ter, marginTop: 12, textAlign: "center", lineHeight: 24 }}
-                >
-                  해당 조합으로 된 검색결과가 없습니다.
+              <View className="items-center justify-center py-10 px-4">
+                <PretendardFont style={{ fontSize: 14, color: C.sec, textAlign: "center" }}>
+                  검색 결과가 없어요
                 </PretendardFont>
               </View>
             ) : null
@@ -256,6 +242,12 @@ export default function PesticideTable() {
         />
       </View>
     </ScrollView>
+  );
+
+  const comboEmptyNotice = (
+    <PretendardFont style={{ fontSize: 14, color: C.sec, paddingHorizontal: 14, paddingVertical: 12 }}>
+      이 조합은 결과가 없어요. 다른 조합을 골라 보세요.
+    </PretendardFont>
   );
 
   return (
@@ -287,31 +279,26 @@ export default function PesticideTable() {
         {codesError && (
           <Pressable
             onPress={refetchCodes}
-            className="px-4 py-3 rounded-2xl active:opacity-80"
-            style={{ backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }}
+            className="px-4 py-3 rounded-xl bg-white active:opacity-80"
           >
-            <PretendardFont weight="semibold" style={{ fontSize: 16, color: "#DC2626", textAlign: "center", lineHeight: 23 }}>
-              ⚠️ 옵션 목록 로딩 실패 — 탭하여 재시도
+            <PretendardFont weight="medium" style={{ fontSize: 14, color: C.error }}>
+              검색 옵션을 불러오지 못했어요 · 눌러서 다시 시도
             </PretendardFont>
           </Pressable>
         )}
         {listError && (
           <Pressable
             onPress={refetchList}
-            className="px-4 py-3 rounded-2xl active:opacity-80"
-            style={{ backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }}
+            className="px-4 py-3 rounded-xl bg-white active:opacity-80"
           >
-            <PretendardFont weight="semibold" style={{ fontSize: 16, color: "#DC2626", textAlign: "center", lineHeight: 23 }}>
-              ⚠️ 데이터 로딩 실패 — 탭하여 재시도
+            <PretendardFont weight="medium" style={{ fontSize: 14, color: C.error }}>
+              검색 결과를 불러오지 못했어요 · 눌러서 다시 시도
             </PretendardFont>
           </Pressable>
         )}
 
         {/* 검색 + 필터 카드 */}
         <Card delay={0} style={{ padding: 12 }}>
-          <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text, marginBottom: 9 }}>
-            검색 조건
-          </PretendardFont>
 
           <SearchInput
             value={query}
@@ -332,67 +319,29 @@ export default function PesticideTable() {
         {/* 결과 테이블 카드 */}
         <Card delay={100} style={{ padding: 0, overflow: "hidden" }}>
           {/* 카드 헤더 */}
-          <View
-            className="flex-row items-center justify-between"
-            style={{ padding: 12, paddingBottom: 9, borderBottomWidth: 1, borderBottomColor: C.bg }}
-          >
-            <View>
-              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                검색 결과
-              </PretendardFont>
-              {totalCount > 0 && (
-                <PretendardFont style={{ fontSize: 13, color: C.ter, marginTop: 2 }}>
-                  총 {totalCount}건
-                </PretendardFont>
-              )}
-            </View>
-            <Pressable
-              onPress={() => setFullscreen(true)}
-              hitSlop={8}
-              className="active:opacity-70"
-              style={{ padding: 8, backgroundColor: C.bg, borderRadius: 10 }}
-            >
-              <Feather name="maximize-2" size={16} color={C.sec} />
-            </Pressable>
-          </View>
-
-          <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-            <PretendardFont style={{ fontSize: 13, color: C.ter, lineHeight: 18 }}>
-              좌우로 스크롤하여 전체 내용을 확인하세요
+          <View className="flex-row items-baseline gap-1.5" style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 }}>
+            <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+              검색 결과
             </PretendardFont>
+            {totalCount > 0 && (
+              <PretendardFont style={{ fontSize: 13, color: C.sec }}>
+                {totalCount.toLocaleString()}건
+              </PretendardFont>
+            )}
           </View>
 
-          {showComboEmptyState && (
-            <View className="px-4 pb-4">
-              <View
-                className="items-start rounded-2xl border px-4 py-3"
-                style={{ backgroundColor: "#FFF7ED", borderColor: "#FDBA74" }}
-              >
-                <View className="flex-row items-center gap-2">
-                  <Feather name="search" size={18} color="#C2410C" />
-                  <PretendardFont weight="bold" style={{ fontSize: 17, color: "#9A3412" }}>
-                    해당 조합의 검색결과가 없습니다
-                  </PretendardFont>
-                </View>
-                <PretendardFont style={{ marginTop: 8, fontSize: 16, color: "#B45309", lineHeight: 23 }}>
-                  다른 작물명·용도·곤충 조합으로 다시 찾아보세요.
-                </PretendardFont>
-              </View>
-            </View>
-          )}
+          {showComboEmptyState && comboEmptyNotice}
 
           {tableContent}
 
           {totalCount > 0 && (
             <View
               className="flex-row items-center justify-between"
-              style={{ padding: 15, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.bg }}
+              style={{ paddingHorizontal: 8, paddingVertical: 2 }}
             >
-              <PretendardFont weight="regular" style={{ fontSize: 16, color: C.ter }}>
-                {totalCount}건
-              </PretendardFont>
-              <Pagination page={page} totalPages={totalPages} onPage={handlePage} groupSize={5} size="large" />
-              <View style={{ width: 40 }} />
+              <View style={{ flex: 1 }} />
+              <Pagination page={page} totalPages={totalPages} onPage={handlePage} groupSize={5} />
+              <View style={{ flex: 1 }} />
             </View>
           )}
 
@@ -407,12 +356,12 @@ export default function PesticideTable() {
             style={{ borderBottomWidth: 1, borderColor: C.border }}
           >
             <View className="flex-row items-center gap-1.5">
-              <PretendardFont weight="semibold" style={{ fontSize: 20, color: C.text }}>
+              <PretendardFont weight="semibold" style={{ fontSize: 17, color: C.text }}>
                 농약 검색 결과
               </PretendardFont>
               {totalCount > 0 && (
-                <PretendardFont weight="regular" style={{ fontSize: 16, color: C.ter }}>
-                  ({totalCount}건)
+                <PretendardFont weight="regular" style={{ fontSize: 14, color: C.sec }}>
+                  {totalCount.toLocaleString()}건
                 </PretendardFont>
               )}
             </View>
@@ -421,24 +370,7 @@ export default function PesticideTable() {
             </Pressable>
           </View>
 
-          {showComboEmptyState && (
-            <View className="px-4 pt-4">
-              <View
-                className="items-start rounded-2xl border px-4 py-3"
-                style={{ backgroundColor: "#FFF7ED", borderColor: "#FDBA74" }}
-              >
-                <View className="flex-row items-center gap-2">
-                  <Feather name="search" size={18} color="#C2410C" />
-                  <PretendardFont weight="bold" style={{ fontSize: 17, color: "#9A3412" }}>
-                    해당 조합의 검색결과가 없습니다
-                  </PretendardFont>
-                </View>
-                <PretendardFont style={{ marginTop: 8, fontSize: 16, color: "#B45309", lineHeight: 23 }}>
-                  다른 작물명·용도·곤충 조합으로 다시 찾아보세요.
-                </PretendardFont>
-              </View>
-            </View>
-          )}
+          {showComboEmptyState && comboEmptyNotice}
 
           <ScrollView>{tableContent}</ScrollView>
 
@@ -447,11 +379,9 @@ export default function PesticideTable() {
               className="flex-row items-center justify-between px-4 py-3 bg-white"
               style={{ borderTopWidth: 1, borderColor: C.border }}
             >
-              <PretendardFont weight="regular" style={{ fontSize: 16, color: C.ter }}>
-                {totalCount}건
-              </PretendardFont>
-              <Pagination page={page} totalPages={totalPages} onPage={handlePage} groupSize={5} size="large" />
-              <View style={{ width: 40 }} />
+              <View style={{ flex: 1 }} />
+              <Pagination page={page} totalPages={totalPages} onPage={handlePage} groupSize={5} />
+              <View style={{ flex: 1 }} />
             </View>
           )}
         </View>

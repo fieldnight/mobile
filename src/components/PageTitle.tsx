@@ -3,7 +3,7 @@
  * - title: 굵고 큰 메인 제목 (줄바꿈 \n 지원)
  * - subtitle: 제목 아래 작은 안내 문구 (선택)
  * - right: 제목 우측에 띄울 노드 (선택, 예: 지역명·배지 등)
- * - size: "large"(기본, 22px) | "medium"(섹션 제목용, 18px)
+ * - size: "large"(기본, 20px) | "medium"(섹션 제목용, 17px)
  */
 import React from "react";
 import { View, type TextStyle } from "react-native";
@@ -27,8 +27,8 @@ export function PageTitle({
   titleStyle,
   subtitleStyle,
 }: PageTitleProps) {
-  const fontSize = size === "large" ? 22 : 18;
-  const lineHeight = size === "large" ? 30 : 26;
+  const fontSize = size === "large" ? 20 : 17;
+  const lineHeight = size === "large" ? 28 : 24;
 
   return (
     <View className=" ml-1">
@@ -47,7 +47,7 @@ export function PageTitle({
         {right && <View style={{ marginTop: 4 }}>{right}</View>}
       </View>
       {subtitle && (
-        <PretendardFont style={[{ fontSize: 14, color: C.sec, marginTop: 2 }, subtitleStyle]}>
+        <PretendardFont style={[{ fontSize: 13, color: C.sec, marginTop: 2 }, subtitleStyle]}>
           {subtitle}
         </PretendardFont>
       )}

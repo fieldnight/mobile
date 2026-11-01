@@ -51,27 +51,24 @@ const PesticideChip = memo(function PesticideChip({
       onPress={() => onTap(item)}
       className="flex-row items-center active:opacity-70"
       style={{
-        backgroundColor: C.white,
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: C.border,
-        paddingLeft: 14,
+        backgroundColor: C.bgAlt,
+        borderRadius: 8,
+        paddingLeft: 12,
         paddingRight: 10,
-        paddingVertical: 10,
-        marginRight: 10,
+        paddingVertical: 9,
+        marginRight: 8,
         gap: 5,
       }}
     >
-      <Feather name="star" size={16} color={C.primary} />
       <PretendardFont
         weight="semibold"
         numberOfLines={1}
-        style={{ fontSize: 17, color: C.text, maxWidth: 150 }}
+        style={{ fontSize: 15, color: C.text, maxWidth: 150 }}
       >
         {item.brandName}
       </PretendardFont>
       {item.cropName ? (
-        <PretendardFont weight="regular" style={{ fontSize: 15, color: C.ter }}>
+        <PretendardFont weight="regular" style={{ fontSize: 13, color: C.sec }}>
           · {item.cropName}
         </PretendardFont>
       ) : null}
@@ -80,7 +77,7 @@ const PesticideChip = memo(function PesticideChip({
         hitSlop={8}
         className="active:opacity-50 ml-1"
       >
-        <Feather name="x" size={18} color={C.ter} />
+        <Feather name="x" size={14} color={C.ter} />
       </Pressable>
     </Pressable>
   );
@@ -90,26 +87,9 @@ const PesticideChip = memo(function PesticideChip({
 
 function EmptyHint() {
   return (
-    <View
-      className="flex-row items-center gap-3 px-4 py-4"
-      style={{
-        backgroundColor: C.bg,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: C.border,
-        borderStyle: "dashed",
-      }}
-    >
-      <Feather name="star" size={20} color={C.ter} />
-      <View style={{ flex: 1 }}>
-        <PretendardFont weight="semibold" style={{ fontSize: 18, color: C.sec }}>
-          관심 농약이 없어요
-        </PretendardFont>
-        <PretendardFont weight="regular" style={{ fontSize: 16, color: C.ter, marginTop: 6, lineHeight: 23 }}>
-          아래 검색 결과 행을 탭하면 저장할 수 있어요
-        </PretendardFont>
-      </View>
-    </View>
+    <PretendardFont style={{ fontSize: 13, color: C.sec }}>
+      검색 결과를 눌러 저장할 수 있어요
+    </PretendardFont>
   );
 }
 
@@ -140,7 +120,7 @@ export function InterestPesticideList() {
   if (isLoading) {
     return (
       <Card delay={0} style={{ paddingVertical: 18, paddingHorizontal: 18 }}>
-        <ActivityIndicator size="small" color={C.primary} />
+        <ActivityIndicator size="small" color={C.sec} />
       </Card>
     );
   }
@@ -150,21 +130,20 @@ export function InterestPesticideList() {
       {/* 헤더 */}
       <View
         className="flex-row items-center"
-        style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 7 }}
+        style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, gap: 6 }}
       >
-        <Feather name="star" size={17} color={C.primary} />
-        <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+        <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
           관심 농약
         </PretendardFont>
         {list?.length ? (
-          <PretendardFont weight="regular" style={{ fontSize: 15, color: C.ter }}>
+          <PretendardFont weight="regular" style={{ fontSize: 13, color: C.sec }}>
             {list.length}개
           </PretendardFont>
         ) : null}
       </View>
 
       {/* 내용 */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 15 }}>
+      <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
         {!list?.length ? (
           <EmptyHint />
         ) : (

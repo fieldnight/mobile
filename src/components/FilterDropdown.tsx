@@ -80,10 +80,8 @@ export function FilterDropdown({
         style={{
           height: isLarge ? 52 : 44,
           paddingHorizontal: isLarge ? 14 : 12,
-          backgroundColor: C.bg,
-          borderWidth: 1,
-          borderColor: C.border,
-          borderRadius: 12,
+          backgroundColor: C.bgAlt,
+          borderRadius: 8,
           opacity: disabled ? 0.45 : 1,
           ...style,
         }}
@@ -114,8 +112,8 @@ export function FilterDropdown({
           <Pressable
             style={{
               backgroundColor: C.white,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
               maxHeight: "60%",
               paddingBottom: 32,
             }}

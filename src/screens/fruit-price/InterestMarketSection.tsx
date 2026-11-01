@@ -23,6 +23,7 @@ import {
 import { WHOLESALE_MARKETS, LARGE_CATEGORY } from "@/constants/fruit-price";
 import { Skeleton } from "@/components/Skeleton";
 import { PretendardFont } from "@/components/PretendardFont";
+import { Tap } from "@/components/Tap";
 import { C } from "@/constants/hive-colors";
 
 const marketName = (code: string) =>
@@ -60,71 +61,40 @@ function MarketCard({
   };
 
   return (
-    <Pressable
+    <Tap
       onPress={onPress}
-      className="mr-2 min-w-[138px] rounded-[12px] border p-2.5 active:opacity-90"
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? C.primarySoft : C.white,
-        borderColor: pressed ? C.primary : C.border,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 2,
-      })}
+      className="mr-2 min-w-[120px] rounded-lg px-3 py-2.5"
+      style={({ pressed }) => ({ backgroundColor: pressed ? "#E8EBEF" : C.bgAlt })}
     >
-      {/* 작물명과 삭제 버튼을 한 줄에 배치해 카드 상단에서 바로 인지되도록 합니다. */}
-      <View className="mb-1 flex-row items-start justify-between gap-2">
-        <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
-          {emoji(item.cropMidName) ? (
-            <PretendardFont style={{ fontSize: 16 }}>
-              {emoji(item.cropMidName)}
-            </PretendardFont>
-          ) : null}
-          <PretendardFont
-            weight="bold"
-            className="flex-1"
-            style={{ fontSize: 16, color: C.text, lineHeight: 20 }}
-            numberOfLines={1}
-          >
-            {item.cropMidName}
-          </PretendardFont>
-        </View>
+      <View className="flex-row items-center justify-between gap-2">
+        <PretendardFont
+          weight="semibold"
+          className="flex-1"
+          style={{ fontSize: 15, color: C.text }}
+          numberOfLines={1}
+        >
+          {emoji(item.cropMidName) ? `${emoji(item.cropMidName)} ` : ""}
+          {item.cropMidName}
+        </PretendardFont>
         {readonly ? (
-          <View
-            className="rounded-full px-2 py-1"
-            style={{ backgroundColor: C.infoBg }}
-          >
-            <PretendardFont weight="semibold" style={{ fontSize: 10, color: C.primary }}>
-              예시
-            </PretendardFont>
-          </View>
+          <PretendardFont style={{ fontSize: 11, color: C.ter }}>예시</PretendardFont>
         ) : (
           <Pressable
             onPress={handleDelete}
-            hitSlop={8}
-            className="h-7 w-7 items-center justify-center rounded-full active:opacity-60"
-            style={{ backgroundColor: C.bg }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.cropMidName} 바로가기 삭제`}
+            className="active:opacity-60"
           >
-            <Feather name="x" size={15} color={C.ter} />
+            <Feather name="x" size={14} color={C.ter} />
           </Pressable>
         )}
       </View>
-
-      {item.cropMinorName ? (
-        <PretendardFont style={{ fontSize: 10.5, color: C.sec, marginBottom: 5 }} numberOfLines={1}>
-          {item.cropMinorName}
-        </PretendardFont>
-      ) : (
-        <View style={{ marginBottom: 5 }} />
-      )}
-
-      <View style={{ backgroundColor: C.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-start" }}>
-        <PretendardFont weight="semibold" style={{ fontSize: 10, color: C.sec }} numberOfLines={1}>
-          {marketName(item.marketCode)}
-        </PretendardFont>
-      </View>
-    </Pressable>
+      {/* 품종과 시장은 한 줄 보조 글자로 묶습니다. */}
+      <PretendardFont style={{ fontSize: 12, color: C.sec, marginTop: 2 }} numberOfLines={1}>
+        {[item.cropMinorName, marketName(item.marketCode)].filter(Boolean).join(" · ")}
+      </PretendardFont>
+    </Tap>
   );
 }
 
@@ -147,7 +117,7 @@ function AddMarketModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={onClose} />
-      <View style={{ backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 }}>
+      <View style={{ backgroundColor: C.white, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24, paddingBottom: 40 }}>
         <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 22 }} />
 
         <PretendardFont weight="bold" style={{ fontSize: 20, color: C.text, marginBottom: 6 }}>
@@ -158,19 +128,19 @@ function AddMarketModal({
         </PretendardFont>
 
         {isValid ? (
-          <View style={{ backgroundColor: C.primarySoft, borderRadius: 14, padding: 16, marginBottom: 24, flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderColor: C.primary }}>
+          <View style={{ backgroundColor: C.bgAlt, borderRadius: 10, padding: 16, marginBottom: 24, flexDirection: "row", alignItems: "center", gap: 14 }}>
             <PretendardFont style={{ fontSize: 32 }}>{emoji(currentMidName)}</PretendardFont>
             <View style={{ flex: 1 }}>
               <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
                 {currentMidName} {currentMinorName}
               </PretendardFont>
-              <PretendardFont style={{ fontSize: 13, color: C.primary, marginTop: 3 }}>
+              <PretendardFont style={{ fontSize: 13, color: C.sec, marginTop: 3 }}>
                 {marketName(currentMarketCode)} · {LARGE_CATEGORY[currentLargeCode] ?? currentLargeCode}
               </PretendardFont>
             </View>
           </View>
         ) : (
-          <View style={{ backgroundColor: C.bg, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+          <View style={{ backgroundColor: C.bgAlt, borderRadius: 10, padding: 16, marginBottom: 24 }}>
             <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text, marginBottom: 10 }}>
               아직 선택된 작물이 없어요
             </PretendardFont>
@@ -189,7 +159,7 @@ function AddMarketModal({
           }}
           disabled={!isValid || isPending}
           className="active:opacity-80"
-          style={{ backgroundColor: isValid && !isPending ? C.primary : C.border, borderRadius: 14, height: 54, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}
+          style={{ backgroundColor: isValid && !isPending ? C.primary : C.border, borderRadius: 10, height: 52, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}
         >
           {isPending ? (
             <ActivityIndicator color={C.white} />
@@ -229,7 +199,7 @@ function DeleteMarketModal({
       onRequestClose={onClose}
     >
       <Pressable className="flex-1 bg-black/40" onPress={onClose} />
-      <View className="rounded-t-3xl bg-white px-6 pb-11 pt-5">
+      <View className="rounded-t-2xl bg-white px-6 pb-10 pt-5">
         <View
           className="mb-5 h-1 w-10 self-center rounded-full"
           style={{ backgroundColor: C.border }}
@@ -268,7 +238,7 @@ function DeleteMarketModal({
           <Pressable
             onPress={onClose}
             disabled={isPending}
-            className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
+            className="flex-1 items-center rounded-lg py-4 active:opacity-80"
             style={{ backgroundColor: C.bgAlt }}
           >
             <PretendardFont
@@ -281,7 +251,7 @@ function DeleteMarketModal({
           <Pressable
             onPress={onConfirm}
             disabled={isPending}
-            className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
+            className="flex-1 items-center rounded-lg py-4 active:opacity-80"
             style={{ backgroundColor: C.primary }}
           >
             {isPending ? (
@@ -302,6 +272,17 @@ function DeleteMarketModal({
 }
 
 // ── 메인 섹션 ─────────────────────────────────────────────────────────────────
+function SectionTitle({ right }: { right?: React.ReactNode }) {
+  return (
+    <View className="flex-row items-center justify-between pl-3.5 pr-2 pt-2.5 pb-1.5">
+      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+        내 맞춤 시세
+      </PretendardFont>
+      {right}
+    </View>
+  );
+}
+
 interface InterestMarketSectionProps {
   currentMarketCode: string;
   currentLargeCode: string;
@@ -338,19 +319,20 @@ function GuestInterestMarketSection({
   onSelectMarket: (item: InterestMarket) => void;
 }) {
   return (
-    <View className="border-t" style={{ borderTopColor: C.bg }}>
+    <View>
       {/* 비로그인 사용자는 저장 API를 호출하지 않고 예시 바로가기만 보여줍니다. */}
-      <View className="flex-row items-center px-3 pb-1 pt-1.5" style={{ gap: 5 }}>
-        <Feather name="lock" size={12} color={C.ter} />
-        <PretendardFont style={{ fontSize: 11.5, color: C.sec }}>
-          로그인하면 맞춤 시세를 저장할 수 있어요
-        </PretendardFont>
-      </View>
+      <SectionTitle
+        right={
+          <PretendardFont style={{ fontSize: 12, color: C.ter, paddingRight: 6 }}>
+            로그인 후 저장
+          </PretendardFont>
+        }
+      />
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 14 }}
       >
         <MarketCard
           item={GUEST_SAMPLE_MARKET}
@@ -407,47 +389,41 @@ function MemberInterestMarketSection({
   };
 
   return (
-    <View className="border-t" style={{ borderTopColor: C.bg }}>
-      {/* 카드 위에 겹치지 않도록 등록 액션을 일반 레이아웃 흐름 안에 둡니다. */}
-      <View className="flex-row items-center justify-between px-3 pb-1 pt-1.5">
-        <PretendardFont style={{ fontSize: 12, color: C.sec }}>
-          자주 보는 시장·작물을 바로 열어요
-        </PretendardFont>
-        <Pressable
-          onPress={() => setAddModalVisible(true)}
-          className="flex-row items-center rounded-full px-2.5 py-1.5 active:opacity-80"
-          style={{ backgroundColor: C.primary, gap: 6 }}
-        >
-          <Feather name="plus" size={13} color={C.white} />
-          <PretendardFont weight="semibold" style={{ fontSize: 12, color: C.white }}>
-            시세 등록
-          </PretendardFont>
-        </Pressable>
-      </View>
+    <View>
+      <SectionTitle
+        right={
+          <Tap
+            onPress={() => setAddModalVisible(true)}
+            accessibilityRole="button"
+            className="flex-row items-center rounded-md px-2 py-1.5"
+            style={({ pressed }) => ({ gap: 3, backgroundColor: pressed ? C.bgAlt : "transparent" })}
+          >
+            <Feather name="plus" size={14} color={C.textAlt} />
+            <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.textAlt }}>
+              등록
+            </PretendardFont>
+          </Tap>
+        }
+      />
 
       {/* 카드 목록 */}
       {isLoading ? (
-        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10 }}>
-          {[126, 126, 126].map((w, i) => (
-            <Skeleton key={i} height={72} width={w} borderRadius={12} />
+        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 14 }}>
+          {[120, 120, 120].map((w, i) => (
+            <Skeleton key={i} height={56} width={w} borderRadius={8} />
           ))}
         </View>
       ) : markets.length === 0 ? (
-        <View style={{ paddingHorizontal: 12, paddingTop: 3, paddingBottom: 10 }}>
-          <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.sec, marginBottom: 4 }}>
-            등록된 바로가기가 없어요
-          </PretendardFont>
-          <PretendardFont style={{ fontSize: 13, color: C.ter, lineHeight: 20 }}>
-            {"아래 도매시장 시세 설정에서\n시장·작물을 선택 후 오른쪽 "}
-            <PretendardFont weight="semibold" style={{ color: C.primary }}>시세 등록</PretendardFont>
-            {" 버튼을 눌러주세요."}
+        <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
+          <PretendardFont style={{ fontSize: 13, color: C.sec }}>
+            아래에서 시장·작물을 고른 뒤 등록하세요
           </PretendardFont>
         </View>
       ) : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 14 }}
         >
           {markets.map((item) => (
             <MarketCard

@@ -20,6 +20,7 @@ import { isCountControlMode, type NfcDoorCardConfig } from "./nfcDoorCards";
 export function NfcDoorCard({
   card,
   size,
+  height,
   editable,
   dragging,
   active,
@@ -31,7 +32,10 @@ export function NfcDoorCard({
   onDelete,
 }: {
   card: NfcDoorCardConfig;
+  /** 카드 너비 */
   size: number;
+  /** 카드 최소 높이. 없으면 너비 비율로 정합니다. */
+  height?: number;
   editable: boolean;
   dragging?: boolean;
   active?: boolean;
@@ -67,7 +71,7 @@ export function NfcDoorCard({
         delayLongPress={260}
         className="active:opacity-80"
       >
-        <CardShell size={size} dragging={dragging} active={active}>
+        <CardShell minHeight={height ?? size * 0.759} dragging={dragging} active={active}>
           <View className="flex-row items-start justify-between">
             <IconBadge icon={card.icon} on={Boolean(active)} />
 
@@ -119,8 +123,8 @@ export function NfcDoorCard({
                   weight="medium"
                   numberOfLines={2}
                   style={{
-                    fontSize: 14,
-                    lineHeight: 18,
+                    fontSize: 13,
+                    lineHeight: 17,
                     color: active ? C.stIconBadgeOn : C.sec,
                   }}
                 >
@@ -139,13 +143,11 @@ export function NfcDoorCard({
 function OneTimeTag() {
   return (
     <View
-      className="items-center justify-center rounded-full"
+      className="items-center justify-center rounded-md"
       style={{
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        backgroundColor: C.white,
-        borderWidth: 1,
-        borderColor: C.border,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        backgroundColor: C.bgAlt,
       }}
     >
       <PretendardFont weight="bold" style={{ fontSize: 10.5, lineHeight: 13, color: C.textAlt }}>
@@ -160,23 +162,23 @@ function IconBadge({ icon, on }: { icon: keyof typeof Feather.glyphMap; on: bool
     <View
       className="items-center justify-center rounded-full"
       style={{
-        width: 40,
-        height: 40,
-        backgroundColor: on ? C.stIconBadgeOn : C.stIconBadgeOff,
+        width: 32,
+        height: 32,
+        backgroundColor: on ? C.stIconBadgeOn : C.bgAlt,
       }}
     >
-      <Feather name={icon} size={18} color={on ? C.white : C.stIconOff} />
+      <Feather name={icon} size={16} color={on ? C.white : C.textAlt} />
     </View>
   );
 }
 
 function CardShell({
-  size,
+  minHeight,
   dragging,
   active,
   children,
 }: {
-  size: number;
+  minHeight: number;
   dragging?: boolean;
   active?: boolean;
   children: ReactNode;
@@ -185,19 +187,14 @@ function CardShell({
     <View
       className="justify-between"
       style={{
-        minHeight: size * 0.759,
-        borderRadius: 16,
-        padding: 14,
-        gap: 10,
-        backgroundColor: C.stCardBg,
-        borderWidth: dragging ? 2 : 0,
+        minHeight,
+        borderRadius: 10,
+        padding: 12,
+        gap: 8,
+        backgroundColor: C.white,
+        borderWidth: dragging ? 1.5 : 0,
         borderColor: dragging ? C.gatePrimary : "transparent",
         opacity: dragging ? 0.92 : 1,
-        shadowColor: C.shadow,
-        shadowOpacity: active ? 0.08 : 0.04,
-        shadowRadius: 3,
-        shadowOffset: { width: 0, height: 1 },
-        elevation: dragging ? 12 : 1,
       }}
     >
       {children}
