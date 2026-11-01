@@ -22,6 +22,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 import { BounceScrollView } from "@/components/refresh/BounceScrollView";
+import { Feather } from "@expo/vector-icons";
 import Svg, { Circle, G, Line, Polyline } from "react-native-svg";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -82,24 +83,21 @@ import type {
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
 const H_PAD = 18;
-const GAP = 16;
+const GAP = 12;
 const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2 - 1;
 const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.5, 200);
-/** 제품 사진은 위쪽 절반만 보이게 잘라 상단 여백을 줄입니다(아래 절반은 카드 시트가 덮음). */
-const HERO_BANNER_H = Math.round(HERO_IMAGE_SIZE * 0.5) + 12;
-/**
- * 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도.
- * 크게 겹치면 개폐기 사진이 카드 사이에 끼어 보여, 사진 아래 그림자만 살짝 덮게 둡니다.
- */
-const CARD_SHEET_OVERLAP = 16;
+/** 제품 사진은 자르지 않고 전체를 보여줍니다. 위아래 여백만 조금 둡니다. */
+const HERO_BANNER_H = HERO_IMAGE_SIZE + 8;
+/** 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도. 사진(아래 그림자 여백 포함)을 가리지 않게 0으로 둡니다. */
+const CARD_SHEET_OVERLAP = 0;
 const STATS_PANEL_PAD = 16;
 const STATS_PAGE_GAP = 12;
 const STATS_PAGE_W = SCREEN_W - H_PAD * 2 - STATS_PANEL_PAD * 2;
 const STATS_CHART_W = Math.max(260, STATS_PAGE_W - 64);
 const STATS_CHART_H = 210;
 const STATS_CHART_PAD_X = 18;
-const STATS_CHART_PAD_Y = 50;
-const STATS_HOUR_AXIS_W = 96;
+const STATS_CHART_PAD_Y = 36;
+const STATS_HOUR_AXIS_W = 72;
 const DOOR_STATS_CACHE_STORAGE_KEY = "ourbee:door-opener-stats-cache:v2";
 
 type DoorOpenerTab = "control" | "stats";
@@ -681,8 +679,8 @@ export default function DoorOpenerScreen() {
   }));
 
   return (
-    <View className="flex-1">
-      <DoorOpenerBackground />
+    <View className="flex-1" style={activeTab === "control" ? undefined : { backgroundColor: C.bg }}>
+      {activeTab === "control" ? <DoorOpenerBackground /> : null}
       {activeTab === "control" ? (
         <Animated.View
           pointerEvents="none"
@@ -775,8 +773,8 @@ export default function DoorOpenerScreen() {
       ) : (
         <BounceScrollView
           contentContainerStyle={{
-            paddingHorizontal: H_PAD,
-            paddingTop: 18,
+            paddingHorizontal: 14,
+            paddingTop: 8,
             paddingBottom: insets.bottom + 96,
           }}
           showsVerticalScrollIndicator={false}
@@ -931,7 +929,7 @@ function DoorStatsPanel({
   );
 
   return (
-    <View className="mb-8">
+    <View className="mb-6">
       <DoorOpenerHeroVisual
         counts={selectedDevice ? selectedDevice.bootCounts ?? EMPTY_BEE_TRAFFIC_COUNTS : fallbackCounts}
         latestClimate={latestClimate}
@@ -945,7 +943,7 @@ function DoorStatsPanel({
       />
 
       {devices.length > 0 ? (
-        <View className="mt-2">
+        <View className="mt-2.5">
           <ScrollView
             ref={pagerRef}
             horizontal
@@ -1005,7 +1003,7 @@ function DeviceStatsPage({
 
   return (
     <View
-      className="mt-3 rounded-xl p-4"
+      className="rounded-2xl px-5 pb-4 pt-5"
       style={{ backgroundColor: C.white }}
     >
       <View className="flex-row items-center justify-between">
@@ -1021,7 +1019,7 @@ function DeviceStatsPage({
         {device.lastUpdatedAt ? (
           <PretendardFont
             weight="semibold"
-            style={{ marginLeft: 10, fontSize: 13.5, color: C.textAlt }}
+            style={{ marginLeft: 10, fontSize: 13, color: C.sec }}
           >
             {new Date(device.lastUpdatedAt).toLocaleTimeString("ko-KR", {
               hour: "2-digit",
@@ -1170,123 +1168,63 @@ function DoorAiReportCard({
         }
         disabled={!hasData || loading}
         onPress={handleCardPress}
-        className="mt-3 rounded-xl px-5 py-4 active:opacity-85"
-        style={{
-          minHeight: 116,
-          backgroundColor: "rgba(248,209,92,0.96)",
-          opacity: hasData ? 1 : 0.82,
-        }}
+        className="mt-2.5 rounded-2xl px-5 py-4 active:opacity-80"
+        style={{ backgroundColor: C.white }}
       >
-        <View
-          className="flex-row items-center justify-between"
-          style={{ gap: 12 }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{ flex: 1, fontSize: 17, color: C.text }}
-          >
-            {isExampleReport ? "AI 벌 활동 리포트 예시" : "AI 벌 활동 리포트"}
-          </PretendardFont>
+        <View className="flex-row items-center" style={{ gap: 12 }}>
           <View
-            className="rounded-full px-2.5 py-1"
-            style={{ backgroundColor: statusMeta.backgroundColor }}
+            className="h-11 w-11 items-center justify-center rounded-xl"
+            style={{ backgroundColor: C.bgAlt }}
           >
+            <Feather name="file-text" size={19} color={C.textAlt} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View className="flex-row items-center" style={{ gap: 6 }}>
+              {report ? (
+                <View
+                  className="rounded-full"
+                  style={{ width: 7, height: 7, backgroundColor: statusMeta.color }}
+                />
+              ) : null}
+              <PretendardFont weight="bold" style={{ fontSize: 15.5, color: C.text }}>
+                AI 벌 활동 리포트
+              </PretendardFont>
+              {isExampleReport ? (
+                <PretendardFont weight="medium" style={{ fontSize: 12.5, color: C.ter }}>
+                  예시
+                </PretendardFont>
+              ) : null}
+            </View>
             <PretendardFont
-              weight="bold"
-              style={{ fontSize: 12, color: statusMeta.color }}
+              weight="medium"
+              numberOfLines={2}
+              style={{ marginTop: 3, fontSize: 13, lineHeight: 18, color: C.sec }}
             >
-              {loading ? "분석 중" : statusMeta.label}
+              {loading
+                ? "출입량과 온습도를 분석하고 있어요"
+                : report
+                  ? `${statusMeta.label} · ${report.summary}`
+                  : "출입량과 온습도로 오늘 활동을 정리해요"}
             </PretendardFont>
+          </View>
+          <View
+            className="h-9 min-w-[56px] items-center justify-center rounded-lg px-3"
+            style={{ backgroundColor: C.bgAlt }}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={C.textAlt} />
+            ) : (
+              <PretendardFont weight="semibold" style={{ fontSize: 13.5, color: C.text }}>
+                {report ? "보기" : "만들기"}
+              </PretendardFont>
+            )}
           </View>
         </View>
 
-        {loading ? (
-          <View className="mt-5 flex-row items-center" style={{ gap: 10 }}>
-            <ActivityIndicator size="small" color={C.text} />
-            <PretendardFont
-              weight="semibold"
-              style={{ fontSize: 14, color: C.text }}
-            >
-              출입량과 온습도를 분석하고 있어요
-            </PretendardFont>
-          </View>
-        ) : report ? (
-          <>
-            <PretendardFont
-              weight="bold"
-              style={{
-                marginTop: 10,
-                fontSize: 15,
-                lineHeight: 21,
-                color: C.text,
-              }}
-            >
-              {report.summary}
-            </PretendardFont>
-            {report.observations.slice(0, 2).map((observation, index) => (
-              <PretendardFont
-                key={`${observation}-${index}`}
-                weight="medium"
-                style={{
-                  marginTop: 5,
-                  fontSize: 13,
-                  lineHeight: 19,
-                  color: "rgba(28,34,44,0.76)",
-                }}
-              >
-                - {observation}
-              </PretendardFont>
-            ))}
-            <PretendardFont
-              weight="bold"
-              style={{
-                marginTop: 11,
-                fontSize: 12.5,
-                color: "rgba(28,34,44,0.64)",
-              }}
-            >
-              눌러서 전체 리포트 보기 &gt;
-            </PretendardFont>
-          </>
-        ) : (
-          <>
-            <PretendardFont
-              weight="medium"
-              style={{
-                marginTop: 7,
-                fontSize: 14,
-                lineHeight: 20,
-                color: "rgba(28,34,44,0.72)",
-              }}
-            >
-              {hasData
-                ? isExampleReport
-                  ? "예시 출입량과 온습도로 리포트 흐름을 먼저 확인해요."
-                  : "받아온 벌 출입량과 온습도로 자세한 활동 리포트를 만들어요."
-                : "리포트 화면을 개폐기에 대면 온습도와 벌 출입 기록을 받아와요."}
-            </PretendardFont>
-            {hasData ? (
-              <PretendardFont
-                weight="bold"
-                style={{ marginTop: 11, fontSize: 13, color: C.text }}
-              >
-                {isExampleReport
-                  ? "예시 리포트 받아오기"
-                  : "눌러서 AI 리포트 만들기"}
-              </PretendardFont>
-            ) : null}
-          </>
-        )}
-
         {error ? (
           <PretendardFont
-            weight="semibold"
-            style={{
-              marginTop: 10,
-              fontSize: 13,
-              lineHeight: 19,
-              color: "#8E2F25",
-            }}
+            weight="medium"
+            style={{ marginTop: 10, fontSize: 13, lineHeight: 19, color: C.error }}
           >
             {error}
           </PretendardFont>
@@ -1355,15 +1293,14 @@ function DoorAiReportModal({
         <View
           style={{
             maxHeight: "88%",
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
             backgroundColor: "#FFFFFF",
             overflow: "hidden",
           }}
         >
           <View
-            className="flex-row items-center justify-between px-5 py-4"
-            style={{ borderBottomWidth: 1, borderBottomColor: "#E8ECF0" }}
+            className="flex-row items-center justify-between px-5 pb-2 pt-5"
           >
             <View style={{ flex: 1 }}>
               <PretendardFont
@@ -1374,7 +1311,7 @@ function DoorAiReportModal({
               </PretendardFont>
               <PretendardFont
                 weight="medium"
-                style={{ marginTop: 3, fontSize: 12.5, color: "#7A8491" }}
+                style={{ marginTop: 3, fontSize: 12.5, color: C.sec }}
               >
                 {new Date(report.generatedAt).toLocaleString("ko-KR")}
               </PretendardFont>
@@ -1383,15 +1320,10 @@ function DoorAiReportModal({
               accessibilityRole="button"
               accessibilityLabel="닫기"
               onPress={onClose}
-              className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
-              style={{ backgroundColor: "#F1F3F5" }}
+              className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+              style={{ backgroundColor: C.bgAlt }}
             >
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 20, color: C.text }}
-              >
-                X
-              </PretendardFont>
+              <Feather name="x" size={18} color={C.textAlt} />
             </Pressable>
           </View>
 
@@ -1403,33 +1335,25 @@ function DoorAiReportModal({
               paddingBottom: 34,
             }}
           >
-            <View className="flex-row items-center" style={{ gap: 9 }}>
+            <View className="flex-row items-center" style={{ gap: 6 }}>
               <View
-                className="rounded-full px-3 py-1.5"
-                style={{ backgroundColor: statusMeta.backgroundColor }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  style={{ fontSize: 13, color: statusMeta.color }}
-                >
-                  {statusMeta.label}
-                </PretendardFont>
-              </View>
-              <PretendardFont
-                weight="bold"
-                style={{ flex: 1, fontSize: 17, color: C.text }}
-              >
-                {report.summary}
+                className="rounded-full"
+                style={{ width: 7, height: 7, backgroundColor: statusMeta.color }}
+              />
+              <PretendardFont weight="semibold" style={{ fontSize: 13.5, color: statusMeta.color }}>
+                {statusMeta.label}
               </PretendardFont>
             </View>
+            <PretendardFont
+              weight="bold"
+              style={{ marginTop: 6, fontSize: 19, lineHeight: 27, color: C.text }}
+            >
+              {report.summary}
+            </PretendardFont>
 
             <View
-              className="mt-5 flex-row flex-wrap"
-              style={{
-                borderTopWidth: 1,
-                borderLeftWidth: 1,
-                borderColor: "#E5E9ED",
-              }}
+              className="mt-5 flex-row flex-wrap rounded-xl py-1"
+              style={{ backgroundColor: C.bgAlt }}
             >
               <DoorReportMetric label="들어온 벌" value={`${incoming}마리`} />
               <DoorReportMetric label="나간 벌" value={`${outgoing}마리`} />
@@ -1502,7 +1426,7 @@ function DoorAiReportModal({
                 accessibilityRole="button"
                 onPress={onClose}
                 className="min-h-12 flex-1 items-center justify-center rounded-xl active:opacity-75"
-                style={{ backgroundColor: "#202833" }}
+                style={{ backgroundColor: C.primary }}
               >
                 <PretendardFont
                   weight="bold"
@@ -1524,22 +1448,19 @@ function DoorReportMetric({ label, value }: { label: string; value: string }) {
     <View
       style={{
         width: "50%",
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        borderRightWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: "#E5E9ED",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
       }}
     >
       <PretendardFont
         weight="medium"
-        style={{ fontSize: 12.5, color: "#7A8491" }}
+        style={{ fontSize: 12.5, color: C.sec }}
       >
         {label}
       </PretendardFont>
       <PretendardFont
         weight="bold"
-        style={{ marginTop: 3, fontSize: 18, color: C.text }}
+        style={{ marginTop: 2, fontSize: 20, color: C.text }}
       >
         {value}
       </PretendardFont>
@@ -1560,8 +1481,8 @@ function DoorReportSection({
   if (!text && visibleItems.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         {title}
       </PretendardFont>
       {text ? (
@@ -1571,7 +1492,7 @@ function DoorReportSection({
             marginTop: 8,
             fontSize: 14,
             lineHeight: 22,
-            color: "#4F5A67",
+            color: C.textAlt,
           }}
         >
           {text}
@@ -1585,10 +1506,10 @@ function DoorReportSection({
             marginTop: 7,
             fontSize: 14,
             lineHeight: 21,
-            color: "#4F5A67",
+            color: C.textAlt,
           }}
         >
-          - {item}
+          · {item}
         </PretendardFont>
       ))}
     </View>
@@ -1605,14 +1526,12 @@ function DoorReportTableSection({
   if (rows.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         {title}
       </PretendardFont>
       <View
-        className="mt-3"
-        style={{ borderTopWidth: 1, borderTopColor: "#E5E9ED" }}
-      >
+        className="mt-1">
         {rows.map((row, index) => {
           const statusMeta = row.status
             ? getDoorAiStatusMeta(row.status)
@@ -1622,17 +1541,13 @@ function DoorReportTableSection({
             <View
               key={`${row.label}-${row.value}-${index}`}
               className="flex-row items-start py-3"
-              style={{
-                gap: 14,
-                borderBottomWidth: 1,
-                borderBottomColor: "#E5E9ED",
-              }}
+              style={{ gap: 14 }}
             >
               <View style={{ flex: 1 }}>
                 {row.label ? (
                   <PretendardFont
                     weight="semibold"
-                    style={{ fontSize: 13, color: "#68727E" }}
+                    style={{ fontSize: 13, color: C.sec }}
                   >
                     {row.label}
                   </PretendardFont>
@@ -1644,7 +1559,7 @@ function DoorReportTableSection({
                       marginTop: row.label ? 3 : 0,
                       fontSize: 13.5,
                       lineHeight: 20,
-                      color: "#4F5A67",
+                      color: C.textAlt,
                     }}
                   >
                     {row.note}
@@ -1681,15 +1596,14 @@ function DoorReportSolutionSection({
   if (solutions.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         앞으로 이렇게 해보세요
       </PretendardFont>
       {solutions.map((solution, index) => (
         <View
           key={`${solution.title}-${index}`}
           className="py-3"
-          style={{ borderBottomWidth: 1, borderBottomColor: "#E5E9ED" }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
             {solution.title}
@@ -1700,7 +1614,7 @@ function DoorReportSolutionSection({
               marginTop: 5,
               fontSize: 14,
               lineHeight: 22,
-              color: "#4F5A67",
+              color: C.textAlt,
             }}
           >
             {solution.description}
@@ -2227,7 +2141,7 @@ function getDoorAiStatusMeta(status?: DoorAiReportStatus) {
 
 function ExampleStatsCharts() {
   return (
-    <View className="mt-4">
+    <View className="rounded-2xl px-5 pb-4 pt-1" style={{ backgroundColor: C.white }}>
       <HourlyStatsChartCard
         title="시간별 리포트 예시"
         points={SAMPLE_HOURLY_STATS}
@@ -2283,12 +2197,9 @@ function HourlyStatsChartCard({
   }));
 
   return (
-    <View
-      className="rounded-xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.474)" }}
-    >
-      <View className="flex-row gap-5">
-        <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>
+    <View className="mt-4">
+      <View className="flex-row items-center justify-between">
+        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
           {title}
         </PretendardFont>
 
@@ -2296,12 +2207,12 @@ function HourlyStatsChartCard({
           {visibleSeries.map((item) => (
             <View key={item.label} className="flex-row items-center">
               <View
-                className="mr-2 h-2.5 w-2.5 rounded-full"
+                className="mr-1.5 h-2 w-2 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
               <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 14.5, color: C.textAlt }}
+                weight="medium"
+                style={{ fontSize: 12.5, color: C.sec }}
               >
                 {item.label}
               </PretendardFont>
@@ -2330,22 +2241,7 @@ function HourlyStatsChartCard({
                     y1={y}
                     x2={chartWidth - STATS_HOUR_AXIS_W / 2}
                     y2={y}
-                    stroke="rgba(25,31,40,0.12)"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-
-              {points.map((_, index) => {
-                const x = getAxisX(index);
-                return (
-                  <Line
-                    key={`axis-${index}`}
-                    x1={x}
-                    y1={STATS_CHART_PAD_Y}
-                    x2={x}
-                    y2={STATS_CHART_H - 6}
-                    stroke="rgba(25,31,40,0.08)"
+                    stroke="rgba(25,31,40,0.06)"
                     strokeWidth={1}
                   />
                 );
@@ -2365,7 +2261,7 @@ function HourlyStatsChartCard({
                         .join(" ")}
                       fill="none"
                       stroke={item.color}
-                      strokeWidth={3.5}
+                      strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -2374,9 +2270,9 @@ function HourlyStatsChartCard({
                         key={`${item.label}-${index}`}
                         cx={point.x}
                         cy={point.y}
-                        r={4.2}
+                        r={3.2}
                         fill={item.color}
-                        stroke="rgba(255,255,255,0.95)"
+                        stroke="#FFFFFF"
                         strokeWidth={1.5}
                       />
                     ))}
@@ -2392,36 +2288,22 @@ function HourlyStatsChartCard({
                 style={{
                   position: "absolute",
                   left: item.x - 32,
-                  top: Math.max(2, item.y - 66),
+                  top: Math.max(2, item.y - 40),
                   width: 64,
                   alignItems: "center",
                 }}
               >
                 <PretendardFont
                   weight="bold"
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 24,
-                    color: C.text,
-                    textShadowColor: "rgba(255,255,255,0.6)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
+                  style={{ fontSize: 13, lineHeight: 16, color: C.text }}
                 >
-                  입 {item.entered}
+                  {item.entered}
                 </PretendardFont>
                 <PretendardFont
-                  weight="bold"
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 24,
-                    color: C.sec,
-                    textShadowColor: "rgba(255,255,255,0.6)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
+                  weight="semibold"
+                  style={{ fontSize: 12, lineHeight: 15, color: C.ter }}
                 >
-                  출 {item.exited}
+                  {item.exited}
                 </PretendardFont>
               </View>
             ))}
@@ -2437,39 +2319,32 @@ function HourlyStatsChartCard({
                   style={{ width: STATS_HOUR_AXIS_W, paddingHorizontal: 1 }}
                 >
                   <PretendardFont
-                    weight="bold"
+                    weight="semibold"
                     style={{
-                      fontSize: 16,
-                      color: C.text,
+                      fontSize: 12.5,
+                      color: C.textAlt,
                       textAlign: "center",
                     }}
                   >
                     {point.label}
                   </PretendardFont>
 
-                  <View
-                    className="mt-1.5 rounded-2xl px-1 py-1"
-                    style={{
-                      backgroundColor: "rgba(255,255,255,0.6)",
-                      borderWidth: 1,
-                      borderColor: "rgba(25,31,40,0.08)",
-                    }}
-                  >
+                  <View className="mt-1">
                     {climateSlots.map((slot, slotIndex) => (
                       <View
                         key={`${slot.label}-${slotIndex}`}
                         className="items-center justify-center"
-                        style={{ minHeight: 25 }}
+                        style={{ minHeight: 18 }}
                       >
                         <PretendardFont
-                          weight="bold"
+                          weight="medium"
                           numberOfLines={1}
                           adjustsFontSizeToFit
                           minimumFontScale={0.82}
                           style={{
-                            fontSize: 13.2,
-                            lineHeight: 18,
-                            color: C.text,
+                            fontSize: 11.5,
+                            lineHeight: 16,
+                            color: C.sec,
                             textAlign: "center",
                           }}
                         >

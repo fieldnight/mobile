@@ -23,7 +23,6 @@ import {
   LayoutAnimation,
   PanResponder,
   Pressable,
-  ScrollView,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -59,11 +58,9 @@ import {
   type GateCardAssignments,
 } from "../model/gateCardAssignments";
 
-/** 가로 캐러셀 카드 간격·너비. 벌통 카드 줄(HiveCardRail)처럼 좁은 카드를 옆으로 넘깁니다. */
-const RAIL_GAP = 10;
-const RAIL_CARD_W = 132;
-/** 부모(iot-home) 좌우 여백만큼 캐러셀을 화면 끝까지 넓혀, 카드가 가장자리에서 잘려 보이게 합니다. */
-const RAIL_BLEED = 18;
+/** 카드 그리드 간격. 부모(iot-home)의 CARD_W 계산과 같은 값이어야 합니다. */
+const GRID_GAP = 12;
+const GRID_COLUMNS = 2;
 
 export type GateActionAppConnectionStatus =
   | "idle"
@@ -181,9 +178,10 @@ export function NfcDoorCardSection({
 
   // 서버 카드 CRUD(PR #195)는 30분 단위 등 일부 설정을 표현하지 못해,
   // 카드 원본은 계속 로컬(AsyncStorage)에 전체 정보로 보관합니다.
-  // 카드 높이는 예전 2열 그리드 한 칸 높이를 그대로 씁니다.
-  const cardHeight = Math.round(cardWidth * 0.759);
-  const cell = useMemo(() => ({ width: RAIL_CARD_W + RAIL_GAP }), []);
+  const cell = useMemo(
+    () => ({ width: cardWidth + GRID_GAP, height: cardWidth * 0.66 + GRID_GAP }),
+    [cardWidth],
+  );
   const cellRef = useRef(cell);
   cellRef.current = cell;
 
@@ -247,19 +245,23 @@ export function NfcDoorCardSection({
         const gridCardCount = cardsRef.current.filter(
           (card) => card.mode !== "count_status" && card.mode !== "count_control",
         ).length;
-        // 한 줄 캐러셀이라 가로 이동량만으로 자리를 계산합니다.
         const colDelta = Math.round(gesture.dx / currentCell.width);
+        const rowDelta = Math.round(gesture.dy / currentCell.height);
         const targetIndex = Math.max(
           0,
-          Math.min(gridCardCount - 1, dragStartIndexRef.current + colDelta),
+          Math.min(gridCardCount - 1, dragStartIndexRef.current + rowDelta * GRID_COLUMNS + colDelta),
         );
         if (targetIndex !== dragCurrentIndexRef.current) {
           reorderCards(dragCurrentIndexRef.current, targetIndex);
           dragCurrentIndexRef.current = targetIndex;
         }
+        const startCol   = dragStartIndexRef.current % GRID_COLUMNS;
+        const startRow   = Math.floor(dragStartIndexRef.current / GRID_COLUMNS);
+        const currentCol = dragCurrentIndexRef.current % GRID_COLUMNS;
+        const currentRow = Math.floor(dragCurrentIndexRef.current / GRID_COLUMNS);
         dragOffset.setValue({
-          x: gesture.dx - (dragCurrentIndexRef.current - dragStartIndexRef.current) * currentCell.width,
-          y: 0,
+          x: gesture.dx - (currentCol - startCol) * currentCell.width,
+          y: gesture.dy - (currentRow - startRow) * currentCell.height,
         });
       },
       onPanResponderRelease: finishDrag,
@@ -503,13 +505,7 @@ export function NfcDoorCardSection({
       />
 
       {!gridCollapsed ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={draggingCardId == null}
-          style={{ marginHorizontal: -RAIL_BLEED }}
-          contentContainerStyle={{ paddingHorizontal: RAIL_BLEED, gap: RAIL_GAP }}
-        >
+        <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
           {gridCards.map((card) => {
             const dragging = draggingCardId === card.id;
             const active = false;
@@ -518,8 +514,7 @@ export function NfcDoorCardSection({
               <NfcDoorCard
                 key={card.id}
                 card={card}
-                size={RAIL_CARD_W}
-                height={cardHeight}
+                size={cardWidth}
                 editable={deleting && !active}
                 dragging={dragging}
                 active={active}
@@ -532,7 +527,7 @@ export function NfcDoorCardSection({
               />
             );
           })}
-        </ScrollView>
+        </View>
       ) : null}
 
       {countControlCards.length > 0 ? (
@@ -545,12 +540,7 @@ export function NfcDoorCardSection({
           />
 
           {!countControlCollapsed ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginHorizontal: -RAIL_BLEED }}
-              contentContainerStyle={{ paddingHorizontal: RAIL_BLEED, gap: RAIL_GAP }}
-            >
+            <View className="flex-row flex-wrap" style={{ gap: GRID_GAP }}>
               {countControlCards.map((card) => {
                 const dragging = false;
                 const active = false;
@@ -559,8 +549,7 @@ export function NfcDoorCardSection({
                   <NfcDoorCard
                     key={card.id}
                     card={card}
-                    size={RAIL_CARD_W}
-                    height={cardHeight}
+                    size={cardWidth}
                     editable={deleting && !active}
                     dragging={dragging}
                     active={active}
@@ -570,7 +559,7 @@ export function NfcDoorCardSection({
                   />
                 );
               })}
-            </ScrollView>
+            </View>
           ) : null}
         </View>
       ) : null}

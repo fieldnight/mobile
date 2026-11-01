@@ -20,7 +20,6 @@ import { isCountControlMode, type NfcDoorCardConfig } from "./nfcDoorCards";
 export function NfcDoorCard({
   card,
   size,
-  height,
   editable,
   dragging,
   active,
@@ -34,8 +33,6 @@ export function NfcDoorCard({
   card: NfcDoorCardConfig;
   /** 카드 너비 */
   size: number;
-  /** 카드 최소 높이. 없으면 너비 비율로 정합니다. */
-  height?: number;
   editable: boolean;
   dragging?: boolean;
   active?: boolean;
@@ -71,7 +68,7 @@ export function NfcDoorCard({
         delayLongPress={260}
         className="active:opacity-80"
       >
-        <CardShell minHeight={height ?? size * 0.759} dragging={dragging} active={active}>
+        <CardShell minHeight={size * 0.759} dragging={dragging} active={active}>
           <View className="flex-row items-start justify-between">
             <IconBadge icon={card.icon} on={Boolean(active)} />
 

@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useDoorDeviceState } from "@/stores/useDoorDeviceState";
@@ -61,10 +61,42 @@ export function DeviceCardStatus({ deviceId, now, showName = false }: {
   );
 }
 
-/**
- * 개폐기별 적용 카드 — 흰 패널 하나에 개폐기마다 한 행씩 둡니다.
- * 반투명 카드를 여러 장 띄우면 뒤쪽 개폐기 사진이 비쳐 읽기 어려워 불투명한 한 덩어리로 묶었습니다.
- */
+/** 개폐기 카드 줄 치수. 부모(iot-home) 좌우 여백만큼 화면 끝까지 넓혀 옆 카드가 가장자리에서 보이게 합니다. */
+const RAIL_CARD_W = 156;
+const RAIL_CARD_H = 104;
+const RAIL_GAP = 10;
+const RAIL_BLEED = 18;
+
+/** 개폐기 한 대 = 카드 한 장. 이름, 적용 중인 카드, 확인 시각을 담습니다. */
+function DeviceStatusCard({ deviceId, now }: { deviceId: string; now: Date }) {
+  const record = useDoorDeviceState(state => state.records[normalizeGateMac(deviceId) ?? deviceId]);
+  const gates = useGateStore(state => state.gates);
+  const { chip, tone, caption } = describe(record, now);
+  const name = gateDisplayName(deviceId, gates);
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${name}, 적용 카드 ${chip}${caption ? `. ${caption}` : ""}`}
+      className="justify-between rounded-[10px] p-3"
+      style={{ width: RAIL_CARD_W, height: RAIL_CARD_H, backgroundColor: C.white }}
+    >
+      <PretendardFont weight="bold" numberOfLines={1} style={{ fontSize: 15, color: C.text }}>
+        {name}
+      </PretendardFont>
+      <View className="gap-1">
+        <View className="flex-row">
+          <StatusChip label={chip} tone={tone} />
+        </View>
+        {caption ? (
+          <PretendardFont numberOfLines={1} style={{ fontSize: 11.5, color: C.sec }}>{caption}</PretendardFont>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** 개폐기별 적용 카드 — 개폐기마다 카드 한 장씩, 옆으로 넘겨 봅니다. */
 export function DeviceCardStatusList({ deviceIds, now }: { deviceIds: string[]; now: Date }) {
   const gates = useGateStore(state => state.gates);
   const records = useDoorDeviceState(state => state.records);
@@ -73,15 +105,18 @@ export function DeviceCardStatusList({ deviceIds, now }: { deviceIds: string[]; 
   if (!ids.length) return null;
 
   return (
-    <View className="mb-4 px-4 pt-3 pb-1 rounded-xl" style={{ backgroundColor: C.white }}>
-      <PretendardFont accessibilityRole="header" weight="bold" style={{ fontSize: 16, color: C.text }}>개폐기별 적용 카드</PretendardFont>
-      <View className="mt-0.5">
-        {ids.map((id, index) => (
-          <View key={id} style={{ borderTopWidth: index ? 1 : 0, borderTopColor: C.border }}>
-            <DeviceCardStatus deviceId={id} now={now} showName />
-          </View>
-        ))}
-      </View>
+    <View className="mb-5">
+      <PretendardFont accessibilityRole="header" weight="bold" className="mb-2.5" style={{ fontSize: 17, color: C.text }}>
+        개폐기별 적용 카드
+      </PretendardFont>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -RAIL_BLEED }}
+        contentContainerStyle={{ paddingHorizontal: RAIL_BLEED, gap: RAIL_GAP }}
+      >
+        {ids.map(id => <DeviceStatusCard key={id} deviceId={id} now={now} />)}
+      </ScrollView>
     </View>
   );
 }
