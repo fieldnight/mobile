@@ -21,6 +21,8 @@ export {
   useHiveConnectionStatuses,
   useHiveDetail,
   useHiveList,
+  useOrderedHives,
+  sortHivesOnlineFirst,
   useSyncHiveList,
   useUpdateHive,
 } from "./hooks";

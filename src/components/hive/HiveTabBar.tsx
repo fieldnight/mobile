@@ -3,13 +3,15 @@
  * - 스마트벌통 / 리포트 / 전체보기 / 설정 탭
  * - 현재 라우트 기준 활성 탭 자동 감지 (useSegments)
  * - 탭 전환 시 햅틱 피드백 + router.replace로 이동
- * - 활성 탭은 글자 굵기와 색으로 표시
+ * - 같은 너비의 버튼 네 개. 선택된 탭은 벌통 카드와 같은 남색으로 채워 한눈에 현재 위치를 보여줍니다.
+ *   기간·보기 선택(회색 트랙 + 흰 선택)과 겹쳐 보이지 않도록 채움 방식을 다르게 했습니다.
  */
-import { Platform, Pressable, View, type ViewStyle } from "react-native";
+import { Platform, View, type ViewStyle } from "react-native";
 import { router, useSegments } from "expo-router";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { PretendardFont } from "@/components/PretendardFont";
-import { C } from "@/constants/hive-colors";
+import { Tap } from "@/components/Tap";
+import { T } from "@/features/hive-home/theme";
 
 const TABS = [
   { label: "스마트벌통", route: "/hive-control" },
@@ -18,45 +20,38 @@ const TABS = [
   { label: "설정", route: "/hive-setting" },
 ] as const;
 
-function HiveTabButton({
-  label,
-  route,
-  active,
-}: {
-  label: string;
-  route: string;
-  active: boolean;
-}) {
+function HiveTabButton({ label, route, active }: { label: string; route: string; active: boolean }) {
   const handlePress = () => {
     if (active) return;
-    if (Platform.OS !== "web") Haptics.selectionAsync();
+    if (Platform.OS !== "web") void Haptics.selectionAsync().catch(() => {});
     router.replace(route as never);
   };
 
   return (
-    <Pressable
+    <Tap
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
       onPress={handlePress}
-      android_ripple={{ color: "#F2F4F6", borderless: false }}
-      className="h-14 flex-1 items-center justify-center"
-      style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}
+      style={({ pressed }) => ({
+        flex: 1,
+        height: 44,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: active ? T.ink : pressed ? T.keyPressed : "transparent",
+      })}
     >
       <PretendardFont
         weight={active ? "bold" : "semibold"}
-        className="text-[16px]"
-        style={{ color: active ? C.text : C.tabInactive }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+        style={{ fontSize: 15, letterSpacing: -0.2, color: active ? T.panel : T.inkSoft }}
       >
         {label}
       </PretendardFont>
-      <View
-        style={{
-          marginTop: 6,
-          height: 2.5,
-          width: active ? 18 : 0,
-          borderRadius: 2,
-          backgroundColor: C.text,
-        }}
-      />
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -65,21 +60,18 @@ export function HiveTabBar({ style }: { style?: ViewStyle }) {
   const currentRoute = segments[0] ?? "";
 
   return (
-    <View style={style}>
-      {/* 공통 상단바 높이에 맞춘 텍스트 탭입니다. 선택된 탭 아래 밑줄로 현재 위치를 표시합니다. */}
-      <View className="h-14 flex-row items-center px-2">
-        {TABS.map((tab) => {
-          const routeKey = tab.route.replace("/", "");
-          return (
-            <HiveTabButton
-              key={tab.route}
-              label={tab.label}
-              route={tab.route}
-              active={currentRoute === routeKey}
-            />
-          );
-        })}
-      </View>
+    <View
+      accessibilityRole="tablist"
+      style={[{ flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 }, style]}
+    >
+      {TABS.map((tab) => (
+        <HiveTabButton
+          key={tab.route}
+          label={tab.label}
+          route={tab.route}
+          active={currentRoute === tab.route.replace("/", "")}
+        />
+      ))}
     </View>
   );
 }

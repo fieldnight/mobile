@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, Pressable, ScrollView, View } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
@@ -19,7 +20,7 @@ interface HiveSliderSectionProps {
   allView: boolean;
   selectedIndex: number;
   itemWidth: number;
-  sliderRef: React.RefObject<ScrollView | null>;
+  sliderRef: React.RefObject<ScrollViewInstance | null>;
   onHivePress: (id: string) => void;
   onSlideEnd: (index: number) => void;
   onAddHive?: () => void;
@@ -90,7 +91,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-// 내부/외부 온습도 한 줄 표시 — 전체보기 카드용
+// 내부/기계 온습도 한 줄 표시 — 전체보기 카드용
 function MetricPair({
   title,
   temperature,
@@ -140,7 +141,7 @@ function HeroHeader({ hive }: { hive: HiveData }) {
   );
 }
 
-// 슬라이더 패널 내 내부/외부 온습도 한 줄 표시 — 구분선 없이 타이틀만 굵게
+// 슬라이더 패널 내 내부/기계 온습도 한 줄 표시 — 구분선 없이 타이틀만 굵게
 function PanelMetric({
   title,
   temperature,
@@ -195,7 +196,7 @@ function SensorPanel({
         humidity={hive.humidity}
       />
       <PanelMetric
-        title="외부"
+        title="기계"
         temperature={hive.externalTemperature ?? null}
         humidity={hive.externalHumidity ?? null}
       />
@@ -280,7 +281,7 @@ function EmptyHiveSlide({ onAddHive }: { onAddHive?: () => void }) {
             weight="semibold"
             style={{ marginTop: 8, fontSize: 14, lineHeight: 21, color: C.sec }}
           >
-            벌통을 등록하면 이곳에 내부·외부 온습도가 표시돼요.
+            벌통을 등록하면 이곳에 내부·기계 온습도가 표시돼요.
           </PretendardFont>
 
           {onAddHive ? (
@@ -503,7 +504,7 @@ function HiveBeeBoxCard({
               humidity={hive.humidity}
             />
             <MetricPair
-              title="외부"
+              title="기계"
               temperature={hive.externalTemperature ?? null}
               humidity={hive.externalHumidity ?? null}
             />
