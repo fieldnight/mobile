@@ -1,6 +1,4 @@
-import { openWifiSettings } from "@/features/hive-wifi";
-
-export { openWifiSettings };
+export { openWifiSettings } from "@/features/device-wifi-setup/model/systemWifiSettings";
 
 const GATE_SETUP_SSID = "BeeGate-Setup";
 const GATE_SETUP_PASSWORD = "beehive123";

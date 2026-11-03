@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { isValidHiveDeviceId, normalizeHiveDeviceId } from "@/features/hive-wifi";
+import { DeviceWifiSetupSheet } from "@/features/device-wifi-setup";
 import { useGateStore } from "@/stores/useGateStore";
 import { C } from "@/constants/hive-colors";
 import type { GateData, GateFormInput } from "@/types/gate-control";
 import { getGateDeviceErrorMessage } from "../api";
 import { useRegisterGateDevice, useUpdateGateDevice } from "../hooks";
-import { GateWifiSetupSheet } from "./GateWifiSetupSheet";
+import { createGateWifiAdapter } from "../model/gateWifiAdapter";
 
 interface AddGateSheetProps {
   visible: boolean;
@@ -309,11 +310,12 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
         </Pressable>
       </View>
 
-      <GateWifiSetupSheet
+      <DeviceWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
         mode={editing ? "change" : "register"}
         initialDeviceId={form.macAddress}
+        adapter={createGateWifiAdapter(editing ? "change" : "register")}
         onProvisioned={handleWifiProvisioned}
       />
     </BottomSheet>

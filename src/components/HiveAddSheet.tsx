@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { BottomSheet } from "@/components/BottomSheet";
 import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { getHiveConnection, useCreateHive, useUpdateHive } from "@/features/hive";
 import {
-  HiveWifiSetupSheet,
+  createHiveWifiAdapter,
   isValidHiveDeviceId,
   normalizeHiveDeviceId,
-  type HiveWifiSetupMode,
 } from "@/features/hive-wifi";
+import {
+  DeviceWifiSetupSheet,
+  type DeviceWifiSetupMode,
+} from "@/features/device-wifi-setup";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { C } from "@/constants/hive-colors";
 import type { HiveData, HiveFormInput } from "@/types/hive-control";
@@ -142,7 +145,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
 
   const submitting =
     createHiveMutation.isPending || updateHiveMutation.isPending;
-  const wifiSetupMode: HiveWifiSetupMode = editing ? "change" : "register";
+  const wifiSetupMode: DeviceWifiSetupMode = editing ? "change" : "register";
   const normalizedFormMac = normalizeHiveDeviceId(form.macAddress);
   const validMacAddress = editing
     ? form.macAddress.trim() !== ""
@@ -172,7 +175,7 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
     showToast(
       editing
         ? "새 Wi-Fi 정보가 저장됐어요. 벌통이 다시 연결될 때까지 기다려주세요"
-        : "벌통 Wi-Fi 웹 설정을 완료했어요",
+        : "벌통 Wi-Fi 연결을 완료했어요",
       "success",
     );
   };
@@ -420,11 +423,12 @@ export function HiveAddSheet({ visible, onClose, hive }: HiveAddSheetProps) {
         </Pressable>
       </View>
 
-      <HiveWifiSetupSheet
+      <DeviceWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
         mode={wifiSetupMode}
         initialDeviceId={form.macAddress}
+        adapter={createHiveWifiAdapter(wifiSetupMode, form.macAddress)}
         onProvisioned={handleWifiProvisioned}
       />
     </BottomSheet>
@@ -458,7 +462,7 @@ function WifiSetupCard({
   completedDeviceId,
   onPress,
 }: {
-  mode: HiveWifiSetupMode;
+  mode: DeviceWifiSetupMode;
   completedDeviceId: string;
   onPress: () => void;
 }) {
@@ -500,7 +504,7 @@ function WifiSetupCard({
 }
 
 function getWifiSetupCardCopy(
-  mode: HiveWifiSetupMode,
+  mode: DeviceWifiSetupMode,
   completedDeviceId: string,
 ) {
   if (mode === "change") {
@@ -517,8 +521,8 @@ function getWifiSetupCardCopy(
 
   return completedDeviceId
     ? {
-        title: `${completedDeviceId} Wi-Fi 웹 설정 완료`,
-        description: "웹 설정 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요.",
+        title: `${completedDeviceId} Wi-Fi 연결 완료`,
+        description: "연결 완료 · 아래 기본 정보를 입력해 등록을 마무리해주세요.",
       }
     : {
         title: "벌통 Wi-Fi 연결",

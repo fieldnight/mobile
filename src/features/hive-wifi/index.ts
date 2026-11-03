@@ -1,2 +1,2 @@
 export * from "./model/hiveWifiProvisioning";
-export * from "./components/HiveWifiSetupSheet";
+export * from "./model/hiveWifiAdapter";
