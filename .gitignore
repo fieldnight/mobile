@@ -41,6 +41,7 @@ yarn-error.*
 
 # IDE
 .idea/
+.claude/
 
 # macOS
 .DS_Store
@@ -51,6 +52,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+*.zip
 
 # generated native folders
 /ios
