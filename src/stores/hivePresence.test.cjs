@@ -75,13 +75,15 @@ test('late telemetry predating offline cannot reconnect; fresh zero can', () => 
   f.telemetry(old + 1000); assert.equal(f.hive.status, 'offline');
   f.tick(1000); f.telemetry(f.now, 0); assert.equal(f.hive.status, 'online'); assert.equal(f.hive.temperature, 0);
 });
-test('online connection checks cannot keep stale telemetry online', () => {
+test('server confirms connectivity while stale measurements stay labeled historical', () => {
   const f = fixture(); f.telemetry(); f.tick(240000); f.connection(true);
-  assert.equal(f.hive.status, 'offline'); assert.match(f.hive.lastUpdate, /마지막 측정값 · 4분 전/);
+  assert.equal(f.hive.status, 'online'); assert.match(f.hive.lastUpdate, /마지막 측정값 · 4분 전/);
 });
-test('REST online without any telemetry remains offline', () => {
+test('REST online can confirm connectivity without inventing a measurement', () => {
   const f = fixture(); f.connection(true);
-  assert.equal(f.hive.status, 'offline');
+  assert.equal(f.hive.status, 'online');
+  assert.equal(f.hive.measuredAt, undefined);
+  assert.equal(f.hive.telemetryReceivedAt, undefined);
   assert.equal(f.hive.lastUpdate, '측정값 수신 대기');
 });
 test('fresh telemetry arriving after a REST online check restores online', () => {
@@ -89,13 +91,27 @@ test('fresh telemetry arriving after a REST online check restores online', () =>
   f.telemetry(measured);
   assert.equal(f.hive.status, 'online');
 });
-test('one-minute REST polling cannot extend the three-minute sensor timeout', () => {
+test('polling keeps connection fresh without changing measurement timestamps; lost polling expires', () => {
   const f = fixture(); f.telemetry();
+  const measuredAt = f.hive.measuredAt, receivedAt = f.hive.telemetryReceivedAt;
   for (let minute = 1; minute <= 4; minute++) {
     f.tick(60000); f.connection(true); f.state.refreshPresence();
-    assert.equal(f.hive.status, minute < 3 ? 'online' : 'offline');
+    assert.equal(f.hive.status, 'online');
+    assert.equal(f.hive.measuredAt, measuredAt);
+    assert.equal(f.hive.telemetryReceivedAt, receivedAt);
   }
+  assert.match(f.hive.lastUpdate, /마지막 측정값 · 4분 전/);
+  f.tick(180000); f.state.refreshPresence();
+  assert.equal(f.hive.status, 'offline');
+  assert.equal(f.hive.temperature, 18);
 });
+
+test('an offline connection response overrides previous REST online without telemetry', () => {
+  const f = fixture(); f.connection(true); f.tick(1000); f.connection(false);
+  assert.equal(f.hive.status, 'offline');
+  assert.equal(f.hive.lastUpdate, '측정값 수신 대기');
+});
+
 test('rehydration never restores persisted online status', () => {
   const f = fixture(); f.telemetry();
   const restored = f.options.merge({ hives: [f.hive] }, f.state);

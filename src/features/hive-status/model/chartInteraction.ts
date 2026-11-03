@@ -1,14 +1,17 @@
 import type { DataPoint, HiveSensorDataKey } from "@/types";
 import {
-  clampViewport, initialViewport, latestSensorIndex, momentumStep, panViewport,
-  pinchViewport, valueDomain, zoomViewport, type ChartViewport,
+  clampViewport, firstSensorIndex, fixedDomainFor, initialViewport, latestSensorIndex,
+  nearestSensorIndex, pinchViewport, valueDomain, zoomViewport, type ChartBounds, type ChartViewport,
 } from "./chartModel";
 
 export interface ChartTouch { x: number; y: number }
-export type ChartInteractionMode = "idle" | "pan" | "pinch" | "inspect";
+export type ChartInteractionMode = "idle" | "pinch" | "inspect";
 export interface ChartInteractionSnapshot {
   viewport: ChartViewport;
+  /** 값을 읽어 보여줄 기록(손가락에서 가장 가까운, 값이 있는 기록) */
   selectedIndex: number;
+  /** 손가락 위치 그대로의 소수 인덱스. 세로선·점이 이 위치를 따라 부드럽게 움직입니다. */
+  cursor: number;
   mode: ChartInteractionMode;
 }
 interface ChartInteractionOptions {
@@ -17,6 +20,8 @@ interface ChartInteractionOptions {
   width: number;
   height: number;
   reducedMotion: boolean;
+  /** 가로 축 이동·축소 범위. 없으면 첫 기록~마지막 기록입니다. */
+  bounds?: ChartBounds;
 }
 interface ChartInteractionRuntime {
   options: () => ChartInteractionOptions;
@@ -30,8 +35,6 @@ interface ChartInteractionRuntime {
   clearTimer: (id: ReturnType<typeof setTimeout>) => void;
 }
 
-const HOLD_MS = 240;
-const TOUCH_SLOP = 6;
 const HAPTIC_INTERVAL_MS = 70;
 const centroid = (touches: ChartTouch[]) => ({
   x: (touches[0].x + touches[1].x) / 2,
@@ -40,39 +43,31 @@ const centroid = (touches: ChartTouch[]) => ({
 const distance = (touches: ChartTouch[]) => Math.hypot(touches[0].x - touches[1].x, touches[0].y - touches[1].y);
 
 /** Own gesture state outside React so incoming touches never read a stale rendered viewport. */
+export function initialSnapshot({ data, keys, bounds }: Pick<ChartInteractionOptions, "data" | "keys" | "bounds">, showAll = false): ChartInteractionSnapshot {
+  const latest = latestSensorIndex(data, keys);
+  return { viewport: initialViewport(data, keys, showAll, bounds), selectedIndex: latest, cursor: Math.max(0, latest), mode: "idle" };
+}
+
 export function createChartInteraction(runtime: ChartInteractionRuntime) {
-  const initial = runtime.options();
-  let snapshot: ChartInteractionSnapshot = {
-    viewport: initialViewport(initial.data, initial.keys),
-    selectedIndex: latestSensorIndex(initial.data, initial.keys),
-    mode: "idle",
-  };
+  let snapshot: ChartInteractionSnapshot = initialSnapshot(runtime.options());
   let base = snapshot.viewport;
   let origin: ChartTouch = { x: 0, y: 0 };
   let lastTouch = origin;
   let pinchDistance = 1;
   let frame: number | null = null;
-  let hold: ReturnType<typeof setTimeout> | null = null;
   let active = false;
-  let moved = false;
-  let hadPinch = false;
   let followingLatest = true;
-  let horizontal = false;
-  let velocityX = 0;
-  let velocityY = 0;
-  let lastMoveAt = 0;
-  let lastFrameAt = 0;
   let lastHapticAt = -Infinity;
-  let animation: "momentum" | "fit" | null = null;
+  let animation: "fit" | null = null;
   let fitFrom = base;
   let fitTarget = base;
   let fitStartedAt = 0;
   let disposed = false;
+  // 한 번이라도 두 손가락이 닿은 제스처는 손을 모두 뗄 때까지 확대/축소로만 다룹니다.
+  // 그동안 선택(말풍선 값)은 제스처 시작 전 값으로 고정합니다.
+  let gesturePinched = false;
+  let beforeGesture = { selectedIndex: snapshot.selectedIndex, cursor: snapshot.cursor };
 
-  function clearHold() {
-    if (hold !== null) runtime.clearTimer(hold);
-    hold = null;
-  }
   function publish() {
     if (frame === null && !disposed) frame = runtime.requestFrame(tick);
   }
@@ -96,12 +91,18 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     runtime.haptic();
   }
   function select(x: number, entering = false) {
-    const { data, width } = runtime.options();
+    const { data, keys, width } = runtime.options();
     if (!data.length) return;
     const { start, span } = snapshot.viewport;
-    const index = Math.max(0, Math.min(data.length - 1, Math.round(start + Math.max(0, Math.min(1, x / Math.max(1, width))) * span)));
+    const raw = start + Math.max(0, Math.min(1, x / Math.max(1, width))) * span;
+    // 세로선은 기록이 있는 구간 안에서만 손가락을 따라갑니다(앞뒤 빈 시간대로는 넘어가지 않음).
+    const first = firstSensorIndex(data, keys);
+    const last = latestSensorIndex(data, keys);
+    const cursor = first < 0 ? Math.max(0, Math.min(data.length - 1, raw)) : Math.max(first, Math.min(last, raw));
+    const nearest = nearestSensorIndex(data, keys, cursor);
+    const index = nearest < 0 ? Math.round(cursor) : nearest;
     if (index !== snapshot.selectedIndex || entering) haptic();
-    snapshot = { ...snapshot, selectedIndex: index };
+    snapshot = { ...snapshot, selectedIndex: index, cursor };
     followingLatest = false;
     publish();
   }
@@ -122,17 +123,7 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     if (disposed) return;
     const now = runtime.now();
     const options = runtime.options();
-    if (animation === "momentum") {
-      const result = momentumStep(snapshot.viewport, velocityX, velocityY, Math.min(40, now - lastFrameAt), options.width, options.height, options.data.length);
-      lastFrameAt = now;
-      velocityX = result.velocityX;
-      velocityY = result.velocityY;
-      snapshot = { ...snapshot, viewport: result.viewport };
-      if (result.done || options.reducedMotion) {
-        animation = null;
-        fitValues();
-      }
-    } else if (animation === "fit") {
+    if (animation === "fit") {
       const progress = Math.min(1, (now - fitStartedAt) / 180);
       const eased = 1 - (1 - progress) ** 3;
       snapshot = { ...snapshot, viewport: {
@@ -149,18 +140,16 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     if (animation) publish();
   }
   function stop() {
-    clearHold();
     animation = null;
-    velocityX = 0;
-    velocityY = 0;
   }
   function beginPinch(touches: ChartTouch[]) {
-    clearHold();
+    if (!gesturePinched) {
+      gesturePinched = true;
+      snapshot = { ...snapshot, ...beforeGesture };
+    }
     base = snapshot.viewport;
     origin = centroid(touches);
     pinchDistance = Math.max(1, distance(touches));
-    hadPinch = true;
-    horizontal = false;
     followingLatest = false;
     changeMode("pinch");
   }
@@ -172,100 +161,53 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     }
     stop();
     setActive(true);
+    gesturePinched = false;
+    beforeGesture = { selectedIndex: snapshot.selectedIndex, cursor: snapshot.cursor };
     base = snapshot.viewport;
     origin = lastTouch = touches[0];
-    lastMoveAt = runtime.now();
-    moved = hadPinch = horizontal = false;
-    changeMode("idle");
     if (touches.length >= 2) {
       beginPinch(touches);
       return;
     }
-    hold = runtime.setTimer(() => {
-      hold = null;
-      if (!active || moved || hadPinch) return;
-      changeMode("inspect");
-      select(lastTouch.x, true);
-    }, HOLD_MS);
+    // 한 손가락 드래그는 바로 크로스헤어(inspect)로 동작합니다. 길게 눌러 기다릴 필요가 없습니다.
+    changeMode("inspect");
+    select(lastTouch.x, true);
   }
   function move(touches: ChartTouch[]) {
     if (!active || !touches.length) return;
-    const { data, width, height } = runtime.options();
+    const { data, keys, width, height } = runtime.options();
     if (touches.length >= 2) {
       if (snapshot.mode !== "pinch") beginPinch(touches);
       const focal = centroid(touches);
-      updateViewport(pinchViewport(base, distance(touches) / pinchDistance, data.length,
+      updateViewport(pinchViewport(base, distance(touches) / pinchDistance, runtime.options().bounds ?? data.length,
         origin.x / Math.max(1, width), origin.y / Math.max(1, height),
-        focal.x / Math.max(1, width), focal.y / Math.max(1, height)));
+        focal.x / Math.max(1, width), focal.y / Math.max(1, height), fixedDomainFor(keys)));
       return;
     }
     const touch = touches[0];
-    if (snapshot.mode === "pinch") {
-      // Rebase immediately when a finger lifts; never reuse two-finger deltas.
-      base = snapshot.viewport;
-      origin = lastTouch = touch;
-      lastMoveAt = runtime.now();
-      velocityX = velocityY = 0;
-      moved = true;
-      changeMode("pan");
-      return;
-    }
-    if (snapshot.mode === "inspect") {
-      lastTouch = touch;
-      select(touch.x);
-      return;
-    }
-    const dx = touch.x - origin.x;
-    const dy = touch.y - origin.y;
-    if (!moved && Math.hypot(dx, dy) < TOUCH_SLOP) {
-      lastTouch = touch;
-      return;
-    }
-    if (!moved) {
-      clearHold();
-      moved = true;
-      horizontal = !hadPinch && Math.abs(dx) > Math.abs(dy) * 1.6;
-      followingLatest = false;
-      changeMode("pan");
-    }
-    const now = runtime.now();
-    const elapsed = Math.max(1, now - lastMoveAt);
-    const weight = Math.min(1, elapsed / 32);
-    velocityX += ((touch.x - lastTouch.x) / elapsed - velocityX) * weight;
-    velocityY += ((touch.y - lastTouch.y) / elapsed - velocityY) * weight;
-    lastMoveAt = now;
+    // 확대/축소하다 손가락 하나만 남아도 값이 바뀌지 않게 무시합니다.
+    if (gesturePinched) return;
     lastTouch = touch;
-    updateViewport(panViewport(base, dx, horizontal ? 0 : dy, width, height, data.length));
+    select(touch.x);
   }
   function end() {
     if (!active) return;
-    clearHold();
     const mode = snapshot.mode;
-    if (!moved && !hadPinch && mode !== "inspect") select(lastTouch.x, true);
+    gesturePinched = false;
     setActive(false);
     changeMode("idle");
-    const { reducedMotion } = runtime.options();
-    // A paused finger or a lifted pinch must not start an unexpected fling.
-    if (mode === "pan" && !hadPinch && !reducedMotion && runtime.now() - lastMoveAt < 90 && Math.hypot(velocityX, horizontal ? 0 : velocityY) > 0.08) {
-      velocityX = Math.max(-2.5, Math.min(2.5, velocityX));
-      velocityY = horizontal ? 0 : Math.max(-2.5, Math.min(2.5, velocityY));
-      animation = "momentum";
-      lastFrameAt = runtime.now();
-      publish();
-    } else if (mode === "pan" || mode === "pinch") {
-      fitValues();
-    }
+    if (mode === "pinch") fitValues();
   }
   function cancel() {
     stop();
+    gesturePinched = false;
     setActive(false);
     changeMode("idle");
   }
   function reset(all: boolean) {
     cancel();
-    const { data, keys } = runtime.options();
     followingLatest = !all;
-    snapshot = { viewport: initialViewport(data, keys, all), selectedIndex: latestSensorIndex(data, keys), mode: "idle" };
+    snapshot = initialSnapshot(runtime.options(), all);
     publish();
   }
   return {
@@ -274,14 +216,17 @@ export function createChartInteraction(runtime: ChartInteractionRuntime) {
     zoom(factor: number) {
       cancel();
       followingLatest = false;
-      updateViewport(zoomViewport(snapshot.viewport, factor, runtime.options().data.length));
+      const { keys, data, bounds } = runtime.options();
+      updateViewport(zoomViewport(snapshot.viewport, factor, bounds ?? data.length, 0.5, 0.5, fixedDomainFor(keys)));
     },
     syncData() {
       cancel();
-      const { data, keys } = runtime.options();
+      const options = runtime.options();
+      const { data, keys, bounds } = options;
+      const selectedIndex = Math.min(snapshot.selectedIndex, data.length - 1);
       snapshot = followingLatest
-        ? { viewport: initialViewport(data, keys), selectedIndex: latestSensorIndex(data, keys), mode: "idle" }
-        : { ...snapshot, viewport: clampViewport(snapshot.viewport, data.length), selectedIndex: Math.min(snapshot.selectedIndex, data.length - 1) };
+        ? initialSnapshot(options)
+        : { ...snapshot, viewport: clampViewport(snapshot.viewport, bounds ?? data.length, fixedDomainFor(keys)), selectedIndex, cursor: Math.min(snapshot.cursor, Math.max(0, data.length - 1)) };
       publish();
     },
     dispose() {

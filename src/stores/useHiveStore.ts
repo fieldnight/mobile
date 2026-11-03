@@ -161,7 +161,7 @@ export const useHiveStore = create<HiveStoreState>()(
           // 캐시된 이전 조회 결과가 새 SSE 상태를 되돌리지 않게 합니다.
           if (!update || update.checkedAt <= Math.max(hive.connectionCheckedAt ?? 0, hive.telemetryReceivedAt ?? 0)) return hive;
           return refreshPresence({ ...hive, status: update.connected ? "online" : "offline",
-            connectionCheckedAt: update.checkedAt,
+            connectionCheckedAt: update.checkedAt, serverConnected: update.connected,
             disconnectedAt: update.connected ? hive.disconnectedAt : update.checkedAt });
         });
         return hives.every((hive, i) => hive === state.hives[i]) ? state : { hives };

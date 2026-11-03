@@ -55,15 +55,6 @@ test("sensor-specific gaps break the line instead of implying continuous reading
   ]);
 });
 
-test("vertical drag moves the value axis and horizontal drag stays in the data range", () => {
-  const viewport = { start: 8, span: 8, min: 0, max: 40 };
-  const down = model.panViewport(viewport, 0, 50, 200, 200, 24);
-  assert.equal(down.min, 10);
-  assert.equal(down.max, 50);
-  assert.equal(model.panViewport(viewport, 9999, 0, 200, 200, 24).start, 0);
-  assert.equal(model.panViewport(viewport, -9999, 0, 200, 200, 24).start, 15);
-});
-
 test("pinch zoom preserves its focal time and value away from boundaries", () => {
   const viewport = { start: 5, span: 8, min: 0, max: 40 };
   const next = model.zoomViewport(viewport, 2, 24, 0.25, 0.75);
@@ -93,6 +84,44 @@ test("temperature and humidity domains are fixed to -20..100 regardless of the d
   assert.deepEqual(model.valueDomain(data, ["co2"]), { min: 0, max: 1 });
 });
 
+test("fixedDomainFor identifies temperature/humidity keys and excludes others", () => {
+  assert.deepEqual(model.fixedDomainFor([key]), { min: -20, max: 100 });
+  assert.deepEqual(model.fixedDomainFor(["internalHumidity"]), { min: -20, max: 100 });
+  assert.equal(model.fixedDomainFor(["co2"]), null);
+});
+
+test("duty-percent sensors (peltier/fan) are fixed to 0..100", () => {
+  assert.deepEqual(model.fixedDomainFor(["peltierDutyPct"]), { min: 0, max: 100 });
+  assert.deepEqual(model.fixedDomainFor(["fanHotDutyPct"]), { min: 0, max: 100 });
+  assert.deepEqual(model.fixedDomainFor(["fanColdDutyPct"]), { min: 0, max: 100 });
+  assert.equal(model.fixedDomainFor(["peltierCoolCurrentA"]), null);
+});
+
+test("formatSensorValue keeps one decimal for temperature/current, rounds the rest", () => {
+  assert.equal(model.formatSensorValue(21.456, "internalTemperature"), "21.5");
+  assert.equal(model.formatSensorValue(1.234, "peltierCoolCurrentA"), "1.2");
+  assert.equal(model.formatSensorValue(63.7, "peltierDutyPct"), "64");
+  assert.equal(model.formatSensorValue(null, "peltierDutyPct"), "—");
+});
+
+test("pinch zoom on a fixed-domain sensor never changes the value axis", () => {
+  const fixed = { min: -20, max: 100 };
+  const viewport = { start: 5, span: 8, min: -20, max: 100 };
+  const zoomedIn = model.pinchViewport(viewport, 5, 24, 0.5, 0.9, 0.5, 0.1, fixed);
+  assert.equal(zoomedIn.min, -20);
+  assert.equal(zoomedIn.max, 100);
+  const zoomedOut = model.pinchViewport(viewport, 0.2, 24, 0.5, 0.9, 0.5, 0.1, fixed);
+  assert.equal(zoomedOut.min, -20);
+  assert.equal(zoomedOut.max, 100);
+});
+
+test("clampViewport with a fixed domain always returns that exact range", () => {
+  const fixed = { min: -20, max: 100 };
+  const clamped = model.clampViewport({ start: 0, span: 5, min: 542, max: -210 }, 24, fixed);
+  assert.equal(clamped.min, -20);
+  assert.equal(clamped.max, 100);
+});
+
 const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test("a moving pinch centroid carries the original focal time and value with it", () => {
@@ -102,45 +131,6 @@ test("a moving pinch centroid carries the original focal time and value with it"
   closeTo(next.start + next.span * 0.65, 7);
   closeTo(next.max - (next.max - next.min) * 0.35, 10);
   assert.deepEqual(viewport, { start: 5, span: 8, min: 0, max: 40 });
-});
-
-test("two fingers moving together pan without changing the scale", () => {
-  const viewport = { start: 5, span: 8, min: 0, max: 40 };
-  const pinch = model.pinchViewport(viewport, 1, 24, 0.25, 0.4, 0.45, 0.7);
-  const pan = model.panViewport(viewport, 40, 30, 200, 100, 24);
-  for (const field of ["start", "span", "min", "max"]) closeTo(pinch[field], pan[field]);
-});
-
-test("momentum travels the same distance across different animation frame rates", () => {
-  const viewport = { start: 100, span: 30, min: -10, max: 50 };
-  const whole = model.momentumStep(viewport, 0.9, -0.4, 32, 360, 240, 500);
-  const first = model.momentumStep(viewport, 0.9, -0.4, 16, 360, 240, 500);
-  const second = model.momentumStep(first.viewport, first.velocityX, first.velocityY, 16, 360, 240, 500);
-  for (const field of ["start", "span", "min", "max"]) closeTo(whole.viewport[field], second.viewport[field]);
-  closeTo(whole.velocityX, second.velocityX);
-  closeTo(whole.velocityY, second.velocityY);
-});
-
-test("momentum stops horizontal motion at either data boundary while vertical motion can continue", () => {
-  const viewport = { start: 0.1, span: 8, min: 0, max: 40 };
-  const left = model.momentumStep(viewport, 2, 0, 32, 200, 200, 24);
-  assert.equal(left.viewport.start, 0);
-  assert.equal(left.velocityX, 0);
-  assert.equal(left.done, true);
-  const right = model.momentumStep({ ...viewport, start: 14.9 }, -2, 0.5, 32, 200, 200, 24);
-  assert.equal(right.viewport.start, 15);
-  assert.equal(right.velocityX, 0);
-  assert.ok(right.velocityY > 0);
-  assert.equal(right.done, false);
-});
-
-test("momentum eventually settles and cannot scroll a fully visible time axis", () => {
-  const viewport = { start: 0, span: 23, min: 0, max: 40 };
-  const next = model.momentumStep(viewport, -1, 0, 16, 200, 200, 24);
-  assert.equal(next.viewport.start, 0);
-  assert.equal(next.done, true);
-  const settled = model.momentumStep({ ...viewport, span: 8, start: 7 }, 0.5, 0.5, 5000, 200, 200, 24);
-  assert.equal(settled.done, true);
 });
 
 test("visible segments retain edge neighbours without connecting missing samples", () => {
@@ -174,4 +164,49 @@ test("pixel reduction retains narrow spikes, endpoints, order, and missing-value
   }
   assert.equal(source[0].length, 6000);
   assert.equal(source[1].length, 3998);
+});
+
+test("daily records are padded to 24 hourly slots so the index equals the hour", () => {
+  const padded = model.padPeriodSlots([point(20, "3시"), point(22, "14:00")], "일간");
+  assert.equal(padded.length, 24);
+  assert.equal(padded[3].internalTemperature, 20);
+  assert.equal(padded[14].internalTemperature, 22);
+  assert.equal(padded[5].hasData, false);
+  assert.equal(padded[23].label, "23시");
+});
+
+test("daily view starts at recorded hours but can zoom out to the whole day plus margins", () => {
+  const padded = model.padPeriodSlots([point(20, "0시"), point(21, "6시"), point(22, "10시")], "일간");
+  const initial = model.initialViewport(padded, [key], false, model.DAILY_BOUNDS);
+  assert.equal(initial.start + initial.span, 10);
+  let viewport = initial;
+  for (let index = 0; index < 20; index += 1) viewport = model.zoomViewport(viewport, 1 / 1.4, model.DAILY_BOUNDS);
+  assert.equal(viewport.start, model.DAILY_BOUNDS.min);
+  assert.equal(viewport.start + viewport.span, model.DAILY_BOUNDS.max);
+  const all = model.initialViewport(padded, [key], true, model.DAILY_BOUNDS);
+  // "전체" 버튼은 최대로 축소한 모습(0~23시 + 양쪽 6시간 여백)입니다.
+  assert.deepEqual([all.start, all.span], [-6, 35]);
+});
+
+test("the cursor snaps readings to the nearest recorded slot and interpolates the dot between slots", () => {
+  const data = [point(20), point(null), point(24), point(26)];
+  assert.equal(model.nearestSensorIndex(data, [key], 0.9), 0);
+  assert.equal(model.nearestSensorIndex(data, [key], 1.6), 2);
+  assert.equal(model.interpolatedSensorValue(data, key, 2.5), 25);
+  assert.equal(model.interpolatedSensorValue(data, key, 0.5), null);
+  assert.equal(model.firstSensorIndex([point(null), point(3)], [key]), 1);
+});
+
+test("weekly and monthly records are padded to full slots with quarter-size margins", () => {
+  const weekly = model.padPeriodSlots([point(20, "수"), point(22, "월요일")], "주간");
+  assert.deepEqual(weekly.map((p) => p.label), ["월요일", "화", "수", "목", "금", "토", "일"]);
+  assert.equal(weekly[2].internalTemperature, 20);
+  assert.deepEqual(model.periodBounds(weekly.length), { min: -2, max: 8 });
+
+  const monthly = model.padPeriodSlots([point(20, "2주차")], "월간");
+  assert.equal(monthly.length, 5);
+  assert.equal(monthly[1].internalTemperature, 20);
+  assert.equal(model.padPeriodSlots([point(20, "6주차")], "월간").length, 6);
+  assert.deepEqual(model.periodBounds(monthly.length), { min: -1, max: 5 });
+  assert.deepEqual(model.DAILY_BOUNDS, { min: -6, max: 29 });
 });

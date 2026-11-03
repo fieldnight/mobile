@@ -1,20 +1,19 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { AppState } from "react-native";
 import { useHiveConnectionStatuses } from "@/features/hive/hooks";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  useHiveTelemetrySse,
-  type HiveTelemetryEvent,
-} from "@/features/hive-control/hooks";
 import { useHiveStore } from "@/stores/useHiveStore";
+import { useHiveLatestTelemetrySync } from "../hooks/useHiveLatestTelemetry";
 
 /**
- * 앱이 로그인된 동안 센서 SSE를 구독하고 공용 벌통 상태와 통계 캐시를 동기화합니다.
+ * 로그인된 동안 벌통 연결 상태와 마지막 측정값을 1분마다 조회해 공용 store에 반영합니다.
+ * 실시간(SSE) 연결은 계속 열어두지 않고, 실시간 센서 화면과 목표 온도 적용 중에만 엽니다.
  */
-export function HiveTelemetrySseSync() {
+export function HiveStatusSync() {
   const hives = useHiveStore((state) => state.hives);
   const ids = useMemo(() => hives.map((hive) => hive.id), [hives]);
   useHiveConnectionStatuses(ids);
+  useHiveLatestTelemetrySync(ids);
+
   useEffect(() => {
     const refresh = () => useHiveStore.getState().refreshPresence();
     refresh();
@@ -23,27 +22,6 @@ export function HiveTelemetrySseSync() {
     const subscription = AppState.addEventListener("change", (state) => { if (state === "active") refresh(); });
     return () => { clearInterval(timer); subscription.remove(); };
   }, []);
-  const queryClient = useQueryClient();
-  const updateHiveTelemetry = useHiveStore(
-    (state) => state.updateHiveTelemetry,
-  );
-
-  const handleTelemetry = useCallback(
-    (event: HiveTelemetryEvent) => {
-      const hiveId = String(event.hiveId);
-
-      updateHiveTelemetry(hiveId, event);
-
-      // 열려 있는 통계 화면만 최신 집계값을 다시 조회합니다.
-      queryClient.invalidateQueries({
-        queryKey: ["hive-telemetry", hiveId],
-        refetchType: "active",
-      });
-    },
-    [queryClient, updateHiveTelemetry],
-  );
-
-  useHiveTelemetrySse({ enabled: true, onTelemetry: handleTelemetry });
 
   return null;
 }

@@ -1,4 +1,5 @@
 import { PUBLIC_CONFIG } from "@/lib/publicConfig";
+import { Platform } from "react-native";
 import type { TodayWeatherData, WeatherCondition, WeatherDay } from "@/types";
 
 export function getKstNow() {
@@ -79,7 +80,8 @@ function kmaUrl(path: string, params: Record<string, string | number>) {
     .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
     .join("&");
 
-  return `https://apihub.kma.go.kr/api/typ01/url/${path}?${qs}`;
+  const root = __DEV__ && Platform.OS === "web" ? "/__dev/kma" : "https://apihub.kma.go.kr/api/typ01/url";
+  return `${root}/${path}?${qs}`;
 }
 
 export async function fetchTodayDirect(
@@ -167,4 +169,32 @@ export async function fetchWeeklyDirect(stn: number): Promise<WeatherDay[]> {
     });
     return acc;
   }, []);
+}
+
+export interface HourlyTemperature {
+  hour: number;
+  temperature: number | null;
+}
+
+/** 오늘 0시부터 현재까지의 실제 관측값. 최저/최고만으로 가상의 곡선을 만들지 않습니다. */
+export async function fetchTodayHourlyTemperatures(stn: number): Promise<HourlyTemperature[]> {
+  const now = getKstNow();
+  const date = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const hour = now.getUTCHours();
+  const response = await fetch(kmaUrl("kma_sfctm3.php", {
+    tm1: `${date}0000`, tm2: `${date}${String(hour).padStart(2, "0")}00`, stn,
+  }));
+  if (!response.ok) throw new Error("지역 시간별 기온을 불러오지 못했어요.");
+  const text = await response.text();
+  const error = checkKmaError(text);
+  if (error) throw new Error(error);
+  const points = new Map<number, HourlyTemperature>();
+  for (const line of parseKmaLines(text)) {
+    const fields = line.trim().split(/\s+/);
+    if (!/^\d{12}$/.test(fields[0]) || !fields[0].startsWith(date) || !fields[0].endsWith("00") || Number(fields[1]) !== stn) continue;
+    const atHour = Number(fields[0].slice(8, 10));
+    if (atHour > hour || atHour > 23) continue;
+    points.set(atHour, { hour: atHour, temperature: round1(Number.parseFloat(fields[11])) });
+  }
+  return [...points.values()].sort((a, b) => a.hour - b.hour);
 }

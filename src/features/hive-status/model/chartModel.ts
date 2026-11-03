@@ -1,4 +1,4 @@
-import type { DataPoint, HiveSensorDataKey } from "@/types";
+import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
 
 export interface ChartViewport {
   start: number;
@@ -10,6 +10,84 @@ export interface ChartViewport {
 export interface ChartPoint {
   index: number;
   value: number;
+}
+
+/** 가로(시간) 축이 움직일 수 있는 범위. 인덱스 단위이며 데이터 바깥 여백을 포함할 수 있습니다. */
+export interface ChartBounds {
+  min: number;
+  max: number;
+}
+
+const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
+const DAILY_HOURS = 24;
+const MIN_MONTH_WEEKS = 5;
+
+/**
+ * 기간 축소 범위: 기록이 덜 찼어도 기간 전체 칸과 양쪽에 칸 수의 1/4만큼 여백까지 축소할 수 있습니다.
+ * 일간 24칸은 양쪽 6시간, 주간 7칸은 2일, 월간 5칸은 1주입니다. 축 글자는 실제 칸에만 씁니다.
+ */
+export function periodBounds(slotCount: number): ChartBounds {
+  const margin = Math.max(1, Math.round(slotCount / 4));
+  return { min: -margin, max: slotCount - 1 + margin };
+}
+
+export const DAILY_BOUNDS: ChartBounds = periodBounds(DAILY_HOURS);
+
+/** 기존처럼 첫 기록부터 마지막 기록까지만 움직이는 범위 */
+export function dataBounds(count: number): ChartBounds {
+  return { min: 0, max: Math.max(count - 1, 1) };
+}
+
+function toBounds(boundsOrCount: ChartBounds | number): ChartBounds {
+  return typeof boundsOrCount === "number" ? dataBounds(boundsOrCount) : boundsOrCount;
+}
+
+export function emptyDataPoint(label: string): DataPoint {
+  return {
+    label,
+    internalTemperature: null,
+    externalTemperature: null,
+    internalHumidity: null,
+    externalHumidity: null,
+    co2: null,
+    peltierDutyPct: null,
+    fanHotDutyPct: null,
+    fanColdDutyPct: null,
+    targetTemperature: null,
+    peltierCoolCurrentA: null,
+    peltierHeatCurrentA: null,
+    peltierMode: null,
+    fanState: null,
+    internalSensorValid: null,
+    externalSensorValid: null,
+    hasData: false,
+  };
+}
+
+function leadingNumber(label: string) {
+  return Number(label.match(/\d+/)?.[0]);
+}
+
+/**
+ * 기간 기록을 전체 칸으로 채웁니다(일간 0~23시, 주간 월~일, 월간 1주차~).
+ * 인덱스가 곧 칸 위치가 되어 빠진 칸이 있어도 간격이 맞고, 아직 오지 않은 칸까지 축을 넓힐 수 있습니다.
+ */
+export function padPeriodSlots(data: DataPoint[], period: Period): DataPoint[] {
+  const slotOf = (label: string) => {
+    if (period === "일간") return leadingNumber(label);
+    if (period === "주간") return WEEKDAYS.findIndex((day) => label.includes(day));
+    return leadingNumber(label) - 1;
+  };
+  const weeks = Math.max(MIN_MONTH_WEEKS, ...data.map((point) => leadingNumber(point.label)).filter(Number.isInteger));
+  const slotCount = period === "일간" ? DAILY_HOURS : period === "주간" ? WEEKDAYS.length : weeks;
+  const labelOf = (slot: number) => (period === "일간" ? `${slot}시` : period === "주간" ? WEEKDAYS[slot] : `${slot + 1}주차`);
+
+  const bySlot = new Map<number, DataPoint>();
+  data.forEach((point) => {
+    const slot = slotOf(point.label);
+    if (Number.isInteger(slot) && slot >= 0 && slot < slotCount) bySlot.set(slot, point);
+  });
+  return Array.from({ length: slotCount }, (_, slot) => bySlot.get(slot) ?? emptyDataPoint(labelOf(slot)));
 }
 
 export function sensorValue(point: DataPoint | undefined, key: HiveSensorDataKey): number | null {
@@ -42,15 +120,57 @@ export function latestSensorIndex(data: DataPoint[], keys: HiveSensorDataKey[]) 
   return -1;
 }
 
-// 온도(°C)·습도(%) 센서는 항상 이 고정 범위로 표시합니다.
-// 데이터 편차에 따라 y축이 널뛰며 비현실적인 값(예: 300°C)까지 확대되는 것을 막습니다.
-const FIXED_DOMAIN_MIN = -20;
-const FIXED_DOMAIN_MAX = 100;
+export function firstSensorIndex(data: DataPoint[], keys: HiveSensorDataKey[]) {
+  return data.findIndex((point) => keys.some((key) => sensorValue(point, key) !== null));
+}
 
-export function valueDomain(data: DataPoint[], keys: HiveSensorDataKey[], start = 0, end = data.length - 1) {
+/** cursor(소수 인덱스)에서 가장 가까운, 값이 있는 기록의 인덱스. 없으면 -1입니다. */
+export function nearestSensorIndex(data: DataPoint[], keys: HiveSensorDataKey[], cursor: number) {
+  const hasValue = (index: number) => keys.some((key) => sensorValue(data[index], key) !== null);
+  const center = Math.max(0, Math.min(data.length - 1, Math.round(cursor)));
+  for (let offset = 0; offset < data.length; offset += 1) {
+    const before = center - offset;
+    const after = center + offset;
+    const beforeOk = before >= 0 && hasValue(before);
+    const afterOk = after < data.length && hasValue(after);
+    if (beforeOk && afterOk) return Math.abs(cursor - before) <= Math.abs(after - cursor) ? before : after;
+    if (beforeOk) return before;
+    if (afterOk) return after;
+  }
+  return -1;
+}
+
+/** cursor 위치의 값을 앞뒤 기록 사이에서 선형 보간합니다. 한쪽이 비어 있으면 null입니다. */
+export function interpolatedSensorValue(data: DataPoint[], key: HiveSensorDataKey, cursor: number) {
+  const low = Math.floor(cursor);
+  const high = Math.ceil(cursor);
+  const a = sensorValue(data[low], key);
+  const b = sensorValue(data[high], key);
+  if (a === null || b === null) return null;
+  return low === high ? a : a + (b - a) * (cursor - low);
+}
+
+// 온도(°C)·습도(%) 센서는 항상 이 고정 범위로 표시합니다.
+// 세로 드래그/핀치로도 벗어날 수 없도록 clamp/pan/pinch 전 단계에서 이 값으로 되돌립니다.
+export const FIXED_DOMAIN_MIN = -20;
+export const FIXED_DOMAIN_MAX = 100;
+
+// 듀티(%) 센서는 항상 0~100 범위로 표시합니다.
+const DUTY_PCT_KEYS: HiveSensorDataKey[] = ["peltierDutyPct", "fanHotDutyPct", "fanColdDutyPct"];
+
+export function fixedDomainFor(keys: HiveSensorDataKey[]) {
   if (keys.some((key) => key.includes("Temperature") || key.includes("Humidity"))) {
     return { min: FIXED_DOMAIN_MIN, max: FIXED_DOMAIN_MAX };
   }
+  if (keys.some((key) => DUTY_PCT_KEYS.includes(key))) {
+    return { min: 0, max: 100 };
+  }
+  return null;
+}
+
+export function valueDomain(data: DataPoint[], keys: HiveSensorDataKey[], start = 0, end = data.length - 1) {
+  const fixed = fixedDomainFor(keys);
+  if (fixed) return fixed;
   let lowest = Infinity;
   let highest = -Infinity;
   const last = Math.min(data.length - 1, Math.ceil(end));
@@ -71,47 +191,70 @@ export function valueDomain(data: DataPoint[], keys: HiveSensorDataKey[], start 
   };
 }
 
-export function clampViewport(viewport: ChartViewport, count: number): ChartViewport {
-  const totalSpan = Math.max(count - 1, 1);
+type FixedDomain = { min: number; max: number } | null;
+
+export function clampViewport(viewport: ChartViewport, boundsOrCount: ChartBounds | number, fixedDomain: FixedDomain = null): ChartViewport {
+  const bounds = toBounds(boundsOrCount);
+  const totalSpan = Math.max(bounds.max - bounds.min, 1);
   const span = Math.min(totalSpan, Math.max(Math.min(1, totalSpan), viewport.span));
   return {
     ...viewport,
-    start: Math.min(Math.max(0, viewport.start), totalSpan - span),
+    start: Math.min(Math.max(bounds.min, viewport.start), bounds.max - span),
     span,
-    max: Math.max(viewport.min + 0.1, viewport.max),
+    ...(fixedDomain ?? { max: Math.max(viewport.min + 0.1, viewport.max) }),
   };
 }
 
-export function initialViewport(data: DataPoint[], keys: HiveSensorDataKey[], showAll = false): ChartViewport {
+/**
+ * 처음 보여줄 범위
+ * - showAll: bounds 전체(기간 전체 칸과 양쪽 여백까지, 최대로 축소한 모습)
+ * - bounds를 넘긴 기간 보기: 기록이 있는 마지막 칸까지만(최대 16칸)
+ * - 그 외: 최근 16칸
+ */
+export function initialViewport(data: DataPoint[], keys: HiveSensorDataKey[], showAll = false, bounds?: ChartBounds): ChartViewport {
   const latest = Math.max(0, latestSensorIndex(data, keys));
-  const totalSpan = Math.max(1, data.length - 1);
-  const span = showAll ? totalSpan : Math.min(totalSpan, 16);
-  const start = showAll ? 0 : Math.max(0, Math.min(totalSpan - span, latest - span * 0.8));
+  const range = bounds ?? dataBounds(data.length);
+  const totalSpan = Math.max(1, range.max - range.min);
+  let start: number;
+  let span: number;
+  if (showAll) {
+    start = range.min;
+    span = totalSpan;
+  } else if (bounds) {
+    span = Math.max(1, Math.min(16, latest));
+    start = Math.max(range.min, latest - span);
+  } else {
+    span = Math.min(totalSpan, 16);
+    start = Math.max(0, Math.min(totalSpan - span, latest - span * 0.8));
+  }
   return { start, span, ...valueDomain(data, keys, start, start + span) };
 }
 
-export function panViewport(viewport: ChartViewport, dx: number, dy: number, width: number, height: number, count: number) {
-  const yOffset = (dy / Math.max(height, 1)) * (viewport.max - viewport.min);
-  return clampViewport({
-    ...viewport,
-    start: viewport.start - (dx / Math.max(width, 1)) * viewport.span,
-    min: viewport.min + yOffset,
-    max: viewport.max + yOffset,
-  }, count);
-}
-
 /** Keep the pinch focal point fixed in both the time and value axes. */
-export function zoomViewport(viewport: ChartViewport, factor: number, count: number, anchorX = 0.5, anchorY = 0.5) {
-  return pinchViewport(viewport, factor, count, anchorX, anchorY, anchorX, anchorY);
+export function zoomViewport(
+  viewport: ChartViewport, factor: number, boundsOrCount: ChartBounds | number, anchorX = 0.5, anchorY = 0.5,
+  fixedDomain: FixedDomain = null,
+) {
+  return pinchViewport(viewport, factor, boundsOrCount, anchorX, anchorY, anchorX, anchorY, fixedDomain);
 }
 
 /** Move the original focal time/value with the fingers as their centroid moves. */
 export function pinchViewport(
-  viewport: ChartViewport, factor: number, count: number,
+  viewport: ChartViewport, factor: number, boundsOrCount: ChartBounds | number,
   fromX: number, fromY: number, toX: number, toY: number,
+  fixedDomain: FixedDomain = null,
 ) {
+  const bounds = toBounds(boundsOrCount);
   const safeFactor = Math.max(0.1, Math.min(10, factor));
-  const span = Math.max(1, Math.min(Math.max(count - 1, 1), viewport.span / safeFactor));
+  const span = Math.max(1, Math.min(Math.max(bounds.max - bounds.min, 1), viewport.span / safeFactor));
+  if (fixedDomain) {
+    return clampViewport({
+      start: viewport.start + viewport.span * fromX - span * toX,
+      span,
+      min: fixedDomain.min,
+      max: fixedDomain.max,
+    }, bounds, fixedDomain);
+  }
   const range = Math.max(0.1, Math.min(1e8, (viewport.max - viewport.min) / safeFactor));
   const value = viewport.max - fromY * (viewport.max - viewport.min);
   return clampViewport({
@@ -119,28 +262,7 @@ export function pinchViewport(
     span,
     min: value - range * (1 - toY),
     max: value + range * toY,
-  }, count);
-}
-
-/** Velocities use PanResponder's px/ms units; integrate decay independently of frame rate. */
-export function momentumStep(
-  viewport: ChartViewport, velocityX: number, velocityY: number, elapsedMs: number,
-  width: number, height: number, count: number,
-) {
-  const duration = Math.max(0, elapsedMs);
-  const decay = Math.exp(-duration / 240);
-  const travel = 240 * (1 - decay);
-  const next = panViewport(viewport, velocityX * travel, velocityY * travel, width, height, count);
-  const lastStart = Math.max(count - 1, 1) - next.span;
-  const hitXBoundary = (velocityX > 0 && next.start <= 0) || (velocityX < 0 && next.start >= lastStart);
-  const nextVelocityX = hitXBoundary ? 0 : velocityX * decay;
-  const nextVelocityY = velocityY * decay;
-  return {
-    viewport: next,
-    velocityX: nextVelocityX,
-    velocityY: nextVelocityY,
-    done: Math.abs(nextVelocityX) < 0.02 && Math.abs(nextVelocityY) < 0.02,
-  };
+  }, bounds);
 }
 
 export function chartSegments(data: DataPoint[], key: HiveSensorDataKey): ChartPoint[][] {
@@ -227,5 +349,6 @@ export function visibleChartSegments(
 
 export function formatSensorValue(value: number | null, key: HiveSensorDataKey) {
   if (value === null) return "—";
-  return key.includes("Temperature") ? value.toFixed(1) : String(Math.round(value));
+  if (key.includes("Temperature") || key.includes("Current")) return value.toFixed(1);
+  return String(Math.round(value));
 }

@@ -17,8 +17,8 @@ export function HiveHardwareStatus({ hive }: { hive?: HiveData }) {
     ["펠티어 출력", numberLabel(data.peltierDutyPct, "%")],
     ["팬 상태", data.fanState ?? "미수신"],
     ["고온측 / 저온측 팬", `${numberLabel(data.fanHotDutyPct, "%")} / ${numberLabel(data.fanColdDutyPct, "%")}`],
-    ["냉각 / 가열 전류", `${numberLabel(data.peltierCoolCurrentA, "A")} / ${numberLabel(data.peltierHeatCurrentA, "A")}`],
-    ["내부 / 외부 센서", `${sensorLabel(data.internalSensorValid)} / ${sensorLabel(data.externalSensorValid)}`],
+    ["냉각 / 가열측 IS 전압", `${numberLabel(data.peltierCoolCurrentA, " mV")} / ${numberLabel(data.peltierHeatCurrentA, " mV")}`],
+    ["내부 / 기계 센서", `${sensorLabel(data.internalSensorValid)} / ${sensorLabel(data.externalSensorValid)}`],
     ["CO₂", numberLabel(data.co2, " ppm")],
   ];
   return (

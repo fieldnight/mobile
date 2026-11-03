@@ -1,27 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, AppState, PanResponder, Platform, type GestureResponderEvent } from "react-native";
-import * as Haptics from "expo-haptics";
+import { AccessibilityInfo, AppState, PanResponder, type GestureResponderEvent } from "react-native";
 import type { DataPoint, HiveSensorDataKey } from "@/types";
-import { initialViewport, latestSensorIndex } from "../model/chartModel";
-import { createChartInteraction, type ChartInteractionSnapshot } from "../model/chartInteraction";
+import type { ChartBounds } from "../model/chartModel";
+import { createChartInteraction, initialSnapshot, type ChartInteractionSnapshot } from "../model/chartInteraction";
 
-export function useChartInteraction({ data, keys, width, height, paddingX, paddingY, onInteractionChange }: {
+export function useChartInteraction({ data, keys, width, height, paddingX, paddingY, bounds, onInteractionChange }: {
   data: DataPoint[]; keys: HiveSensorDataKey[]; width: number; height: number;
-  paddingX: number; paddingY: number; onInteractionChange?: (active: boolean) => void;
+  paddingX: number; paddingY: number; bounds?: ChartBounds; onInteractionChange?: (active: boolean) => void;
 }) {
-  const [snapshot, setSnapshot] = useState<ChartInteractionSnapshot>(() => ({
-    viewport: initialViewport(data, keys), selectedIndex: latestSensorIndex(data, keys), mode: "idle",
-  }));
+  const [snapshot, setSnapshot] = useState<ChartInteractionSnapshot>(() => initialSnapshot({ data, keys, bounds }));
   const reducedMotion = useRef(false);
-  const current = useRef({ data, keys, width, height, paddingX, paddingY, onInteractionChange });
-  current.current = { data, keys, width, height, paddingX, paddingY, onInteractionChange };
+  const current = useRef({ data, keys, width, height, paddingX, paddingY, bounds, onInteractionChange });
+  current.current = { data, keys, width, height, paddingX, paddingY, bounds, onInteractionChange };
   const [controller] = useState(() => createChartInteraction({
     options: () => ({ ...current.current, reducedMotion: reducedMotion.current }),
     render: setSnapshot,
     interaction: (active) => current.current.onInteractionChange?.(active),
-    haptic: () => {
-      if (Platform.OS !== "web") void Haptics.selectionAsync().catch(() => {});
-    },
+    haptic: () => {},
     now: () => performance.now(),
     requestFrame: (callback) => requestAnimationFrame(callback),
     cancelFrame: cancelAnimationFrame,

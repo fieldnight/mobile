@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
+import type { DataPoint, Period } from "@/types";
 import type { HiveHardwareIssue } from "@/types/hive-telemetry";
 
 interface ApiResponse<T> {
@@ -9,36 +9,32 @@ interface ApiResponse<T> {
 }
 
 export type HiveTelemetryPeriod = "HOUR" | "DAY" | "WEEK" | "MONTH";
-export type HiveTelemetryInterval = "ONE_MIN" | "FIVE_MIN" | "TEN_MIN";
-export type HiveTelemetrySensorType =
-  | "INTERNAL_TEMPERATURE"
-  | "EXTERNAL_TEMPERATURE"
-  | "INTERNAL_HUMIDITY"
-  | "EXTERNAL_HUMIDITY"
-  | "CO2";
+export type HiveTelemetryInterval = "TEN_SEC" | "ONE_MIN" | "FIVE_MIN" | "TEN_MIN";
 
 export interface HiveTelemetryPoint {
   label: string;
-  value: number | null;
+  internalTemperature: number | null;
+  externalTemperature: number | null;
+  internalHumidity: number | null;
+  externalHumidity: number | null;
+  co2: number | null;
+  peltierMode: string | null;
+  peltierDutyPct: number | null;
+  fanHotDutyPct: number | null;
+  fanColdDutyPct: number | null;
+  fanState: string | null;
+  targetTemperature: number | null;
+  internalSensorValid: boolean | null;
+  externalSensorValid: boolean | null;
+  peltierCoolCurrentA: number | null;
+  peltierHeatCurrentA: number | null;
   issues?: HiveHardwareIssue[];
 }
 
 export interface HiveTelemetryResponse {
-  sensorType: HiveTelemetrySensorType;
   period: HiveTelemetryPeriod;
   data: HiveTelemetryPoint[];
 }
-
-export const HIVE_TELEMETRY_SENSORS: Array<{
-  sensorType: HiveTelemetrySensorType;
-  dataKey: HiveSensorDataKey;
-}> = [
-  { sensorType: "INTERNAL_TEMPERATURE", dataKey: "internalTemperature" },
-  { sensorType: "EXTERNAL_TEMPERATURE", dataKey: "externalTemperature" },
-  { sensorType: "INTERNAL_HUMIDITY", dataKey: "internalHumidity" },
-  { sensorType: "EXTERNAL_HUMIDITY", dataKey: "externalHumidity" },
-  { sensorType: "CO2", dataKey: "co2" },
-];
 
 const PERIOD_TO_API: Record<Period, HiveTelemetryPeriod> = {
   일간: "DAY",
@@ -49,13 +45,11 @@ const PERIOD_TO_API: Record<Period, HiveTelemetryPeriod> = {
 interface GetHiveTelemetryParams {
   hiveId: string | number;
   period: Period;
-  sensorType: HiveTelemetrySensorType;
 }
 
 export async function getHiveTelemetry({
   hiveId,
   period,
-  sensorType,
 }: GetHiveTelemetryParams): Promise<HiveTelemetryResponse> {
   const apiPeriod = PERIOD_TO_API[period];
 
@@ -63,7 +57,6 @@ export async function getHiveTelemetry({
     hiveId,
     endpoint: `/api/v1/hives/${hiveId}/telemetry`,
     period: apiPeriod,
-    sensorType,
   });
 
   try {
@@ -72,7 +65,6 @@ export async function getHiveTelemetry({
       {
         params: {
           period: apiPeriod,
-          sensorType,
         },
       },
     );
@@ -80,7 +72,6 @@ export async function getHiveTelemetry({
     console.log("[Hive Telemetry API] 센서 데이터 조회 성공", {
       hiveId,
       period: res.data.data.period,
-      sensorType: res.data.data.sensorType,
       count: res.data.data.data.length,
       sample: res.data.data.data[0],
     });
@@ -90,7 +81,6 @@ export async function getHiveTelemetry({
     console.error("[Hive Telemetry API] 센서 데이터 조회 실패", {
       hiveId,
       period: apiPeriod,
-      sensorType,
       error,
     });
     throw error;
@@ -108,15 +98,13 @@ function toLocalIsoString(date: Date) {
 
 interface GetHiveTelemetryHourParams {
   hiveId: string | number;
-  sensorType: HiveTelemetrySensorType;
   from: Date;
   interval: HiveTelemetryInterval;
 }
 
-/** 특정 날짜의 특정 시(0~23시) 구간을 1/5/10분 간격으로 집계한 센서 데이터를 조회합니다. */
+/** 특정 날짜의 특정 시(0~23시) 구간을 10초/1분/5분/10분 간격으로 집계한 센서 데이터를 조회합니다. */
 export async function getHiveTelemetryHour({
   hiveId,
-  sensorType,
   from,
   interval,
 }: GetHiveTelemetryHourParams): Promise<HiveTelemetryResponse> {
@@ -126,7 +114,6 @@ export async function getHiveTelemetryHour({
     hiveId,
     endpoint: `/api/v1/hives/${hiveId}/telemetry`,
     period: "HOUR",
-    sensorType,
     from: fromParam,
     interval,
   });
@@ -137,7 +124,6 @@ export async function getHiveTelemetryHour({
       {
         params: {
           period: "HOUR",
-          sensorType,
           from: fromParam,
           interval,
         },
@@ -146,7 +132,6 @@ export async function getHiveTelemetryHour({
 
     console.log("[Hive Telemetry API] 시간대별 센서 데이터 조회 성공", {
       hiveId,
-      sensorType: res.data.data.sensorType,
       count: res.data.data.data.length,
       sample: res.data.data.data[0],
     });
@@ -155,7 +140,6 @@ export async function getHiveTelemetryHour({
   } catch (error) {
     console.error("[Hive Telemetry API] 시간대별 센서 데이터 조회 실패", {
       hiveId,
-      sensorType,
       from: fromParam,
       interval,
       error,
@@ -164,29 +148,20 @@ export async function getHiveTelemetryHour({
   }
 }
 
-function toPointMap(response?: HiveTelemetryResponse, normalizeLabel?: (label: string) => string) {
-  return new Map(
-    response?.data.map((point) => [
-      normalizeLabel ? normalizeLabel(point.label) : point.label,
-      point.value,
-    ]) ?? [],
-  );
-}
-
-/** 같은 오류가 센서별 응답마다 반복되므로 코드와 원본 시각으로 중복을 제거합니다. */
+/** 같은 오류가 slot마다 반복될 수 있으므로 코드와 원본 시각으로 중복을 제거합니다. */
 export function collectTelemetryIssues(
-  responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
+  response: HiveTelemetryResponse | undefined,
   normalizeLabel: (label: string) => string = (label) => label,
 ): Map<string, HiveHardwareIssue[]> {
   const slots = new Map<string, Map<string, HiveHardwareIssue>>();
-  Object.values(responses).forEach((response) => response?.data.forEach((point) => {
+  response?.data.forEach((point) => {
     const label = normalizeLabel(point.label);
     const issues = slots.get(label) ?? new Map<string, HiveHardwareIssue>();
     (point.issues ?? []).forEach((issue) => {
       issues.set(JSON.stringify([issue.code, issue.timestamp]), issue);
     });
     slots.set(label, issues);
-  }));
+  });
   return new Map([...slots].map(([label, issues]) => [label, [...issues.values()]]));
 }
 
@@ -198,8 +173,53 @@ function emptyPoint(label: string): DataPoint {
     internalHumidity: null,
     externalHumidity: null,
     co2: null,
+    peltierDutyPct: null,
+    fanHotDutyPct: null,
+    fanColdDutyPct: null,
+    targetTemperature: null,
+    peltierCoolCurrentA: null,
+    peltierHeatCurrentA: null,
+    peltierMode: null,
+    fanState: null,
+    internalSensorValid: null,
+    externalSensorValid: null,
     hasData: false,
   };
+}
+
+const NUMERIC_SENSOR_KEYS = [
+  "internalTemperature",
+  "externalTemperature",
+  "internalHumidity",
+  "externalHumidity",
+  "co2",
+  "peltierDutyPct",
+  "fanHotDutyPct",
+  "fanColdDutyPct",
+  "targetTemperature",
+  "peltierCoolCurrentA",
+  "peltierHeatCurrentA",
+] as const;
+
+/** 시간대별 조회는 서버 집계값과 시각을 그대로 보존한다. 미수신은 0으로 바꾸지 않는다. */
+export function mapHourlyTelemetry(response: HiveTelemetryResponse): DataPoint[] {
+  const issues = collectTelemetryIssues(response);
+  return response.data.map((source) => {
+    const point = emptyPoint(source.label);
+    for (const key of NUMERIC_SENSOR_KEYS) {
+      const value = source[key];
+      if (typeof value === "number" && Number.isFinite(value)) {
+        point[key] = value;
+        point.hasData = true;
+      }
+    }
+    point.peltierMode = source.peltierMode ?? null;
+    point.fanState = source.fanState ?? null;
+    point.internalSensorValid = source.internalSensorValid ?? null;
+    point.externalSensorValid = source.externalSensorValid ?? null;
+    point.issues = issues.get(source.label) ?? [];
+    return point;
+  });
 }
 
 const WEEKDAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
@@ -216,8 +236,7 @@ function hourOf(label: string) {
 
 /**
  * 일간 label을 "HH시"로 정규화합니다.
- * 센서마다 "14:00" / "14시" 등 형식이 달라 그대로 합치면 같은 시간이 서로 다른
- * label로 갈라져 값이 비어 보이고 그래프 선이 끊기므로, 합치기 전에 통일합니다.
+ * 서버 응답 형식이 "14:00" / "14시" 등으로 달라질 수 있어 합치기 전에 통일합니다.
  */
 function normalizeDailyLabel(label: string) {
   const hour = hourOf(label);
@@ -246,30 +265,28 @@ function compareLabels(period: Period) {
 }
 
 /**
- * 센서별로 따로 내려오는 telemetry 응답을 화면용 DataPoint 배열로 합칩니다.
- * 서버의 label은 x축, value는 해당 센서의 y축 값으로 그대로 사용합니다.
+ * 서버 telemetry 응답을 화면용 DataPoint 배열로 변환합니다.
  * labels는 서버 응답 순서와 무관하게 period 기준으로 정렬해 00시부터 차례대로 보여줍니다.
- * fallback은 빈 시간대 label에만 사용하고, 미수신 센서 값은 null로 유지합니다.
+ * fallback은 빈 시간대 label에만 사용하고, 미수신 값은 null로 유지합니다.
  */
 export function mergeTelemetryData(
   fallback: DataPoint[],
-  responses: Partial<Record<HiveTelemetrySensorType, HiveTelemetryResponse>>,
+  response: HiveTelemetryResponse | undefined,
   period: Period,
 ): DataPoint[] {
   const normalizeLabel = period === "일간" ? normalizeDailyLabel : undefined;
-  const issues = collectTelemetryIssues(responses, normalizeLabel);
-  const responseMaps = Object.fromEntries(
-    HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
-      sensorType,
-      toPointMap(responses[sensorType], normalizeLabel),
-    ]),
-  ) as Record<HiveTelemetrySensorType, Map<string, number | null>>;
+  const issues = collectTelemetryIssues(response, normalizeLabel);
+  const pointMap = new Map(
+    response?.data.map((point) => [
+      normalizeLabel ? normalizeLabel(point.label) : point.label,
+      point,
+    ]) ?? [],
+  );
+
   let labels = Array.from(
     new Set([
       ...fallback.map((point) => (normalizeLabel ? normalizeLabel(point.label) : point.label)),
-      ...HIVE_TELEMETRY_SENSORS.flatMap(({ sensorType }) => [
-        ...responseMaps[sensorType].keys(),
-      ]),
+      ...pointMap.keys(),
     ]),
   ).sort(compareLabels(period));
 
@@ -286,25 +303,25 @@ export function mergeTelemetryData(
     const point = emptyPoint(label);
     point.issues = issues.get(label) ?? [];
 
-    HIVE_TELEMETRY_SENSORS.forEach(({ sensorType, dataKey }) => {
-      const value = responseMaps[sensorType].get(label);
+    const source = pointMap.get(label);
+    NUMERIC_SENSOR_KEYS.forEach((key) => {
+      const value = source?.[key];
       if (typeof value === "number" && Number.isFinite(value)) {
-        point[dataKey] = Math.round(value * 10) / 10;
+        point[key] = Math.round(value * 10) / 10;
         point.hasData = true;
       }
     });
+    point.peltierMode = source?.peltierMode ?? null;
+    point.fanState = source?.fanState ?? null;
+    point.internalSensorValid = source?.internalSensorValid ?? null;
+    point.externalSensorValid = source?.externalSensorValid ?? null;
 
     return point;
   });
 
   console.log("[Hive Telemetry API] 센서 데이터 병합 완료", {
     mergedCount: merged.length,
-    counts: Object.fromEntries(
-      HIVE_TELEMETRY_SENSORS.map(({ sensorType }) => [
-        sensorType,
-        responseMaps[sensorType].size,
-      ]),
-    ),
+    count: pointMap.size,
   });
 
   return merged;

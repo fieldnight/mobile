@@ -3,10 +3,9 @@
  * - 기간: 일간/주간/월간 데이터 범위를 고릅니다.
  * - 보기: 차트/통합/표 표시 방식을 고릅니다.
  */
-import { useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { useState, type ReactNode } from "react";
+import { Pressable, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { Card, SolidToggleButton } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { VIEW_MODES } from "@/features/hive-status/constants";
@@ -47,15 +46,6 @@ export function PeriodCard({
   children,
 }: PeriodCardProps) {
   const [weatherExpanded, setWeatherExpanded] = useState(false);
-  const lastHapticAt = useRef(0);
-
-  function triggerHaptic() {
-    if (Platform.OS === "web") return;
-    const now = Date.now();
-    if (now - lastHapticAt.current < 80) return;
-    lastHapticAt.current = now;
-    void Haptics.selectionAsync().catch(() => undefined);
-  }
 
   return (
     <Card
@@ -74,10 +64,7 @@ export function PeriodCard({
             label={item}
             active={period === item}
             testID={`button-period-${item}`}
-            onPress={() => {
-              if (period !== item) triggerHaptic();
-              onSelect(item);
-            }}
+            onPress={() => onSelect(item)}
           />
         ))}
       </OptionRow>
@@ -89,10 +76,7 @@ export function PeriodCard({
             label={item.label}
             active={viewMode === item.key}
             testID={`button-view-${item.key}`}
-            onPress={() => {
-              if (viewMode !== item.key) triggerHaptic();
-              onViewModeChange(item.key);
-            }}
+            onPress={() => onViewModeChange(item.key)}
           />
         ))}
       </OptionRow>
