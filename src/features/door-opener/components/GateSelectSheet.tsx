@@ -5,6 +5,8 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import { useGateModeStore } from "@/stores/useGateModeStore";
+import { useDoorDeviceState } from "@/stores/useDoorDeviceState";
+import { runtimeFromServerCommand } from "../model/deviceCardState";
 import { useAppToast } from "@/components/ToastContext";
 import { cancelGateCommand, getCurrentGateCommand, getGateConnection, type GateCurrentCommand } from "../api/gateCommandsApi";
 import { getGateDeviceErrorMessage } from "../api/gateDeviceApi";
@@ -68,6 +70,11 @@ export function GateSelectSheet({
         const [current, connection] = await Promise.allSettled([
           getCurrentGateCommand(gate), getGateConnection(gate),
         ]);
+        if (!cancelled && current.status === "fulfilled" && current.value) {
+          const runtime = runtimeFromServerCommand(current.value, gate.macAddress);
+          if (runtime) useDoorDeviceState.getState().confirm({ deviceId: gate.macAddress,
+            runtime, source: "online", confirmedAt: runtime.activatedAt });
+        }
         let label = "서버 연결 확인 실패";
         if (connection.status === "fulfilled") {
           label = connection.value.isConnected ? "서버 판정: 온라인" : "서버 판정: 오프라인";
@@ -100,6 +107,8 @@ export function GateSelectSheet({
     setCancelingGateId(gate.id);
     try {
       await cancelGateCommand(gate, current.commandId);
+      useDoorDeviceState.getState().confirm({ deviceId: gate.macAddress,
+        runtime: null, source: "online", confirmedAt: Date.now() });
       if (startedEpoch === viewEpoch.current) setCurrentCommands((prev) => ({ ...prev, [gate.id]: null }));
       showToast(`${gate.name}의 적용을 취소했어요.`, "success");
     } catch (error) {

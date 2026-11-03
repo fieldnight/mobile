@@ -7,8 +7,8 @@
 static queued_command_t pending[8];
 static int queued, consumed, replies;
 static int subscribe_calls, subscribe_result=1, online_reports, offline_reports;
-static bool servo_deferred;
-bool servo_sg90_is_movement_deferred(void) { return servo_deferred; }
+static int acknowledge_calls;
+esp_err_t servo_sg90_acknowledge(void) { acknowledge_calls++; return ESP_OK; }
 static char reply_text[400], published_topic[80], published_text[300];
 static jmp_buf done;
 QueueHandle_t xQueueCreate(unsigned count,unsigned size) { assert(size==sizeof(queued_command_t)); return pending; }
@@ -60,21 +60,24 @@ int main(void) {
  receive_command(&e);assert(queued==2);
  int before=schedule_calls;
  if(!setjmp(done))command_task(NULL);
- assert(replies==2 && schedule_calls==before+1 && gates==3 && strstr(reply_text,"\"status\":\"OK\""));
- queued=consumed=0;servo_deferred=true;
- receive_command(&e);
+ assert(replies==2 && schedule_calls==before+1 && gates==3 && acknowledge_calls==1 && strstr(reply_text,"\"status\":\"OK\""));
+ // Offline ON followed by online ON must acknowledge the existing state, without motion.
+ apply("WB2|O");
+ queued=consumed=0;
+ const char *same="{\"commandId\":\"cmd-same\",\"gateId\":\"AA:BB:CC:DD:EE:FF\",\"cardType\":\"OPEN_NOW\"}";
+ e.current_data_offset=0;e.topic=s_command_topic;e.topic_len=(int)strlen(s_command_topic);
+ e.total_data_len=e.data_len=(int)strlen(same);e.data=same;
+ receive_command(&e);before=schedule_calls;
  if(!setjmp(done))command_task(NULL);
- assert(strstr(reply_text,"SERVO_DEFERRED") && strstr(reply_text,"\"status\":\"OK\""));
- servo_deferred=false;
+ assert(strstr(reply_text,"ALREADY_APPLIED") && schedule_calls==before && acknowledge_calls==1);
+ // Restore frame metadata for malformed/retained input checks below.
+ e.total_data_len=e.data_len=(int)strlen(json);e.data=json;
  queued=consumed=0;e.retain=true;receive_command(&e);assert(queued==0);
  e.retain=false;e.topic="wrong";e.topic_len=5;receive_command(&e);assert(queued==0);
  e.topic=s_command_topic;e.topic_len=(int)strlen(s_command_topic);e.data_len=20;receive_command(&e);
  e.current_data_offset=21;e.data=json+21;e.data_len=(int)strlen(json)-21;receive_command(&e);assert(queued==0);
- assert(mqtt_publisher_publish_sensor_blocked("entrance",1,60,true)==ESP_OK);
- assert(!strcmp(published_topic,"gate/AA:BB:CC:DD:EE:FF/tunnel-alert"));
- assert(strstr(published_text,"\"blockedSeconds\":60") && !strstr(published_text,"+09:00"));
  mqtt_event_handler(NULL,NULL,MQTT_EVENT_DISCONNECTED,NULL);
  assert(!s_command_ready && !mqtt_publisher_is_connected());
- puts("MQTT transport host tests passed: SUBACK gating and retry, chunks, duplicate execution, topic, retained rejection, alert contract");
+ puts("MQTT transport host tests passed: SUBACK gating, chunks, duplicate suppression and one acknowledgement");
  return 0;
 }

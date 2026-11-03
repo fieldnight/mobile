@@ -41,7 +41,7 @@ export function encodeNfcCard(card: NfcDoorCardConfig): string {
       const start = minutes(card.start);
       const end = minutes(card.end, true);
       // Old local cards can contain an overnight or equal-time (24 h) window.
-      fields = ["W", start, end, repeat];
+      fields = [card.endAction === "exit_only" ? "R" : "W", start, end, repeat];
       break;
     }
     case "alternate_24h":
