@@ -14,7 +14,6 @@ import DateTimePicker, {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useCreateFarm } from "@/features/farm";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import type { UserCropCreateRequest, CultivationType } from "@/types/farm";
@@ -158,7 +157,6 @@ export default function AddFarm() {
   const { isVisible: isKeyboardVisible, keyboardHeight } = useKeyboard();
 
   const openPicker = (target: PickerTarget) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const current =
       target === "harvestStart"
         ? (harvestStartDate ?? new Date())
@@ -202,7 +200,6 @@ export default function AddFarm() {
 
   const handleSubmit = () => {
     if (!canSubmit()) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const requestData: UserCropCreateRequest = {
       cultivationType: cultivationType as CultivationType,
@@ -220,14 +217,12 @@ export default function AddFarm() {
 
     createFarmMutation.mutate(requestData, {
       onSuccess: () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("성공", "농지가 등록되었습니다.", [
           { text: "확인", onPress: () => router.back() },
         ]);
       },
       onError: (error: any) => {
         console.error("Farm registration error:", error);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           "오류",
           error.response?.data?.message || error.message || "농지 등록에 실패했습니다.",
@@ -272,10 +267,7 @@ export default function AddFarm() {
               return (
                 <Pressable
                   key={type.id}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setCultivationType(type.id);
-                  }}
+                  onPress={() => setCultivationType(type.id)}
                   className="flex-1 items-center p-4 rounded-2xl border-2"
                   style={{
                     backgroundColor: isSelected ? FC.accentBg : FC.bg,

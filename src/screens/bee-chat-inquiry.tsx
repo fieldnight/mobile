@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
@@ -60,10 +59,6 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
   }, [isSubmitting, onClose, resetForm]);
 
   const openKakaoChat = useCallback(async () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
     try {
       const supported = await Linking.canOpenURL(KAKAO_OPEN_CHAT_URL);
 
@@ -110,19 +105,11 @@ export default function InquiryModal({ visible, onClose }: InquiryModalProps) {
 
       console.log("[Inquiry UI] 피드백 제출 완료");
 
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
       showToast("문의가 접수됐어요. 확인 후 빠르게 답변드릴게요.", "success");
       resetForm();
       onClose();
     } catch (error) {
       console.error("[Inquiry UI] 피드백 제출 실패", { error });
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
 
       showToast(
         error instanceof Error

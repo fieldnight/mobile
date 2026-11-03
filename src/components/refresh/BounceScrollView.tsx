@@ -13,6 +13,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollViewProps,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -29,7 +30,7 @@ interface BounceScrollViewProps extends ScrollViewProps {
   children?: React.ReactNode;
 }
 
-export const BounceScrollView = forwardRef<ScrollView, BounceScrollViewProps>(
+export const BounceScrollView = forwardRef<ScrollViewInstance, BounceScrollViewProps>(
   ({ children, onScroll, onContentSizeChange, onLayout, ...props }, ref) => {
     // stretch > 0: 위에서 아래로 당김, stretch < 0: 아래에서 위로 당김
     const stretch = useSharedValue(0);

@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
@@ -62,7 +61,6 @@ function SocialButton({ icon, label, bgColor, textColor, borderColor, onPress }:
   };
 
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
   };
 
@@ -176,7 +174,6 @@ export default function LoginScreen() {
   };
 
   const handleTestLogin = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await submitLogin(TEST_ACCOUNT, '테스트 계정 로그인에 실패했습니다');
   };
 

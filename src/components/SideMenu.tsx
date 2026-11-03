@@ -13,7 +13,7 @@ import Animated, {
   withTiming,
   useSharedValue,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { PretendardFont } from "@/components/PretendardFont";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

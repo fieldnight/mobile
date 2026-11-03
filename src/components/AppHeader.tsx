@@ -8,9 +8,8 @@
  * - Android: 반투명 흰 배경 fallback으로 처리됨 (expo-blur 자체 동작)
  */
 import React, { useEffect } from "react";
-import { View, Pressable, Platform, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedProps,
   useAnimatedStyle,
@@ -52,7 +51,6 @@ function IconButton({
   testId?: string;
 }) {
   const handlePress = () => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onPress();
   };
 

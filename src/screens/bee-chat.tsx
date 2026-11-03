@@ -9,9 +9,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -105,7 +105,7 @@ function AssistantGuideOverlay({ onClose }: { onClose: () => void }) {
 }
 
 export default function BeeChatScreen() {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const { isScrolled, onScroll, scrollEventThrottle } = useScrollHeader();
   const [inputText, setInputText] = useState("");
   const [historyVisible, setHistoryVisible] = useState(false);
@@ -160,14 +160,10 @@ export default function BeeChatScreen() {
     return () => subscription.remove();
   }, [scrollToBottom]);
 
-  const sendWithHaptic = useCallback(
+  const sendChatMessage = useCallback(
     async (text: string) => {
       const trimmedText = text.trim();
       if (!trimmedText || isSending) return;
-
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
 
       setGuideVisible(false);
       setInputText("");
@@ -177,8 +173,8 @@ export default function BeeChatScreen() {
   );
 
   const handleSend = useCallback(() => {
-    sendWithHaptic(inputText);
-  }, [inputText, sendWithHaptic]);
+    sendChatMessage(inputText);
+  }, [inputText, sendChatMessage]);
 
   const startGuide = useCallback(() => {
     setNoticeVisible(false);
@@ -229,7 +225,7 @@ export default function BeeChatScreen() {
         {!hasUserMessage ? (
           <AssistantSuggestions
             questions={sampleQuestions}
-            onSelect={sendWithHaptic}
+            onSelect={sendChatMessage}
           />
         ) : null}
 
@@ -251,7 +247,7 @@ export default function BeeChatScreen() {
           {sampleQuestions.slice(0, 8).map((question, index) => (
             <Pressable
               key={`${question}-${index}`}
-              onPress={() => sendWithHaptic(question)}
+              onPress={() => sendChatMessage(question)}
               disabled={isSending}
               className={[
                 "rounded-full border border-[#E5E8EB] bg-white px-3.5 py-2",

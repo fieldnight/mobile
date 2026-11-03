@@ -9,12 +9,12 @@ import { useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "./PretendardFont";
-import { useHiveStore } from "@/stores/useHiveStore";
+import { useOrderedHives } from "@/features/hive";
 import { C } from "@/constants/hive-colors";
 
 export function HiveStatusBanner() {
   const router = useRouter();
-  const hives = useHiveStore((s) => s.hives);
+  const hives = useOrderedHives();
 
   const offlineCount = hives.filter((h) => h.status === "offline").length;
   const statusLabel =

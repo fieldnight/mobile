@@ -1,7 +1,6 @@
-import { Image, ImageSourcePropType, Platform, Pressable, ScrollView, View } from "react-native";
+import { Image, ImageSourcePropType, Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import AppHeader from "@/components/AppHeader";
@@ -330,14 +329,7 @@ export default function FeatureGuideScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const haptic = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
-
   const handleFeaturePress = (route: FeatureRoute) => {
-    haptic();
     router.push(route);
   };
 
