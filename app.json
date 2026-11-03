@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "webee-mo",
+    "name": "아워비",
     "slug": "webee-mo",
     "version": "1.0.1",
     "scheme": "webee",
@@ -35,7 +35,6 @@
         "foregroundImage": "./assets/branding/webee_logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -45,6 +44,9 @@
       "expo-router",
       "@react-native-community/datetimepicker",
       "expo-font",
+      "expo-splash-screen",
+      "expo-status-bar",
+      "expo-web-browser",
       [
         "expo-notifications",
         {

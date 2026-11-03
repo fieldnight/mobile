@@ -25,6 +25,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import {
   useComments,
@@ -44,7 +45,7 @@ export function CommentSection({ postId, commentCount }: CommentSectionProps) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   const {
     data: comments = [],

@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { useFarmList } from "@/features/farm";
 import {
   useAiRecommendation,
@@ -28,7 +28,7 @@ import type {
   BeeRecommendationSaveRequest,
 } from "@/types/recommendation";
 import type { UserCrop } from "@/types/farm";
-import { CULTIVATION_TYPE_LABELS, BEE_TYPE_INFO } from "@/constants/recommend";
+import { CULTIVATION_TYPE_LABELS } from "@/constants/recommend";
 import AppHeader from "@/components/AppHeader";
 import { useScrollHeader, HEADER_HEIGHT } from "@/hooks";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -49,28 +49,14 @@ function triggerHaptic(style: "light" | "medium") {
   }
 }
 
-// ── 섹션 헤더 (얇은 액센트 바 + 제목) — 미니멀 ─────────────────────────────────
-function SectionHeader({
-  title,
-  accent = C.primary,
-}: {
-  title: string;
-  accent?: string;
-}) {
+// ── 섹션 헤더 (제목만) ───────────────────────────────────────────────────────
+function SectionHeader({ title }: { title: string }) {
   return (
     <View
       className="flex-row items-center"
-      style={{ gap: 9, marginBottom: 16 }}
+      style={{ marginBottom: 12 }}
     >
-      <View
-        style={{
-          width: 3.5,
-          height: 16,
-          borderRadius: 2,
-          backgroundColor: accent,
-        }}
-      />
-      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
+      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
         {title}
       </PretendardFont>
     </View>
@@ -78,21 +64,18 @@ function SectionHeader({
 }
 
 function FarmMetaItem({
-  icon,
   label,
   value,
 }: {
-  icon: keyof typeof Feather.glyphMap;
   label: string;
   value: string;
 }) {
   return (
     <View
-      className="flex-row items-center rounded-full border bg-white px-3 py-2"
-      style={{ borderColor: C.border, gap: 6 }}
+      className="flex-row items-center rounded-md px-2.5 py-1.5"
+      style={{ backgroundColor: C.bgAlt, gap: 6 }}
     >
-      <Feather name={icon} size={13} color={C.sec} />
-      <PretendardFont style={{ fontSize: 11.5, color: C.sec }}>
+      <PretendardFont style={{ fontSize: 12, color: C.sec }}>
         {label}
       </PretendardFont>
       <PretendardFont weight="bold" style={{ fontSize: 12.5, color: C.text }}>
@@ -187,13 +170,6 @@ export default function RecommendScreen() {
     setSelectedCrop(null);
   };
 
-  const beeInfo = result
-    ? BEE_TYPE_INFO[result.beeType.toUpperCase()] || {
-        icon: "zap",
-        color: C.primary,
-      }
-    : null;
-
   return (
     <SafeAreaView
       className="flex-1"
@@ -209,10 +185,10 @@ export default function RecommendScreen() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          padding: 16,
-          paddingTop: HEADER_HEIGHT + 16,
-          paddingBottom: 100,
-          gap: 16,
+          paddingHorizontal: 14,
+          paddingTop: HEADER_HEIGHT + 8,
+          paddingBottom: 60,
+          gap: 10,
         }}
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}
@@ -222,9 +198,9 @@ export default function RecommendScreen() {
         <View
           style={{
             flexDirection: "row",
-            backgroundColor: "#EDEFF2",
-            borderRadius: 14,
-            padding: 4,
+            backgroundColor: "#E8EBEF",
+            borderRadius: 10,
+            padding: 3,
           }}
         >
           {(
@@ -248,20 +224,15 @@ export default function RecommendScreen() {
                 }}
                 style={{
                   flex: 1,
-                  paddingVertical: 11,
-                  borderRadius: 10,
+                  paddingVertical: 9,
+                  borderRadius: 8,
                   alignItems: "center",
                   backgroundColor: active ? C.white : "transparent",
-                  shadowColor: active ? "#64748B" : "transparent",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: active ? 0.12 : 0,
-                  shadowRadius: 4,
-                  elevation: active ? 2 : 0,
                 }}
               >
                 <PretendardFont
                   weight="bold"
-                  style={{ fontSize: 13, color: active ? C.primary : C.sec }}
+                  style={{ fontSize: 14, color: active ? C.text : C.sec }}
                 >
                   {label}
                 </PretendardFont>
@@ -294,29 +265,12 @@ export default function RecommendScreen() {
               >
                 <Card style={{ padding: 14 }}>
                   <View className="flex-row items-center" style={{ gap: 12 }}>
-                    <View
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        backgroundColor: C.primarySoft,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Feather name="clock" size={20} color={C.primary} />
-                    </View>
                     <View className="flex-1">
                       <PretendardFont
                         weight="bold"
                         style={{ fontSize: 15, color: C.text }}
                       >
                         지난 추천 기록
-                      </PretendardFont>
-                      <PretendardFont
-                        style={{ fontSize: 12.5, color: C.sec, marginTop: 1 }}
-                      >
-                        이전에 받은 추천 결과를 다시 확인하세요
                       </PretendardFont>
                     </View>
                     <Feather name="chevron-right" size={20} color={C.ter} />
@@ -336,19 +290,6 @@ export default function RecommendScreen() {
                 </Card>
               ) : !crops || crops.length === 0 ? (
                 <Card className="items-center" style={{ paddingVertical: 44 }}>
-                  <View
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
-                      backgroundColor: C.bg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 14,
-                    }}
-                  >
-                    <Feather name="map-pin" size={26} color={C.ter} />
-                  </View>
                   <PretendardFont
                     weight="bold"
                     style={{ fontSize: 16, color: C.text, marginBottom: 6 }}
@@ -371,9 +312,9 @@ export default function RecommendScreen() {
                     style={{
                       gap: 6,
                       backgroundColor: C.primary,
-                      paddingHorizontal: 22,
-                      height: 48,
-                      borderRadius: 14,
+                      paddingHorizontal: 18,
+                      height: 44,
+                      borderRadius: 8,
                     }}
                   >
                     <Feather name="plus" size={18} color={C.white} />
@@ -398,98 +339,49 @@ export default function RecommendScreen() {
                   return (
                     <Card key={crop.id} delay={i * 60}>
                       {/* 작물명과 품종을 카드 상단에서 명확하게 분리합니다. */}
-                      <View className="mb-4 flex-row items-start justify-between" style={{ gap: 10 }}>
-                        <View className="flex-1">
-                          <PretendardFont
-                            weight="bold"
-                            style={{ fontSize: 20, color: C.text }}
-                          >
-                            {crop.name || "미지정"}
-                          </PretendardFont>
-                          <PretendardFont style={{ fontSize: 12.5, color: C.sec, marginTop: 3 }}>
-                            등록 농지 정보 기반 추천
-                          </PretendardFont>
-                        </View>
+                      <View className="mb-3 flex-row items-baseline" style={{ gap: 6 }}>
+                        <PretendardFont
+                          weight="bold"
+                          style={{ fontSize: 17, color: C.text }}
+                        >
+                          {crop.name || "미지정"}
+                        </PretendardFont>
                         {hasVariety && (
-                          <View
-                            className="rounded-full border px-3 py-1.5"
-                            style={{ backgroundColor: C.bgAlt, borderColor: C.border }}
-                          >
-                            <PretendardFont
-                              weight="semibold"
-                              style={{ fontSize: 12.5, color: C.textAlt }}
-                            >
-                              {crop.variety}
-                            </PretendardFont>
-                          </View>
+                          <PretendardFont style={{ fontSize: 13, color: C.sec }}>
+                            {crop.variety}
+                          </PretendardFont>
                         )}
                       </View>
 
                       {/* 작은 화면에서 날짜가 잘리지 않도록 정보는 wrap 가능한 칩으로 보여줍니다. */}
-                      <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-                        <FarmMetaItem icon="layers" label="방식" value={cropTypeLabel} />
+                      <View className="flex-row flex-wrap" style={{ gap: 6 }}>
+                        <FarmMetaItem label="방식" value={cropTypeLabel} />
                         {crop.cultivationAddress && (
-                          <FarmMetaItem icon="map-pin" label="지역" value={crop.cultivationAddress} />
+                          <FarmMetaItem label="지역" value={crop.cultivationAddress} />
                         )}
                         <FarmMetaItem
-                          icon="maximize-2"
                           label="면적"
                           value={`${crop.cultivationArea.toLocaleString()}㎡`}
                         />
-                        <FarmMetaItem icon="calendar" label="정식일" value={crop.plantingDate} />
+                        <FarmMetaItem label="정식일" value={crop.plantingDate} />
                       </View>
 
                       {/* CTA: 농지 카드 내부에서 부담스럽지 않게 보이는 컴팩트 액션입니다. */}
                       <Pressable
                         onPress={() => handleGetRecommendation(crop)}
                         disabled={recommendMutation.isPending}
-                        className="mt-4 flex-row items-center justify-between rounded-2xl border px-3.5 py-3 active:opacity-90"
+                        className="mt-3 h-11 flex-row items-center justify-center rounded-lg active:opacity-90"
                         style={{
-                          backgroundColor: C.recommendCtaBg,
-                          borderColor: C.recommendCtaBorder,
+                          backgroundColor: C.primary,
                           opacity: recommendMutation.isPending && !isPending ? 0.55 : 1,
                         }}
                       >
                         {isPending ? (
-                          <View className="flex-row items-center" style={{ gap: 10 }}>
-                            <View
-                              className="h-9 w-9 items-center justify-center rounded-full"
-                              style={{ backgroundColor: C.white }}
-                            >
-                              <ActivityIndicator size="small" color={C.primary} />
-                            </View>
-                            <PretendardFont
-                              weight="bold"
-                              style={{ fontSize: 14, color: C.text }}
-                            >
-                              AI가 추천 중이에요
-                            </PretendardFont>
-                          </View>
+                          <ActivityIndicator size="small" color={C.white} />
                         ) : (
-                          <>
-                            <View className="flex-1 flex-row items-center" style={{ gap: 10 }}>
-                              <View
-                                className="h-9 w-9 items-center justify-center rounded-full"
-                                style={{ backgroundColor: C.white }}
-                              >
-                                <Feather name="zap" size={17} color={C.primary} />
-                              </View>
-                              <View>
-                                <PretendardFont
-                                  weight="bold"
-                                  style={{ fontSize: 14, color: C.text }}
-                                >
-                                  AI 수정벌 추천받기
-                                </PretendardFont>
-                                <PretendardFont
-                                  style={{ fontSize: 11.5, color: C.textAlt, marginTop: 1 }}
-                                >
-                                  AI 생성 추천이며 현장 확인이 필요해요
-                                </PretendardFont>
-                              </View>
-                            </View>
-                            <Feather name="arrow-right" size={18} color={C.primary} />
-                          </>
+                          <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.white }}>
+                            AI 수정벌 추천받기
+                          </PretendardFont>
                         )}
                       </Pressable>
                     </Card>
@@ -506,23 +398,7 @@ export default function RecommendScreen() {
 
               {/* 추천 수정벌 (히어로) */}
               <Card>
-                <View className="flex-row items-center" style={{ gap: 14 }}>
-                  <View
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 16,
-                      backgroundColor: `${beeInfo?.color}14`,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Feather
-                      name={beeInfo?.icon as any}
-                      size={26}
-                      color={beeInfo?.color}
-                    />
-                  </View>
+                <View className="flex-row items-center">
                   <View className="flex-1">
                     <PretendardFont
                       style={{ fontSize: 13, color: C.sec, marginBottom: 3 }}
@@ -531,7 +407,7 @@ export default function RecommendScreen() {
                     </PretendardFont>
                     <PretendardFont
                       weight="bold"
-                      style={{ fontSize: 22, color: C.text }}
+                      style={{ fontSize: 20, color: C.text }}
                     >
                       {result.beeType}
                     </PretendardFont>
@@ -542,7 +418,7 @@ export default function RecommendScreen() {
                   style={{
                     height: 1,
                     backgroundColor: C.border,
-                    marginVertical: 16,
+                    marginVertical: 14,
                   }}
                 />
 
@@ -566,7 +442,7 @@ export default function RecommendScreen() {
 
               {/* 수정벌 특징 */}
               <Card>
-                <SectionHeader title="수정벌 특징" accent={C.success} />
+                <SectionHeader title="수정벌 특징" />
                 {result.characteristics.map((char, index) => (
                   <View
                     key={index}
@@ -582,16 +458,16 @@ export default function RecommendScreen() {
                         width: 5,
                         height: 5,
                         borderRadius: 2.5,
-                        backgroundColor: C.success,
+                        backgroundColor: C.ter,
                         marginTop: 9,
                       }}
                     />
                     <PretendardFont
                       style={{
                         flex: 1,
-                        fontSize: 15.5,
+                        fontSize: 15,
                         color: C.text,
-                        lineHeight: 24,
+                        lineHeight: 23,
                       }}
                     >
                       {char}
@@ -602,7 +478,7 @@ export default function RecommendScreen() {
 
               {/* 사용 팁 */}
               <Card>
-                <SectionHeader title="사용 팁" accent={C.primary} />
+                <SectionHeader title="사용 팁" />
                 {result.usageTip.map((tip, index) => (
                   <View
                     key={index}
@@ -627,9 +503,9 @@ export default function RecommendScreen() {
                     <PretendardFont
                       style={{
                         flex: 1,
-                        fontSize: 15.5,
+                        fontSize: 15,
                         color: C.text,
-                        lineHeight: 24,
+                        lineHeight: 23,
                       }}
                     >
                       {tip}
@@ -640,7 +516,7 @@ export default function RecommendScreen() {
 
               {/* 주의사항 */}
               <Card>
-                <SectionHeader title="주의사항" accent={C.warning} />
+                <SectionHeader title="주의사항" />
                 {result.caution.map((caution, index) => (
                   <View
                     key={index}
@@ -655,7 +531,7 @@ export default function RecommendScreen() {
                         width: 5,
                         height: 5,
                         borderRadius: 2.5,
-                        backgroundColor: C.warning,
+                        backgroundColor: C.ter,
                         marginTop: 9,
                       }}
                     />
@@ -713,8 +589,8 @@ export default function RecommendScreen() {
                   className="flex-row items-center justify-center active:opacity-90"
                   style={{
                     gap: 8,
-                    height: 54,
-                    borderRadius: 14,
+                    height: 50,
+                    borderRadius: 10,
                     backgroundColor: C.primary,
                   }}
                 >
@@ -722,7 +598,6 @@ export default function RecommendScreen() {
                     <ActivityIndicator size="small" color={C.white} />
                   ) : (
                     <>
-                      <Feather name="bookmark" size={20} color={C.white} />
                       <PretendardFont
                         weight="bold"
                         style={{ fontSize: 16, color: C.white }}
@@ -742,12 +617,11 @@ export default function RecommendScreen() {
                     className="flex-1 flex-row items-center justify-center active:opacity-80"
                     style={{
                       gap: 6,
-                      backgroundColor: C.bg,
-                      height: 48,
-                      borderRadius: 12,
+                      backgroundColor: C.bgAlt,
+                      height: 44,
+                      borderRadius: 8,
                     }}
                   >
-                    <Feather name="shopping-bag" size={17} color={C.sec} />
                     <PretendardFont
                       weight="semibold"
                       style={{ fontSize: 13.5, color: C.textAlt }}
@@ -763,12 +637,11 @@ export default function RecommendScreen() {
                     className="flex-1 flex-row items-center justify-center active:opacity-80"
                     style={{
                       gap: 6,
-                      backgroundColor: C.bg,
-                      height: 48,
-                      borderRadius: 12,
+                      backgroundColor: C.bgAlt,
+                      height: 44,
+                      borderRadius: 8,
                     }}
                   >
-                    <Feather name="share-2" size={17} color={C.sec} />
                     <PretendardFont
                       weight="semibold"
                       style={{ fontSize: 13.5, color: C.textAlt }}

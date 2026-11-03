@@ -23,14 +23,7 @@ const GUIDE_ITEMS = [
  */
 export function HiveEnvironmentGuide() {
   return (
-    <Card
-      delay={300}
-      className="mb-10"
-      style={{
-        backgroundColor: "rgba(255,255,255,0.643)",
-        elevation: 0,
-      }}
-    >
+    <Card delay={300} className="mb-10" translucent>
       <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         적정 환경 가이드
       </PretendardFont>

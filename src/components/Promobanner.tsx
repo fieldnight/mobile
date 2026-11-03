@@ -194,7 +194,7 @@ function TossButton({
 /* ── 메인 ── */
 export function PromoBanner() {
   const router = useRouter();
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatList<(typeof SLIDES)[number]>>(null);
   const [curSlide, setCurSlide] = useState(0);
   const [curCopies, setCurCopies] = useState([0, 0]);
   const slideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);

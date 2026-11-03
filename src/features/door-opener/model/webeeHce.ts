@@ -42,6 +42,8 @@ export interface HceResultEvent {
 }
 
 export interface HceStatsBucket {
+  counterSession?: string;
+  counterLast?: BeeTrafficCounts;
   deviceId?: string;
   start: string;
   end: string;
@@ -58,7 +60,7 @@ export interface HceClimateSample {
 
 export type HceStatsEvent =
   | { raw: string; type: "begin"; deviceId?: string }
-  | { raw: string; type: "boot"; deviceId?: string; counts: BeeTrafficCounts }
+  | { raw: string; type: "boot"; deviceId?: string; counts: BeeTrafficCounts; sessionId?: string }
   | ({ raw: string; type: "bucket" } & HceStatsBucket)
   | ({ raw: string; type: "climate" } & HceClimateSample)
   | { raw: string; type: "end"; deviceId?: string; hourlyActive: boolean }
@@ -107,8 +109,9 @@ export function parseHceStats(stats: string): HceStatsEvent {
 
   if (kind === "BOOT") {
     const deviceId = parseDeviceId(rest);
-    const counts = parseCountsCsv(rest.find((part) => !part.startsWith("D=")));
-    return counts ? { raw: stats, type: "boot", deviceId, counts } : { raw: stats, type: "unknown" };
+    const counts = parseCountsCsv(rest.find((part) => !part.startsWith("D=") && !part.startsWith("S=")));
+    const sessionId = rest.find(part => /^S=[0-9A-F]{8}$/.test(part))?.slice(2);
+    return counts ? { raw: stats, type: "boot", deviceId, counts, sessionId } : { raw: stats, type: "unknown" };
   }
 
   if (kind === "BEGIN") {
@@ -197,7 +200,13 @@ function parseCountsCsv(value: string | undefined): BeeTrafficCounts | undefined
   return { entranceIn, entranceOut, exitIn, exitOut };
 }
 
-function createHceEmitter() {
+// RN 0.88부터 NativeEventEmitter와 DeviceEventEmitter의 타입이 달라 공통 형태로 맞춥니다.
+type HceEmitter = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addListener(eventType: string, listener: (...args: any[]) => unknown): EmitterSubscription;
+};
+
+function createHceEmitter(): HceEmitter {
   return Platform.OS === "android" && WeBeeHceModule
     ? new NativeEventEmitter(WeBeeHceModule as never)
     : DeviceEventEmitter;

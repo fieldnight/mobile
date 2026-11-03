@@ -1,248 +1,202 @@
 /**
- * 벌통 통계 화면
- * - HiveSliderSection / PeriodCard / WeatherSection / ChartCards / DataTable / HiveEnvironmentGuide를 조합합니다.
- * - 기간(period), 선택된 벌통(selectedHive), 보기 모드(viewMode)를 로컬 상태로 관리합니다.
- * - useWeatherRegion/useMakeWeather로 날씨 데이터를 가져와 WeatherSection에 전달합니다.
- * - 설정 이동, 슬라이더/보기 모드 전환 핸들러를 포함합니다.
+ * 벌통 리포트 화면
+ * - 위: 벌통 카드 줄로 벌통을 고릅니다.
+ * - 요약: 기간을 고르면 내부 온도가 권장 구간에 머문 비율과 평균·최저·최고를 압축해 보여줍니다.
+ *   스마트벌통 화면의 오늘 리포트 카드와 같은 TemperatureSummary라 그래프가 화면 위쪽에서 바로 보입니다.
+ * - 기록: 비교 그래프 또는 표로 같은 기록을 봅니다. 표는 항목 이름 행이 위에 고정됩니다.
+ * - 지역 날씨와 벌 교체 기록은 그 아래에 둡니다.
  */
-
-import { useState, useEffect, useRef } from "react";
-import {
-  Platform,
-  ScrollView,
-  useWindowDimensions,
-  ImageBackground,
-  ActivityIndicator,
-  Pressable,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView, View, useWindowDimensions } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHideFooterOnScroll } from "@/stores/useFooterVisibility";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
-import { C } from "@/constants/hive-colors";
-
-const BG_IMAGE = require("../../assets/df.jpg");
-import { BounceScrollView } from "@/components/refresh/BounceScrollView";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
-import { useLocalSearchParams } from "expo-router";
-import { useScrollHeader } from "@/hooks";
-import { Spacing } from "../constants";
+import { Tap } from "@/components/Tap";
 import { HiveAddSheet } from "@/components/HiveAddSheet";
-import {
-  HiveEnvironmentGuide,
-  PeriodCard,
-  ChartCards,
-  DataTable,
-  HiveReplacementTable,
-} from "@/features/hive-status";
-import { HiveSliderSection } from "@/components/hive/HiveSliderSection";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { WeatherSection } from "@/components/hive/Hive-weather";
 import {
-  useWeatherRegion,
-  useMakeWeather,
+  ChartCards,
+  DataTable,
+  HiveReplacementTable,
   useHiveTelemetryData,
+  useMakeWeather,
+  useWeatherRegion,
 } from "@/features/hive-status";
-import { useSyncHiveList } from "@/features/hive";
-import { useHiveStore } from "@/stores/useHiveStore";
-import type { Period } from "../types";
+import { VIEW_MODES } from "@/features/hive-status/constants";
+import { useOrderedHives, useSyncHiveList } from "@/features/hive";
+import { HiveCardRail, Panel, RiseIn, SectionHeader, Segmented, T, TemperatureSummary } from "@/features/hive-home";
+import type { Period } from "@/types";
 
-/**
- * HiveStatsScreen
- * - 벌통 통계 페이지의 메인 화면입니다.
- * - 상단에 벌통 슬라이더를 표시하고, 선택된 벌통의 통계 데이터를 보여줍니다.
- * - 기간 선택과 차트/표 조회를 관리합니다.
- */
+type ViewMode = (typeof VIEW_MODES)[number]["key"];
+
+const PERIOD_OPTIONS = [
+  { value: "일간", label: "일간" },
+  { value: "주간", label: "주간" },
+  { value: "월간", label: "월간" },
+] as const satisfies readonly { value: Period; label: string }[];
+
+const VIEW_OPTIONS = VIEW_MODES.map((mode) => ({ value: mode.key, label: mode.label }));
+
 export default function HiveStatsScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const sliderItemWidth = width - 32;
+  // 아래로 스크롤하면 하단 탭바를 숨기고, 위로 당기면 다시 보여줍니다.
+  const footerScroll = useHideFooterOnScroll();
+  const { height } = useWindowDimensions();
   const { selectedHiveId } = useLocalSearchParams<{ selectedHiveId?: string }>();
-  const hives = useHiveStore((state) => state.hives);
+  const hives = useOrderedHives();
   useSyncHiveList();
 
   const [period, setPeriod] = useState<Period>("일간");
-  const [selectedHive, setSelectedHive] = useState<string>(
-    selectedHiveId ?? hives[0]?.id ?? "",
-  );
+  const [selectedHive, setSelectedHive] = useState<string>(selectedHiveId ?? hives[0]?.id ?? "");
   const [addHiveVisible, setAddHiveVisible] = useState(false);
-  const [viewMode, setViewMode] = useState<"chart" | "combined" | "table">(
-    "combined",
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>("combined");
   const [chartSession, setChartSession] = useState(0);
   const [chartInteracting, setChartInteracting] = useState(false);
-  const { onScroll, scrollEventThrottle } = useScrollHeader();
+  const [weatherOpen, setWeatherOpen] = useState(false);
 
   const { stn, regionName } = useWeatherRegion();
-  const { todayWeather, weeklyWeather, loading, errorMsg } =
-    useMakeWeather(stn);
-
-  const sliderRef = useRef<ScrollView | null>(null);
-  const selectedIndex = Math.max(
-    0,
-    hives.findIndex((hive) => hive.id === selectedHive),
-  );
-  const hasHives = hives.length > 0;
+  const { todayWeather, weeklyWeather, loading, errorMsg } = useMakeWeather(stn);
 
   useEffect(() => {
-    if (hives.length && !hives.some((hive) => hive.id === selectedHive)) {
-      setSelectedHive(hives[0].id);
-    }
+    if (hives.length && !hives.some((hive) => hive.id === selectedHive)) setSelectedHive(hives[0].id);
   }, [hives, selectedHive]);
 
-  useEffect(() => {
-    if (sliderRef.current) {
-      sliderRef.current.scrollTo({
-        x: selectedIndex * sliderItemWidth,
-        animated: true,
-      });
-    }
-  }, [selectedIndex, sliderItemWidth]);
-
-  const telemetryQuery = useHiveTelemetryData({
-    hiveId: selectedHive,
-    period,
-    fallbackData: [],
-  });
+  const telemetryQuery = useHiveTelemetryData({ hiveId: selectedHive, period, fallbackData: [] });
   const statData = telemetryQuery.data ?? [];
+  const hasHives = hives.length > 0;
 
-  const isWeb = Platform.OS === "web";
-  const haptic = () => {
-    if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  //슬라이더에서 벌통을 선택했을 때 상태를 변경합니다.
-  const handleHivePress = (id: string) => {
-    haptic();
-    setSelectedHive(id);
-  };
-
-  // 슬라이더 드래그가 끝났을 때 해당 인덱스 벌통을 선택합니다.
-  const handleSlideEnd = (idx: number) => {
-    const nextHive = hives[Math.max(0, Math.min(idx, hives.length - 1))];
-    if (nextHive) {
-      haptic();
-      setSelectedHive(nextHive.id);
-    }
-  };
-
-  // 차트 / 통합 / 표 보기 모드를 변경하고 햅틱을 트리거합니다.
-  const handleViewModeChange = (mode: "chart" | "combined" | "table") => {
+  const changeViewMode = (mode: ViewMode) => {
     setChartInteracting(false);
-    // 같은 그래프 버튼을 다시 눌러도 현재 시점과 값으로 화면을 맞춥니다.
+    // 같은 보기를 다시 골라도 그래프를 현재 시점으로 맞춥니다.
     setChartSession((session) => session + 1);
     setViewMode(mode);
     if (mode !== "table") void telemetryQuery.refetch();
   };
 
   return (
-    <ImageBackground source={BG_IMAGE} resizeMode="cover" className="flex-1">
+    <View style={{ flex: 1, backgroundColor: T.canvas }}>
       <HiveTabBar />
 
-      <BounceScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          padding: Spacing.lg,
-          paddingTop: Spacing.xs,
-          paddingBottom: insets.bottom + 40,
-          gap: Spacing.xl,
-        }}
+      <ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={footerScroll.onScroll}
+        scrollEventThrottle={footerScroll.scrollEventThrottle}
         scrollEnabled={!chartInteracting}
-        onScroll={onScroll}
-        scrollEventThrottle={scrollEventThrottle}
+        refreshControl={<RefreshControl refreshing={telemetryQuery.isRefetching} onRefresh={() => void telemetryQuery.refetch()} />}
+        contentContainerStyle={{ paddingTop: 4, paddingBottom: insets.bottom + 120, gap: 12 }}
       >
-        <HiveSliderSection
-          hives={hives}
-          allView={false}
-          selectedIndex={selectedIndex}
-          itemWidth={sliderItemWidth}
-          sliderRef={sliderRef}
-          onHivePress={handleHivePress}
-          onSlideEnd={handleSlideEnd}
-          onAddHive={() => setAddHiveVisible(true)}
-        />
+        <RiseIn index={0}>
+          <HiveCardRail hives={hives} selectedId={selectedHive} onSelect={setSelectedHive} onAdd={() => setAddHiveVisible(true)} />
+        </RiseIn>
 
         {hasHives ? (
-          <View style={{ gap: Spacing.xl }}>
-            <PeriodCard
-              period={period}
-              onSelect={(nextPeriod) => {
-                setChartInteracting(false);
-                setPeriod(nextPeriod);
-              }}
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
-              weatherContent={
-                <WeatherSection
-                  period={period}
-                  stn={stn}
-                  regionName={regionName}
-                  loading={loading}
-                  errorMsg={errorMsg}
-                  todayWeather={todayWeather}
-                  weeklyWeather={weeklyWeather}
-                />
-              }
-            >
-              <View className="mb-3 flex-row items-center justify-between gap-2">
-                <View className="flex-1">
-                  <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                    {period === "일간" ? "오늘의 센서 기록" : `${period} 센서 기록`}
-                  </PretendardFont>
-                  <PretendardFont style={{ marginTop: 4, fontSize: 12, color: C.sec }}>
-                    {period === "일간" ? "시간별 기록 · 최근 측정 구간부터 표시" : "선택한 기간의 측정 기록"}
+          <View style={{ paddingHorizontal: 16, gap: 12 }}>
+            <RiseIn index={1}>
+            <Panel style={{ padding: 14 }}>
+              <Segmented
+                label="조회 기간"
+                options={PERIOD_OPTIONS}
+                value={period}
+                onChange={(next) => {
+                  setChartInteracting(false);
+                  setPeriod(next);
+                }}
+              />
+              <TemperatureSummary data={statData} periodLabel={period} loading={telemetryQuery.isLoading && telemetryQuery.isFetching} />
+            </Panel>
+            </RiseIn>
+
+            <RiseIn index={2}>
+            <Panel style={{ paddingHorizontal: 16 }}>
+              <SectionHeader
+                title="온습도 기록"
+                right={<Segmented compact label="보기 방식" options={VIEW_OPTIONS} value={viewMode} onChange={changeViewMode} />}
+              />
+
+              {telemetryQuery.isError ? (
+                <View accessibilityRole="alert" style={{ marginTop: 12, borderRadius: 12, padding: 12, backgroundColor: T.hotSoft }}>
+                  <PretendardFont style={{ fontSize: 13, lineHeight: 19, color: T.hot }}>
+                    기록을 불러오지 못했어요.{statData.length ? " 이전에 불러온 기록을 보여드려요." : " 아래로 당겨 다시 시도해 주세요."}
                   </PretendardFont>
                 </View>
-                <Pressable
-                  onPress={() => void telemetryQuery.refetch()}
-                  accessibilityRole="button"
-                  accessibilityLabel="센서 기록 새로고침"
-                  accessibilityState={{ disabled: telemetryQuery.isFetching }}
-                  disabled={telemetryQuery.isFetching}
-                  style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
-                >
-                  {telemetryQuery.isFetching ? <ActivityIndicator color={C.primary} /> : <Feather name="refresh-cw" size={19} color={C.sec} />}
-                </Pressable>
+              ) : null}
+
+              <View style={{ marginTop: 12 }}>
+                {telemetryQuery.isLoading && telemetryQuery.isFetching ? (
+                  <View style={{ alignItems: "center", paddingVertical: 48 }} accessibilityLiveRegion="polite">
+                    <ActivityIndicator color={T.inkSoft} />
+                    <PretendardFont style={{ marginTop: 12, color: T.muted, fontSize: 14 }}>기록을 불러오고 있어요</PretendardFont>
+                  </View>
+                ) : viewMode === "table" ? (
+                  <DataTable data={statData} period={period} stickyHeaderMaxHeight={Math.round(height * 0.6)} />
+                ) : (
+                  <ChartCards
+                    key={`${selectedHive}-${period}-${chartSession}`}
+                    data={statData}
+                    period={period}
+                    viewMode="combined"
+                    onInteractionChange={setChartInteracting}
+                  />
+                )}
               </View>
-              {telemetryQuery.isError && (
-                <View accessibilityRole="alert" className="mb-3 rounded-xl p-3" style={{ backgroundColor: "#FFF4E5" }}>
-                  <PretendardFont style={{ fontSize: 13, color: "#92400E" }}>
-                    기록을 불러오지 못했어요. 새로고침해 주세요.{statData.length ? " 이전에 불러온 기록을 표시하고 있어요." : ""}
+
+              <Tap
+                onPress={() => setWeatherOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: weatherOpen }}
+                style={({ pressed }) => ({
+                  marginTop: 12,
+                  minHeight: 48,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderTopWidth: 1,
+                  borderTopColor: T.line,
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="cloud" size={16} color={T.inkSoft} />
+                  <PretendardFont weight="medium" style={{ fontSize: 14, color: T.inkSoft }}>
+                    {regionName ? `${regionName} 날씨 함께 보기` : "지역 날씨 함께 보기"}
                   </PretendardFont>
                 </View>
-              )}
-              {telemetryQuery.isLoading && telemetryQuery.isFetching ? (
-                <View className="items-center py-10" accessibilityLiveRegion="polite">
-                  <ActivityIndicator color={C.primary} />
-                  <PretendardFont style={{ marginTop: 12, color: C.sec, fontSize: 14 }}>
-                    센서 기록을 불러오고 있어요
-                  </PretendardFont>
+                <Feather name={weatherOpen ? "chevron-up" : "chevron-down"} size={18} color={T.muted} />
+              </Tap>
+              {weatherOpen ? (
+                <View style={{ borderRadius: 14, padding: 12, backgroundColor: T.key }}>
+                  <WeatherSection
+                    period={period}
+                    stn={stn}
+                    regionName={regionName}
+                    loading={loading}
+                    errorMsg={errorMsg}
+                    todayWeather={todayWeather}
+                    weeklyWeather={weeklyWeather}
+                  />
                 </View>
-              ) : viewMode === "table" ? (
-                <DataTable data={statData} period={period} />
-              ) : (
-                <ChartCards
-                  key={`${selectedHive}-${period}-${viewMode}-${chartSession}`}
-                  data={statData}
-                  period={period}
-                  viewMode={viewMode}
-                  onInteractionChange={setChartInteracting}
-                />
-              )}
-            </PeriodCard>
+              ) : null}
+            </Panel>
+            </RiseIn>
 
-            <HiveReplacementTable hiveId={selectedHive} />
-
-            <HiveEnvironmentGuide />
+            <RiseIn index={3}>
+              <HiveReplacementTable hiveId={selectedHive} />
+            </RiseIn>
           </View>
-        ) : null}
-      </BounceScrollView>
+        ) : (
+          <View style={{ paddingHorizontal: 16 }}>
+            <Panel style={{ alignItems: "center", paddingVertical: 36 }}>
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: T.ink }}>리포트를 볼 벌통이 없어요</PretendardFont>
+              <PretendardFont style={{ marginTop: 6, fontSize: 14, color: T.inkSoft }}>벌통을 등록하면 기록이 여기에 쌓여요</PretendardFont>
+            </Panel>
+          </View>
+        )}
+      </ScrollView>
 
-      <HiveAddSheet
-        visible={addHiveVisible}
-        onClose={() => setAddHiveVisible(false)}
-      />
-    </ImageBackground>
+      <HiveAddSheet visible={addHiveVisible} onClose={() => setAddHiveVisible(false)} />
+    </View>
   );
 }

@@ -13,6 +13,7 @@ static rtc_datetime_t clock_value = {2026, 9, 14, 10, 0, 0}; /* Monday */
 static passage_monitor_status_t counts;
 static int gates, clock_error, mutex_held, schedule_calls, captured_end_hour, captured_end_minute;
 static bool captured_repeat, captured_close_first;
+static schedule_action_t captured_window_end_action;
 SemaphoreHandle_t xSemaphoreCreateMutex(void) { return &mutex_held; }
 int xSemaphoreTake(SemaphoreHandle_t lock, int timeout) { (void)lock; (void)timeout; assert(!mutex_held); mutex_held = 1; return 1; }
 void xSemaphoreGive(SemaphoreHandle_t lock) { (void)lock; assert(mutex_held); mutex_held = 0; }
@@ -23,12 +24,19 @@ esp_err_t servo_sg90_open(void) { gates = 3; return ESP_OK; }
 esp_err_t servo_sg90_close(void) { gates = 0; return ESP_OK; }
 esp_err_t servo_sg90_close_entrance(void) { gates = 2; return ESP_OK; }
 esp_err_t servo_sg90_close_exit(void) { gates = 1; return ESP_OK; }
+int servo_sg90_get_angle(void) { return gates; }
+void schedule_get_status(schedule_status_t *out) { memset(out, 0, sizeof(*out)); }
 void schedule_disable(void) { schedule_calls++; }
 esp_err_t schedule_set_at(const rtc_datetime_t *now, int hour, int minute, schedule_action_t action, bool repeat) {
   (void)now; (void)action; captured_end_hour = hour; captured_end_minute = minute; captured_repeat = repeat; return ESP_OK;
 }
 esp_err_t schedule_set_window(const rtc_datetime_t *now, int oh, int om, int ch, int cm, bool repeat) {
   (void)now; (void)oh; (void)om; captured_end_hour = ch; captured_end_minute = cm; captured_repeat = repeat; return ESP_OK;
+}
+esp_err_t schedule_set_window_with_end_action(const rtc_datetime_t *now, int oh, int om, int ch, int cm, bool repeat, schedule_action_t end_action) {
+  assert(end_action == SCHEDULE_ACTION_CLOSE || end_action == SCHEDULE_ACTION_EXIT_ONLY);
+  captured_window_end_action = end_action;
+  return schedule_set_window(now, oh, om, ch, cm, repeat);
 }
 bool schedule_get_recovery_action(const rtc_datetime_t *now, schedule_action_t *out) { (void)now; *out = SCHEDULE_ACTION_OPEN; return true; }
 esp_err_t schedule_set_alternate_24h(const rtc_datetime_t *now, bool close_first, bool repeat) {
@@ -62,6 +70,9 @@ int main(void) {
   apply("WB2|A|540|0"); assert(captured_end_hour == 9 && captured_end_minute == 0 && !captured_repeat);
   apply("WB2|Z|1440|1"); assert(captured_end_hour == 0 && captured_repeat);
   apply("WB2|W|1380|1440|1"); assert(captured_end_hour == 0 && captured_end_minute == 0 && captured_repeat);
+  assert(captured_window_end_action == SCHEDULE_ACTION_CLOSE);
+  c = parse("WB2|R|540|840|1"); assert(c.mode == NFC_PAYLOAD_MODE_RETURN_WINDOW);
+  apply("WB2|R|540|840|1"); assert(captured_end_hour == 14 && captured_repeat && captured_window_end_action == SCHEDULE_ACTION_EXIT_ONLY);
   apply("WB2|T|0|1"); assert(captured_close_first && captured_repeat && gates == 0);
   apply("WB2|T|1|0"); assert(!captured_close_first && !captured_repeat && gates == 3);
   apply("WB2|L|3"); assert(gates == 0);

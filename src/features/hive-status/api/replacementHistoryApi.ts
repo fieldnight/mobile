@@ -50,6 +50,18 @@ function getApiErrorDetail(error: unknown) {
   return error;
 }
 
+/**
+ * 서버가 거절한 이유(예: 날짜 규칙 위반)를 사용자에게 그대로 보여주기 위한 문구.
+ * 서버 메시지가 없으면 fallback을 씁니다.
+ */
+export function getReplacementErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof AxiosError) {
+    const serverMessage = (error.response?.data as { message?: unknown } | undefined)?.message;
+    if (typeof serverMessage === "string" && serverMessage.trim()) return serverMessage;
+  }
+  return fallback;
+}
+
 function sortLatestFirst(items: HiveReplacementHistory[]) {
   return [...items].sort(
     (a, b) =>

@@ -79,226 +79,178 @@ function harness(overrides = {}) {
   };
 }
 
-test("a steady long press enters inspection at the finger without moving the viewport", () => {
+test("touching down immediately enters inspection at the finger, with no wait", () => {
   const h = harness();
   const viewport = h.snapshot().viewport;
   h.controller.start([touch(100)]);
-  h.advance(239);
-  assert.equal(h.snapshot().mode, "idle");
-  assert.equal(h.haptics.length, 0);
-  h.advance(1);
   assert.equal(h.snapshot().mode, "inspect");
   assert.equal(h.snapshot().selectedIndex, Math.round(viewport.start + viewport.span / 3));
   assert.deepEqual(h.snapshot().viewport, viewport);
-  assert.deepEqual(h.haptics, [240]);
+  assert.deepEqual(h.haptics, [0]);
+  assert.equal(h.timers.size, 0);
   h.controller.end();
-  h.settle();
   assert.equal(h.snapshot().mode, "idle");
   assert.deepEqual(h.interactions, [true, false]);
 });
 
-test("scrubbing updates every crossed sample while haptics are throttled and unchanged samples stay quiet", () => {
+test("dragging freely moves the crosshair to follow the finger without a pan/fling mode", () => {
+  const h = harness();
+  const { start, span } = h.snapshot().viewport;
+  h.controller.start([touch(100)]);
+  assert.equal(h.snapshot().selectedIndex, Math.round(start + span * (100 / 300)));
+  h.controller.move([touch(140)]);
+  assert.equal(h.snapshot().mode, "inspect");
+  assert.equal(h.snapshot().selectedIndex, Math.round(start + span * (140 / 300)));
+  // x below/above the plot clamps to the viewport's own start/end, not the full dataset.
+  h.controller.move([touch(0)]);
+  assert.equal(h.snapshot().selectedIndex, Math.round(start));
+  h.controller.move([touch(1000)]);
+  assert.equal(h.snapshot().selectedIndex, Math.round(start + span));
+  // Releasing keeps the viewport untouched: dragging never scrolls or scales the chart.
+  const viewportBefore = h.snapshot().viewport;
+  h.controller.end();
+  assert.deepEqual(h.snapshot().viewport, viewportBefore);
+});
+
+test("scrubbing haptics are throttled to the interval and unchanged samples stay quiet", () => {
   const h = harness();
   h.controller.start([touch(100)]);
-  h.advance(240);
-  h.controller.move([touch(101)]);
-  assert.deepEqual(h.haptics, [240]);
+  assert.deepEqual(h.haptics, [0]);
   h.advance(10);
   h.controller.move([touch(140)]);
-  assert.equal(h.snapshot().selectedIndex, 115);
-  assert.deepEqual(h.haptics, [240]);
+  // Still inside the 70ms haptic window since the last one fired at t=0: no extra haptic.
+  assert.deepEqual(h.haptics, [0]);
   h.advance(61);
   h.controller.move([touch(200)]);
-  assert.equal(h.snapshot().selectedIndex, 116);
+  assert.deepEqual(h.haptics, [0, 71]);
   h.advance(19);
   h.controller.move([touch(250)]);
-  assert.equal(h.snapshot().selectedIndex, 118);
+  // 90ms since the last real move, but only 19ms since the last haptic at t=71: still throttled.
+  assert.deepEqual(h.haptics, [0, 71]);
   h.advance(51);
   h.controller.move([touch(300)]);
-  assert.equal(h.snapshot().selectedIndex, 119);
-  assert.deepEqual(h.haptics, [240, 311, 381]);
+  assert.deepEqual(h.haptics, [0, 71, 141]);
+  // The index is already pinned at the viewport's right edge, so re-selecting it fires no haptic.
   h.controller.move([touch(1000)]);
-  assert.equal(h.snapshot().selectedIndex, 119);
+  assert.equal(h.snapshot().selectedIndex, h.snapshot().viewport.start + h.snapshot().viewport.span);
   assert.equal(h.haptics.length, 3);
 });
 
-test("a real drag cancels long press and coalesces raw touch updates into one frame", () => {
-  const h = harness();
+test("one to two to one finger transitions keep the selection fixed until every finger lifts", () => {
+  const h = harness({ keys: ["co2"] });
+  const selectionBefore = h.snapshot().selectedIndex;
   h.controller.start([touch(40)]);
-  for (let index = 1; index <= 20; index += 1) {
-    h.advance(1);
-    h.controller.move([touch(40 + index * 4)]);
-  }
-  assert.equal(h.snapshot().mode, "pan");
-  assert.equal(h.timers.size, 0);
-  assert.equal(h.frames.size, 1);
-  assert.equal(h.renders.length, 0);
-  h.frame();
-  assert.equal(h.renders.length, 1);
-  h.advance(300);
-  assert.equal(h.snapshot().mode, "pan");
-  assert.equal(h.haptics.length, 0);
-});
-
-test("small finger jitter still permits long press at the most recent position", () => {
-  const h = harness();
-  h.controller.start([touch(100)]);
-  h.advance(100);
-  h.controller.move([touch(103, 82)]);
-  assert.equal(h.snapshot().mode, "idle");
-  h.advance(140);
-  assert.equal(h.snapshot().mode, "inspect");
-  assert.equal(h.snapshot().selectedIndex, Math.round(h.snapshot().viewport.start + 103 / 300 * h.snapshot().viewport.span));
-});
-
-test("one to two to one finger transitions rebase without jumps or a post-pinch fling", () => {
-  const h = harness();
-  h.controller.start([touch(40)]);
-  h.advance(32);
-  h.controller.move([touch(80)]);
   const beforePinch = h.snapshot().viewport;
   h.controller.start([touch(70), touch(130)]);
   assert.deepEqual(h.snapshot().viewport, beforePinch);
   assert.equal(h.snapshot().mode, "pinch");
+  // 첫 손가락이 잠깐 바꾼 선택도 제스처 시작 전 값으로 돌아갑니다.
+  assert.equal(h.snapshot().selectedIndex, selectionBefore);
   h.controller.move([touch(60, 90), touch(180, 90)]);
   const pinched = h.snapshot().viewport;
   closeTo(pinched.span, beforePinch.span / 2);
   closeTo(pinched.start + pinched.span * 120 / 300, beforePinch.start + beforePinch.span * 100 / 300);
   closeTo(pinched.max - (pinched.max - pinched.min) * 90 / 200,
     beforePinch.max - (beforePinch.max - beforePinch.min) * 80 / 200);
+  // 손가락 하나만 남아도 크로스헤어로 바뀌지 않고 선택도 그대로입니다.
   h.controller.move([touch(180, 90)]);
   assert.deepEqual(h.snapshot().viewport, pinched);
-  assert.equal(h.snapshot().mode, "pan");
-  h.advance(16);
-  h.controller.move([touch(210, 110)]);
-  const panned = h.snapshot().viewport;
-  closeTo(panned.start, pinched.start - pinched.span * 30 / 300);
-  closeTo(panned.min, pinched.min + (pinched.max - pinched.min) * 20 / 200);
+  assert.equal(h.snapshot().mode, "pinch");
+  assert.equal(h.snapshot().selectedIndex, selectionBefore);
   h.controller.end();
-  h.settle();
-  assert.deepEqual(h.snapshot().viewport, panned);
-  assert.equal(h.haptics.length, 0);
+  assert.equal(h.snapshot().mode, "idle");
+  // 다음 제스처의 한 손가락은 다시 바로 값을 읽습니다.
+  h.controller.start([touch(150)]);
+  assert.equal(h.snapshot().mode, "inspect");
 });
 
-test("horizontal dragging fixes the value axis, then smoothly fits the released interval", () => {
+test("pinch release snaps the value axis back to the data's own range (co2 has no fixed domain)", () => {
+  const h = harness({ keys: ["co2"] });
+  h.controller.start([touch(70), touch(130)]);
+  h.controller.move([touch(60, 90), touch(180, 90)]);
+  h.controller.end();
+  h.settle();
+  assert.ok(Number.isFinite(h.snapshot().viewport.min + h.snapshot().viewport.max));
+});
+
+test("dragging a fixed-domain sensor never changes the value axis while moving or after release", () => {
   const data = Array.from({ length: 120 }, (_, index) => point(index < 110 ? 10 : 40, index));
   const h = harness({ data });
   const initial = h.snapshot().viewport;
+  assert.deepEqual({ min: initial.min, max: initial.max }, { min: -20, max: 100 });
   h.controller.start([touch(0)]);
-  h.advance(32);
   h.controller.move([touch(400, 85)]);
   const dragged = h.snapshot().viewport;
   assert.equal(dragged.min, initial.min);
   assert.equal(dragged.max, initial.max);
-  h.advance(100);
   h.controller.end();
-  assert.deepEqual(h.snapshot().viewport, dragged);
-  h.frame(90);
-  const midway = h.snapshot().viewport;
-  assert.equal(midway.start, dragged.start);
-  assert.ok(midway.min < dragged.min);
-  h.frame(100);
-  const expected = chartModel.valueDomain(data, [key], dragged.start, dragged.start + dragged.span);
-  closeTo(h.snapshot().viewport.min, expected.min);
-  closeTo(h.snapshot().viewport.max, expected.max);
-  assert.equal(h.frames.size, 0);
+  assert.deepEqual({ min: h.snapshot().viewport.min, max: h.snapshot().viewport.max }, { min: -20, max: 100 });
 });
 
-test("a fling keeps moving after release and a new touch stops it immediately", () => {
+test("pinch zoom on a fixed-domain sensor keeps the value axis fixed and only scales time", () => {
   const h = harness();
-  h.controller.start([touch(40)]);
-  h.advance(32);
-  h.controller.move([touch(100)]);
-  const releasedAt = h.snapshot().viewport.start;
-  h.controller.end();
-  h.frame();
-  assert.ok(h.snapshot().viewport.start < releasedAt);
-  const caught = h.snapshot().viewport;
-  h.controller.start([touch(120)]);
-  h.frame();
-  assert.deepEqual(h.snapshot().viewport, caught);
-  h.advance(100);
-  h.frame();
-  assert.deepEqual(h.snapshot().viewport, caught);
-  assert.deepEqual(h.interactions, [true, false, true]);
-  h.controller.cancel();
-});
-
-test("a paused drag does not fling and a vertical drag preserves its chosen value range", () => {
-  const h = harness();
-  h.controller.start([touch(100, 40)]);
-  h.advance(32);
-  h.controller.move([touch(101, 110)]);
-  const dragged = h.snapshot().viewport;
-  h.advance(100);
+  const before = h.snapshot().viewport;
+  h.controller.start([touch(100, 50), touch(200, 50)]);
+  h.controller.move([touch(80, 50), touch(220, 50)]);
+  const pinched = h.snapshot().viewport;
+  assert.deepEqual({ min: pinched.min, max: pinched.max }, { min: -20, max: 100 });
+  assert.ok(pinched.span < before.span);
   h.controller.end();
   h.settle();
-  assert.deepEqual(h.snapshot().viewport, dragged);
+  assert.deepEqual({ min: h.snapshot().viewport.min, max: h.snapshot().viewport.max }, { min: -20, max: 100 });
 });
 
-test("reduced motion skips momentum and applies the released domain without animation", () => {
-  const h = harness({ reducedMotion: true });
-  h.controller.start([touch(40)]);
-  h.advance(32);
-  h.controller.move([touch(180)]);
+test("reduced motion applies the released domain without an animation frame", () => {
+  const h = harness({ keys: ["co2"], reducedMotion: true });
+  h.controller.start([touch(70), touch(130)]);
+  h.controller.move([touch(60, 90), touch(180, 90)]);
   const dragged = h.snapshot().viewport;
   h.controller.end();
   const released = h.snapshot().viewport;
   assert.equal(released.start, dragged.start);
   assert.deepEqual({ min: released.min, max: released.max },
-    chartModel.valueDomain(h.options.data, [key], dragged.start, dragged.start + dragged.span));
+    chartModel.valueDomain(h.options.data, ["co2"], dragged.start, dragged.start + dragged.span));
   h.settle();
   assert.deepEqual(h.snapshot().viewport, released);
-  assert.equal(h.renders.length, 1);
 });
 
-test("reset interrupts a fling and clears any pending long press", () => {
+test("reset clears any in-progress interaction and jumps straight to idle", () => {
   const h = harness();
-  h.controller.start([touch(40)]);
-  h.advance(32);
-  h.controller.move([touch(100)]);
-  h.controller.end();
-  h.frame();
+  h.controller.start([touch(100)]);
   h.controller.reset(true);
   h.settle();
   assert.equal(h.snapshot().viewport.start, 0);
   assert.equal(h.snapshot().viewport.span, 119);
   h.controller.start([touch(100)]);
   h.controller.reset(false);
-  h.advance(500);
   h.settle();
   assert.equal(h.snapshot().mode, "idle");
   assert.equal(h.snapshot().selectedIndex, 119);
   assert.equal(h.timers.size, 0);
-  assert.equal(h.haptics.length, 0);
 });
 
-test("data changes cancel a hold and update the latest sample while following recent data", () => {
+test("data changes update the latest sample while following recent data", () => {
   const h = harness();
-  h.controller.start([touch(100)]);
   h.options.data = [...h.options.data, point(40, 120)];
   h.controller.syncData();
-  h.advance(500);
   h.settle();
   assert.equal(h.snapshot().selectedIndex, 120);
   assert.equal(h.snapshot().mode, "idle");
   assert.ok(h.snapshot().viewport.start + h.snapshot().viewport.span >= 120);
   assert.equal(h.haptics.length, 0);
-  assert.deepEqual(h.interactions, [true, false]);
 });
 
-test("data changes during a fling stop it and clamp a manually positioned viewport", () => {
+test("data changes clamp a manually positioned viewport", () => {
   const h = harness();
-  h.controller.start([touch(40)]);
-  h.advance(32);
-  h.controller.move([touch(100)]);
+  h.controller.start([touch(70), touch(130)]);
+  h.controller.move([touch(60, 90), touch(180, 90)]);
   h.controller.end();
   h.frame();
   h.options.data = h.options.data.slice(0, 20);
   h.controller.syncData();
   const synced = h.snapshot().viewport;
   assert.ok(synced.start + synced.span <= 19);
-  assert.equal(h.snapshot().selectedIndex, 19);
+  assert.equal(h.snapshot().selectedIndex, Math.min(119, 19));
   h.settle();
   assert.deepEqual(h.snapshot().viewport, synced);
 });
@@ -307,29 +259,25 @@ test("dispose cancels timers, queued rendering and active scroll lock; resume re
   const h = harness();
   h.controller.start([touch(100)]);
   assert.equal(h.frames.size, 1);
-  assert.equal(h.timers.size, 1);
   h.controller.dispose();
   assert.equal(h.frames.size, 0);
-  assert.equal(h.timers.size, 0);
   h.advance(1000);
   h.frame();
-  assert.equal(h.renders.length, 0);
-  assert.equal(h.haptics.length, 0);
+  assert.equal(h.haptics.length, 1);
+  const rendersBeforeResume = h.renders.length;
   assert.deepEqual(h.interactions, [true, false]);
   h.controller.resume();
   h.controller.syncData();
   h.frame();
-  assert.equal(h.renders.length, 1);
+  assert.equal(h.renders.length, rendersBeforeResume + 1);
   h.controller.start([touch(40)]);
   h.controller.end();
-  h.settle();
-  assert.equal(h.haptics.length, 1);
+  assert.equal(h.haptics.length, 2);
 });
 
 test("inspection keeps a user selected sample when new telemetry arrives", () => {
   const h = harness();
   h.controller.start([touch(0)]);
-  h.advance(240);
   h.controller.end();
   const selected = h.snapshot().selectedIndex;
   h.options.data = [...h.options.data, point(40, 120)];

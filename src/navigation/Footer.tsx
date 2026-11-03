@@ -1,9 +1,11 @@
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Pressable, Text } from "react-native";
 import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomWhiteGradient } from "@/components/BottomWhiteGradient";
 import { Colors } from "../constants/theme";
+import { useFooterVisibility } from "@/stores/useFooterVisibility";
 
 interface FooterTab {
   id: string;
@@ -35,12 +37,33 @@ export default function Footer() {
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const currentRoute = segments[0] || "home";
-  const onIot = ["iot-home", "hive-control", "hive-stats", "hive-setting", "hive-overview"].includes(currentRoute);
+  const onIot = ["iot-home", "hive-control", "hive-stats", "hive-setting", "hive-overview", "hive-live", "hive-analysis"].includes(currentRoute);
+
+  // 벌통 화면에서는 아래로 스크롤하면 탭바를 내려 숨기고, 위로 당기면 다시 올립니다.
+  const visible = useFooterVisibility((state) => state.visible);
+  const setVisible = useFooterVisibility((state) => state.setVisible);
+  const [height, setHeight] = useState(90);
+  const offset = useRef(new Animated.Value(0)).current;
+  const hidden = onIot && !visible;
+
+  // 다른 화면으로 가면 항상 다시 보여줍니다.
+  useEffect(() => setVisible(true), [currentRoute, setVisible]);
+
+  useEffect(() => {
+    Animated.timing(offset, {
+      toValue: hidden ? height : 0,
+      duration: hidden ? 220 : 180,
+      useNativeDriver: true,
+    }).start();
+  }, [hidden, height, offset]);
 
   return (
-    <View
-      className="flex-row pt-2 pb-2"
-      style={
+    <Animated.View
+      onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
+      pointerEvents={hidden ? "none" : "auto"}
+      style={[
+        { flexDirection: "row", paddingTop: 8, paddingBottom: 8 },
+        onIot ? { transform: [{ translateY: offset }] } : null,
         onIot
           ? {
               position: "absolute",
@@ -55,8 +78,8 @@ export default function Footer() {
               borderTopWidth: 1,
               borderTopColor: "#E5E7EB",
               paddingBottom: Math.max(insets.bottom, 6),
-            }
-      }
+            },
+      ]}
     >
       {onIot && <BottomWhiteGradient />}
       {TABS.map((tab) => {
@@ -97,6 +120,6 @@ export default function Footer() {
           </Pressable>
         );
       })}
-    </View>
+    </Animated.View>
   );
 }

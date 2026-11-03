@@ -1,12 +1,16 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import {
   updateStoredTokens,
   clearAuthStorage,
 } from './storage';
 import { getRefreshToken, notifyTokensUpdated, notifyAuthCleared } from './tokenManager';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://webeelab.site';
+// Browser development requests use Metro's local proxy; native and production use the API host.
+const API_URL = typeof __DEV__ !== 'undefined' && __DEV__ && Platform.OS === 'web'
+  ? ''
+  : Constants.expoConfig?.extra?.apiUrl || 'https://webeelab.site';
 
 export const api = axios.create({
   baseURL: API_URL,

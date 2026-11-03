@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createHive,
@@ -15,6 +15,7 @@ import {
 import { getApiErrorLogData } from "../utils";
 import { useHiveStore } from "@/stores/useHiveStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import type { HiveData } from "@/types/hive-control";
 
 /**
  * 벌통 query key 모음
@@ -243,4 +244,18 @@ export function useHiveConnectionStatuses(hiveIds: string[]) {
   }, [hiveIds, results, updateConnections, isAuthenticated]);
 
   return results;
+}
+
+/** 온라인 벌통을 앞에, 오프라인 벌통을 뒤에 둡니다. 같은 상태끼리는 기존 순서를 유지합니다. */
+export function sortHivesOnlineFirst(hives: HiveData[]) {
+  const online = hives.filter((hive) => hive.status === "online");
+  return online.length === hives.length || online.length === 0
+    ? hives
+    : [...online, ...hives.filter((hive) => hive.status !== "online")];
+}
+
+/** 화면 표시용 벌통 목록. 오프라인 벌통은 항상 마지막에 보여줍니다. */
+export function useOrderedHives() {
+  const hives = useHiveStore((state) => state.hives);
+  return useMemo(() => sortHivesOnlineFirst(hives), [hives]);
 }

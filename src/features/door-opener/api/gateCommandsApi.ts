@@ -64,6 +64,9 @@ export async function executeGateCard(gate: GateData, card: NfcDoorCardConfig): 
   const accepted = await api.post<Envelope<CommandResult>>(path, buildGateCommand(card, gate.macAddress), { timeout: 10000 });
   const commandId = accepted.data?.data?.commandId;
   if (typeof commandId !== "string" || !commandId.trim()) throw new Error("명령 접수 결과를 확인하지 못했어요. 실행 여부를 확인해주세요.");
+  // A duplicate may complete before the POST returns. Keep its terminal result.
+  if (accepted.data.data.status === "SUCCESS") return accepted.data.data;
+  if (accepted.data.data.status === "FAILED") throw new Error(accepted.data.data.detail || "개폐기에서 명령을 처리하지 못했어요.");
   return pollCommandResult(path, commandId);
 }
 

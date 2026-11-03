@@ -1,110 +1,40 @@
-import { View } from "react-native";
+import { memo, useMemo } from "react";
+import { useWindowDimensions, View } from "react-native";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { HiveTelemetryHourRecord } from "../hooks/useHiveTelemetryHourData";
-
-const TABLE_COLS: Array<{
-  key: keyof Omit<HiveTelemetryHourRecord, "label">;
-  label: string;
-  unit: string;
-  format: (value: number) => string;
-}> = [
-  {
-    key: "internalTemperature",
-    label: "내부 온도",
-    unit: "°C",
-    format: (value) => value.toFixed(1),
-  },
-  {
-    key: "externalTemperature",
-    label: "외부 온도",
-    unit: "°C",
-    format: (value) => value.toFixed(1),
-  },
-  {
-    key: "internalHumidity",
-    label: "내부 습도",
-    unit: "%",
-    format: (value) => value.toFixed(0),
-  },
-  {
-    key: "externalHumidity",
-    label: "외부 습도",
-    unit: "%",
-    format: (value) => value.toFixed(0),
-  },
-];
+import { DataTable } from "./DataTable";
 
 interface LiveTelemetryTableProps {
   records: HiveTelemetryHourRecord[];
 }
 
-export function LiveTelemetryTable({ records }: LiveTelemetryTableProps) {
-  if (records.length === 0) {
+// 같은 기록이면 다시 그리지 않아, 조회 조건 버튼을 눌러도 표 때문에 반응이 늦어지지 않습니다.
+export const LiveTelemetryTable = memo(function LiveTelemetryTable({ records }: LiveTelemetryTableProps) {
+  const { height } = useWindowDimensions();
+  const newestFirst = useMemo(() => toNewestFirst(records), [records]);
+
+  if (newestFirst.length === 0) {
     return (
       <View className="items-center py-10">
         <PretendardFont weight="medium" style={{ fontSize: 14, color: C.sec }}>
-          아직 표시할 데이터가 없어요
+          이 시간대에 받은 기록이 없어요
         </PretendardFont>
       </View>
     );
   }
 
-  return (
-    <View>
-      <View
-        className="mb-1 flex-row pb-3"
-        style={{ borderBottomWidth: 2, borderBottomColor: C.border }}
-      >
-        <View className="w-[64px] pl-1">
-          <PretendardFont weight="bold" style={{ fontSize: 13, color: "#191F28" }}>
-            시각
-          </PretendardFont>
-        </View>
-        {TABLE_COLS.map((col) => (
-          <View key={col.key} className="flex-1 items-center">
-            <PretendardFont
-              weight="bold"
-              style={{ fontSize: 12, color: C.text, textAlign: "center" }}
-              numberOfLines={2}
-            >
-              {col.label}
-            </PretendardFont>
-            <PretendardFont style={{ fontSize: 11, color: C.sec, marginTop: 2 }}>
-              {col.unit}
-            </PretendardFont>
-          </View>
-        ))}
-      </View>
+  // 가장 최근 기록이 맨 위입니다. 표 위 안내 문구 없이 기록만 촘촘히 보여줍니다.
+  return <DataTable data={newestFirst} period="일간" stickyHeaderMaxHeight={Math.round(height * 0.6)} />;
+});
 
-      {[...records].reverse().map((record, index) => (
-        <View
-          key={`${record.label}-${index}`}
-          className="flex-row"
-          style={{
-            borderBottomWidth: 1,
-            borderBottomColor: C.border,
-            backgroundColor: index % 2 === 0 ? C.bgAlt : C.white,
-            paddingVertical: 10,
-          }}
-        >
-          <View className="w-[64px] justify-center pl-1">
-            <PretendardFont weight="semibold" style={{ fontSize: 13, color: C.text }}>
-              {record.label}
-            </PretendardFont>
-          </View>
-          {TABLE_COLS.map((col) => {
-            const value = record[col.key];
-            return (
-              <View key={col.key} className="flex-1 items-center justify-center">
-                <PretendardFont weight="medium" style={{ fontSize: 13, color: C.text }}>
-                  {value == null ? "-" : col.format(value)}
-                </PretendardFont>
-              </View>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
+/**
+ * 시간순으로 정렬한 뒤, 아직 오지 않은 뒤쪽 빈 구간(현재 시간대의 미래 칸)을 잘라내고 최신순으로 뒤집습니다.
+ * 중간에 비어 있는 구간은 누락으로 보여야 하므로 남겨둡니다.
+ */
+function toNewestFirst(records: HiveTelemetryHourRecord[]) {
+  const sorted = [...records].sort((a, b) => a.label.localeCompare(b.label));
+  let end = sorted.length;
+  while (end > 0 && !sorted[end - 1].hasData) end -= 1;
+  return sorted.slice(0, end).reverse();
 }

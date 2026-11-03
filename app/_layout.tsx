@@ -25,7 +25,7 @@ import { ToastProvider } from "@/components/ToastContext";
 import { NoticeBottomSheet } from "@/components/NoticeBottomSheet";
 import { FcmTokenSync } from "@/features/notification/components/FcmTokenSync";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { HiveTelemetrySseSync } from "@/features/hive-status/components/HiveTelemetrySseSync";
+import { HiveStatusSync } from "@/features/hive-status/components/HiveStatusSync";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -59,6 +59,8 @@ const HIDE_HEADER_ROUTES = [
   "feature-guide",
   "iot-home",
   "hive-overview",
+  "hive-live",
+  "hive-analysis",
 ];
 
 // 하단 탭바를 숨길 페이지 — 로그인/온보딩 계열만
@@ -82,6 +84,7 @@ const AUTH_REQUIRED_ROUTES = [
   "diagnose-history",
   "hive-add",
   "hive-control",
+  "hive-analysis",
   "hive-overview",
   "hive-setting",
   "hive-stats",
@@ -238,7 +241,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Providers>
-      <HiveTelemetrySseSync />
+      <HiveStatusSync />
       <FcmTokenSync />
       <ToastProvider>
         <View style={{ flex: 1, backgroundColor: "#000" }}>
@@ -247,7 +250,7 @@ export default function RootLayout() {
             style={[{ flex: 1, backgroundColor: "#fff" }, animatedStyle]}
           >
             <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-              <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+              <StatusBar barStyle="dark-content" />
               {showHeader && (
                 <Header
                   onMenuPress={() => setMenuVisible(true)}

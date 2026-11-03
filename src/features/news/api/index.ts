@@ -20,6 +20,7 @@
  * - 성공 시 console.log, 실패 시 console.log 후 re-throw
  */
 import { api } from "@/lib/api";
+import { Platform } from "react-native";
 import type { ApiResponse } from "@/types";
 import type { NewsItem, ApiNewsItem, ApiNewsDetail, SlicePage } from "@/types/news";
 
@@ -109,7 +110,8 @@ export async function fetchGoogleNews(query: string): Promise<NewsItem[]> {
     return cached.data;
   }
 
-  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(
+  const rssRoot = __DEV__ && Platform.OS === "web" ? "/__dev/news/rss" : "https://news.google.com/rss/search";
+  const rssUrl = `${rssRoot}?q=${encodeURIComponent(
     query,
   )}&hl=ko&gl=KR&ceid=KR:ko`;
 

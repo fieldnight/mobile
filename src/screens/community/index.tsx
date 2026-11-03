@@ -151,7 +151,7 @@ export default function CommunityScreen() {
               onSortChange={setSort}
             />
           }
-          ListEmptyComponent={!isLoading ? <EmptyState onWritePress={handleWritePress} /> : null}
+          ListEmptyComponent={!isLoading ? <EmptyState onWritePress={handleWritePress} /> : undefined}
           ListFooterComponent={<LoadMoreFooter loading={isFetchingNextPage} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}

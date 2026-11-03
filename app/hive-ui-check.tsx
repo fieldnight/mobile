@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ChartCards } from '@/features/hive-status/components/ChartCards';
 import { PeriodCard } from '@/features/hive-status/components/PeriodCard';
+import { DataTable } from '@/features/hive-status/components/DataTable';
 import { HiveControlSection } from '@/features/hive-control/components/HiveControlSection';
 import { PretendardFont } from '@/components/PretendardFont';
 import type { DataPoint, Period } from '@/types';
@@ -18,6 +19,16 @@ const samples: DataPoint[] = Array.from({ length: 24 }, (_, i) => {
     externalHumidity: i === 21 ? null : 45 + Math.cos(i) * 8,
     co2: null,
     hasData: true,
+    peltierDutyPct: null,
+    fanHotDutyPct: null,
+    fanColdDutyPct: null,
+    targetTemperature: null,
+    peltierCoolCurrentA: null,
+    peltierHeatCurrentA: null,
+    peltierMode: null,
+    fanState: null,
+    internalSensorValid: null,
+    externalSensorValid: null,
   };
 });
 export default function HiveUiCheck() {
@@ -30,14 +41,17 @@ export default function HiveUiCheck() {
   const [period, setPeriod] = useState<Period>('일간');
   const [session, setSession] = useState(0);
   const [interacting, setInteracting] = useState(false);
-  if (!__DEV__) return null;
   return <QueryClientProvider client={queryClient}>
     <ScrollView scrollEnabled={!interacting} contentContainerStyle={{ padding: 16, paddingBottom: 60, backgroundColor: '#F3F5F7' }}>
       <PretendardFont style={{ color: '#92400E', marginBottom: 12 }}>UI 확인용 샘플 · 실제 벌통 데이터 아님</PretendardFont>
       <PeriodCard period={period} onSelect={setPeriod} viewMode={mode} onViewModeChange={(next) => { setMode(next); setSession((n) => n + 1); }} weatherContent={null}>
-        <ChartCards key={`${session}-${period}`} data={samples} period={period} viewMode={mode === 'combined' ? 'combined' : 'chart'} onInteractionChange={setInteracting} />
+        {mode === 'table' ? <DataTable data={samples} period={period} /> :
+          <ChartCards key={`${session}-${period}`} data={samples} period={period} viewMode={mode === 'combined' ? 'combined' : 'chart'} onInteractionChange={setInteracting} />}
       </PeriodCard>
-      <View style={{ marginTop: 20 }}><HiveControlSection controlHive="ui-check" hiveName="UI 확인용 벌통" /></View>
+      <View style={{ marginTop: 20 }}>
+        <PretendardFont style={{ color: '#6B7280', marginBottom: 8 }}>조작 화면 미리보기 · 실제 장치 명령은 보내지 않아요.</PretendardFont>
+        <HiveControlSection controlHive="ui-check" hiveName="UI 확인용 벌통" readOnly />
+      </View>
     </ScrollView>
   </QueryClientProvider>;
 }

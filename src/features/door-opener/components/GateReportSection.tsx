@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import Svg, { Circle, Line, Polyline } from "react-native-svg";
 import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -17,7 +17,7 @@ import {
 import { useGateDeviceBeeCount, useGateDeviceTelemetry } from "../hooks";
 import { AddGateSheet } from "./AddGateSheet";
 
-const TRACK_BG = "#EEF2F6";
+const TRACK_BG = "#F5F6F8";
 const PERIODS: Period[] = ["일간", "주간", "월간"];
 const CHART_W = 280;
 const CHART_H = 150;
@@ -32,7 +32,7 @@ function triggerHaptic() {
  * 개폐기 하드웨어 리포트 섹션 (리포트 탭)
  * - 기존 NFC/HCE 기반 DoorStatsPanel(로컬 deviceId + 실시간 이벤트)과는 별개로,
  *   서버에 등록된 gateId 기준 REST 리포트(GET .../telemetry, GET .../bee-count)를 보여줍니다.
- * - 목록 조회 API가 없어 개폐기 후보는 useGateStore(로컬 등록 목록)에서 가져옵니다.
+ * - 개폐기 후보는 useGateStore(서버 목록을 캐시한 로컬 store, useSyncGateList로 동기화)에서 가져옵니다.
  */
 export function GateReportSection({ delay = 0 }: { delay?: number }) {
   const gates = useGateStore((state) => state.gates);
@@ -107,14 +107,14 @@ export function GateReportSection({ delay = 0 }: { delay?: number }) {
         <ReportChartBlock
           title="온도"
           unit="℃"
-          color="#F08A5D"
+          color={C.text}
           points={telemetryQuery.data?.temperature}
           isLoading={telemetryQuery.isLoading}
         />
         <ReportChartBlock
           title="습도"
           unit="%"
-          color="#3E92CC"
+          color={C.sec}
           points={telemetryQuery.data?.humidity}
           isLoading={telemetryQuery.isLoading}
         />
@@ -130,7 +130,7 @@ export function GateReportSection({ delay = 0 }: { delay?: number }) {
 function EmptyGatesNotice({ onAddPress }: { onAddPress: () => void }) {
   return (
     <View
-      className="flex-row items-center justify-between rounded-2xl px-4 py-3.5"
+      className="flex-row items-center justify-between rounded-[10px] px-4 py-3.5"
       style={{ backgroundColor: TRACK_BG }}
     >
       <View style={{ flex: 1 }}>
@@ -146,7 +146,7 @@ function EmptyGatesNotice({ onAddPress }: { onAddPress: () => void }) {
       </View>
       <Pressable
         onPress={onAddPress}
-        className="items-center justify-center rounded-xl active:opacity-80"
+        className="items-center justify-center rounded-lg active:opacity-80"
         style={{ height: 36, paddingHorizontal: 14, backgroundColor: C.gatePrimary }}
       >
         <PretendardFont weight="bold" style={{ fontSize: 13, color: C.white }}>
@@ -174,8 +174,8 @@ function GatePicker({
     <View className="mt-3">
       <Pressable
         onPress={onToggleDropdown}
-        className="flex-row items-center justify-between rounded-2xl active:opacity-75"
-        style={{ height: 40, paddingHorizontal: 14, backgroundColor: C.infoBg }}
+        className="flex-row items-center justify-between rounded-[10px] active:opacity-75"
+        style={{ height: 40, paddingHorizontal: 14, backgroundColor: TRACK_BG }}
       >
         <PretendardFont
           weight="semibold"
@@ -192,7 +192,7 @@ function GatePicker({
       </Pressable>
 
       {dropdownOpen ? (
-        <View className="mt-2 overflow-hidden rounded-2xl" style={{ backgroundColor: TRACK_BG }}>
+        <View className="mt-2 overflow-hidden rounded-[10px]" style={{ backgroundColor: TRACK_BG }}>
           {gates.map((gate, index) => (
             <Pressable
               key={gate.id}
@@ -223,7 +223,7 @@ function PeriodRow({
 }) {
   return (
     <View
-      className="mt-3 flex-row rounded-2xl"
+      className="mt-3 flex-row rounded-[10px]"
       style={{ padding: 3, backgroundColor: TRACK_BG }}
     >
       {PERIODS.map((item) => {
@@ -235,7 +235,7 @@ function PeriodRow({
               triggerHaptic();
               onSelect(item);
             }}
-            className="flex-1 items-center justify-center rounded-xl active:opacity-75"
+            className="flex-1 items-center justify-center rounded-lg active:opacity-75"
             style={{
               height: 34,
               backgroundColor: active ? C.white : "transparent",
@@ -269,8 +269,8 @@ function GateNotFoundOrContent({
   if (isNotFound) {
     return (
       <View
-        className="mt-3 flex-row items-start gap-2 rounded-2xl px-3.5 py-3"
-        style={{ backgroundColor: "#FFF1F2" }}
+        className="mt-3 flex-row items-start gap-2 rounded-[10px] px-3.5 py-3"
+        style={{ backgroundColor: TRACK_BG }}
       >
         <Feather name="alert-circle" size={17} color={C.error} />
         <PretendardFont style={{ flex: 1, fontSize: 13, lineHeight: 19, color: C.error }}>
@@ -334,7 +334,7 @@ function ReportChartBlock({
 function LoadingPlaceholder() {
   return (
     <View
-      className="mt-2 items-center justify-center rounded-2xl"
+      className="mt-2 items-center justify-center rounded-[10px]"
       style={{ height: 120, backgroundColor: TRACK_BG }}
     >
       <PretendardFont weight="medium" style={{ fontSize: 13, color: C.sec }}>
@@ -347,7 +347,7 @@ function LoadingPlaceholder() {
 function NoDataPlaceholder() {
   return (
     <View
-      className="mt-2 items-center justify-center rounded-2xl px-4"
+      className="mt-2 items-center justify-center rounded-[10px] px-4"
       style={{ height: 120, backgroundColor: TRACK_BG }}
     >
       <PretendardFont
@@ -432,10 +432,10 @@ const BEE_COUNT_SERIES: Array<{
   label: string;
   color: string;
 }> = [
-  { key: "entranceIn", label: "입구 진입", color: "#1B9C79" },
-  { key: "entranceOut", label: "입구 진출", color: "#B8860B" },
-  { key: "exitIn", label: "출구 진입", color: "#3E92CC" },
-  { key: "exitOut", label: "출구 진출", color: "#F08A5D" },
+  { key: "entranceIn", label: "입구 진입", color: "#191F28" },
+  { key: "entranceOut", label: "입구 진출", color: "#4E5968" },
+  { key: "exitIn", label: "출구 진입", color: "#8B95A1" },
+  { key: "exitOut", label: "출구 진출", color: "#C3C9D0" },
 ];
 
 function BeeCountChartBlock({

@@ -18,6 +18,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
+import { ToastOutlet } from "@/components/ToastContext";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const DRAG_CLOSE_THRESHOLD = 80;
@@ -177,6 +178,8 @@ export function BottomSheet({
             </Animated.View>
         </KeyboardAvoidingView>
       </View>
+      {/* 시트가 열려 있는 동안 토스트를 시트 위에 그립니다. */}
+      {visible ? <ToastOutlet /> : null}
     </Modal>
   );
 }

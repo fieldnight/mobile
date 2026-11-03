@@ -1,19 +1,21 @@
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 import type { ControlResultEvent } from "../api";
+import type { HiveTelemetry } from "@/types/hive-telemetry";
 
 const API_URL =
+  typeof __DEV__ !== "undefined" && __DEV__ && Platform.OS === "web" ? "" :
   Constants.expoConfig?.extra?.apiUrl ??
   Constants.manifest2?.extra?.expoClient?.extra?.apiUrl ??
   "https://webeelab.site";
 const RECONNECT_DELAY_MS = 3_000;
+// 서버/프록시가 오래 열린 스트림을 정상 종료하는 것은 흔한 일이라 바로 다시 붙습니다.
+const QUICK_RECONNECT_DELAY_MS = 500;
+// 이 시간 안에 다시 연결되면 사용자에게 끊김을 알리지 않습니다.
+const RECONNECT_NOTICE_GRACE_MS = 10_000;
 
-export interface HiveTelemetryEvent {
+export interface HiveTelemetryEvent extends HiveTelemetry {
   hiveId: number;
-  internalTemperature: number;
-  internalHumidity: number;
-  externalTemperature: number;
-  externalHumidity: number;
-  co2: number;
   recordedAt: string;
 }
 
@@ -35,34 +37,61 @@ const subscribers = new Set<SubscribeHiveEventsOptions>();
 let activeXhr: XMLHttpRequest | null = null;
 let activeAccessToken: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearReconnectTimer() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function clearNoticeTimer() {
+  if (noticeTimer) clearTimeout(noticeTimer);
+  noticeTimer = null;
+}
 
 function notifyError(error: unknown) {
   subscribers.forEach((subscriber) => subscriber.onError?.(error));
 }
 
-function parseTelemetry(rawData: string): HiveTelemetryEvent {
+export function parseTelemetry(rawData: string): HiveTelemetryEvent {
   const parsed = JSON.parse(rawData) as Partial<HiveTelemetryEvent>;
-  // co2는 센서 미장착 등의 이유로 null이 내려올 수 있어 필수 검증에서 제외하고 0으로 대체합니다.
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("HIVE_TELEMETRY payload 형식이 올바르지 않습니다.");
+  }
   const numericFields = [
-    parsed.hiveId,
     parsed.internalTemperature,
     parsed.internalHumidity,
     parsed.externalTemperature,
     parsed.externalHumidity,
+    parsed.co2, parsed.peltierDutyPct, parsed.fanHotDutyPct,
+    parsed.fanColdDutyPct, parsed.targetTemperature,
+    parsed.peltierCoolCurrentA, parsed.peltierHeatCurrentA,
   ];
 
   if (
+    !Number.isSafeInteger(parsed.hiveId) || Number(parsed.hiveId) <= 0 ||
     numericFields.some(
-      (value) => typeof value !== "number" || !Number.isFinite(value),
+      (value) => value != null && (typeof value !== "number" || !Number.isFinite(value)),
     ) ||
-    (parsed.co2 != null &&
-      (typeof parsed.co2 !== "number" || !Number.isFinite(parsed.co2))) ||
-    typeof parsed.recordedAt !== "string"
+    [parsed.internalSensorValid, parsed.externalSensorValid].some(
+      (value) => value != null && typeof value !== "boolean",
+    ) ||
+    [parsed.peltierMode, parsed.fanState, parsed.hwIssue, parsed.hwIssueTimestamp].some(
+      (value) => value != null && typeof value !== "string",
+    ) ||
+    typeof parsed.recordedAt !== "string" || !Number.isFinite(Date.parse(parsed.recordedAt))
   ) {
     throw new Error("HIVE_TELEMETRY payload 형식이 올바르지 않습니다.");
   }
 
-  return { ...parsed, co2: parsed.co2 ?? 0 } as HiveTelemetryEvent;
+  return {
+    ...parsed,
+    internalTemperature: parsed.internalSensorValid === false ? null : parsed.internalTemperature ?? null,
+    internalHumidity: parsed.internalSensorValid === false ? null : parsed.internalHumidity ?? null,
+    externalTemperature: parsed.externalSensorValid === false ? null : parsed.externalTemperature ?? null,
+    externalHumidity: parsed.externalSensorValid === false ? null : parsed.externalHumidity ?? null,
+    co2: parsed.co2 ?? null,
+  } as HiveTelemetryEvent;
 }
 
 function dispatchEvent(eventName: string, rawData: string) {
@@ -87,21 +116,29 @@ function dispatchEvent(eventName: string, rawData: string) {
   }
 }
 
-function scheduleReconnect(accessToken: string) {
+function scheduleReconnect(accessToken: string, quick: boolean) {
   if (reconnectTimer || subscribers.size === 0) return;
 
-  notifyReconnecting();
+  // 짧은 재연결은 조용히 처리하고, 유예 시간 안에 복구되지 않을 때만 끊김을 알립니다.
+  if (!noticeTimer) {
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null;
+      if (subscribers.size > 0) notifyReconnecting();
+    }, RECONNECT_NOTICE_GRACE_MS);
+  }
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     if (subscribers.size > 0 && activeAccessToken === accessToken) {
       startConnection(accessToken);
     }
-  }, RECONNECT_DELAY_MS);
+  }, quick ? QUICK_RECONNECT_DELAY_MS : RECONNECT_DELAY_MS);
 }
 
 /** React Native에서 XHR 스트림을 이용해 앱 공용 SSE 연결 하나를 엽니다. */
 function startConnection(accessToken: string) {
+  // 대기 중인 재연결이 새 연결을 다시 끊지 않도록 정리합니다.
+  clearReconnectTimer();
   const previousXhr = activeXhr;
   activeXhr = null;
   previousXhr?.abort();
@@ -127,7 +164,8 @@ function startConnection(accessToken: string) {
   const consumeChunk = (chunk: string) => {
     const normalized = `${pendingLine}${chunk}`.replace(/\r\n/g, "\n");
     const lines = normalized.split("\n");
-    pendingLine = normalized.endsWith("\n") ? "" : (lines.pop() ?? "");
+    // 마지막 조각은 다음 청크와 합칩니다. 줄 끝과 이벤트 끝(빈 줄)을 구분합니다.
+    pendingLine = lines.pop() ?? "";
 
     lines.forEach((line) => {
       if (line === "") {
@@ -140,13 +178,17 @@ function startConnection(accessToken: string) {
     });
   };
 
-  const finishWithError = (error: Error) => {
+  const finishWithError = (error: Error, normalClose = false) => {
     if (finished || activeXhr !== xhr) return;
     finished = true;
     activeXhr = null;
-    console.error("[Hive SSE] 연결 종료", error);
-    notifyError(error);
-    scheduleReconnect(accessToken);
+    if (normalClose) {
+      console.log("[Hive SSE] 서버가 스트림을 닫아 다시 연결합니다.");
+    } else {
+      console.error("[Hive SSE] 연결 종료", error);
+      notifyError(error);
+    }
+    scheduleReconnect(accessToken, normalClose);
   };
 
   xhr.open("GET", `${API_URL}/api/v1/sse/subscribe`);
@@ -168,6 +210,7 @@ function startConnection(accessToken: string) {
       xhr.readyState >= XMLHttpRequest.HEADERS_RECEIVED
     ) {
       opened = true;
+      clearNoticeTimer();
       console.log("[Hive SSE] 구독 연결 성공");
       subscribers.forEach((subscriber) => subscriber.onOpen?.());
     }
@@ -189,6 +232,7 @@ function startConnection(accessToken: string) {
             ? "SSE 연결이 종료되어 재연결합니다."
             : `SSE 연결 실패: ${xhr.status}`,
         ),
+        isSuccessStatus && opened,
       );
     }
   };
@@ -219,10 +263,8 @@ export function subscribeHiveEvents(options: SubscribeHiveEventsOptions) {
     subscribers.delete(options);
     if (subscribers.size > 0) return;
 
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
+    clearReconnectTimer();
+    clearNoticeTimer();
     const xhr = activeXhr;
     activeXhr = null;
     activeAccessToken = null;

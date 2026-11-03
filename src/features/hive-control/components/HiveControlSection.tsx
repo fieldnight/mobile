@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, PanResponder, Platform, Pressable, View } from "react-native";
-import * as Haptics from "expo-haptics";
+import { ActivityIndicator, PanResponder, Platform, View } from "react-native";
+import * as Haptics from "@/lib/haptics";
 import { Feather } from "@expo/vector-icons";
 import { PretendardFont } from "@/components/PretendardFont";
+import { Tap } from "@/components/Tap";
 import { useAppToast } from "@/components/ToastContext";
 import { Card } from "@/components/hive/hive-shared";
 import { C } from "@/constants/hive-colors";
@@ -13,11 +14,13 @@ const MIN_TEMPERATURE = 16;
 const MAX_TEMPERATURE = 36;
 const TEMPERATURE_STEP = 0.5;
 const THUMB_SIZE = 28;
-const RESPONSE_TIMEOUT_MS = 15000;
+// 서버의 명령 보관 시간은 30초이므로 그 안에 도착한 응답을 놓치지 않습니다.
+const RESPONSE_TIMEOUT_MS = 35000;
 
 interface HiveControlSectionProps {
   controlHive: string;
   hiveName?: string;
+  readOnly?: boolean;
 }
 
 type RequestPhase = "idle" | "sending" | "waiting" | "checking" | "success" | "error";
@@ -43,7 +46,7 @@ export function HiveControlSection(props: HiveControlSectionProps) {
   return <HiveTemperatureControl key={props.controlHive} {...props} />;
 }
 
-function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionProps) {
+function HiveTemperatureControl({ controlHive, hiveName, readOnly = false }: HiveControlSectionProps) {
   const { show: showToast } = useAppToast();
   const { data, isLoading, isError, isFetching, refetch } = useHiveControlSettings(controlHive || undefined);
   const { mutate: mutateManualControl } = useRequestManualControl();
@@ -56,7 +59,7 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
   const targetTemperature = draftTemperature ?? clampTemperature(savedTemperature ?? 25);
   const pending = phase === "sending" || phase === "waiting" || phase === "checking";
   const hasChanges = savedTemperature == null || targetTemperature !== savedTemperature;
-  const canEdit = !!controlHive && !!data && !isError && !pending;
+  const canEdit = !readOnly && !!controlHive && !!data && !isError && !pending;
 
   useEffect(() => () => {
     requestRef.current = null;
@@ -81,7 +84,7 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
     request.checking = true;
     setPhase("checking");
     try {
-      // SSE에는 벌통/요청 ID가 없으므로 현재 벌통의 설정을 다시 읽어 확인합니다.
+      // POST 응답에는 commandId가 없으므로 현재 벌통의 설정을 다시 읽어 확인합니다.
       // 설정 확인은 실제 장치의 온도 도달이나 하드웨어 동작 완료를 의미하지 않습니다.
       const result = await refetch();
       if (requestRef.current !== request) return;
@@ -106,13 +109,19 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
 
   const handleSseResult = useCallback((event: ControlResultEvent) => {
     const request = requestRef.current;
-    if (!request || event.targetTemperature !== request.temperature) return;
-    // 다른 벌통의 응답일 수 있어 성공/실패를 직접 확정하지 않습니다.
+    if (!request || String(event.hiveId) !== controlHive) return;
+    if (!event.success) {
+      finishRequest(request, "error", event.message || "벌통에서 설정을 적용하지 못했어요.");
+      return;
+    }
+    if (event.targetTemperature !== request.temperature) return;
+    // POST 응답에는 commandId가 없으므로 같은 벌통과 목표값을 확인한 뒤 설정을 재조회합니다.
     request.resultReceived = true;
     if (request.accepted) void verifySetting(request);
-  }, [verifySetting]);
+  }, [controlHive, finishRequest, verifySetting]);
 
-  useHiveControlSse({ enabled: !!controlHive, onResult: handleSseResult });
+  // 적용 결과를 기다리는 동안에만 실시간 연결을 엽니다.
+  useHiveControlSse({ enabled: !!controlHive && pending, onResult: handleSseResult });
 
   const changeTemperature = (value: number) => {
     if (!canEdit) return;
@@ -152,7 +161,7 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
   const pendingLabel = phase === "sending" ? "설정을 전송하고 있어요" : phase === "checking" ? "현재 설정을 확인하고 있어요" : "변경 결과를 기다리고 있어요";
 
   return (
-    <Card style={{ backgroundColor: "rgba(255,255,255,0.72)", elevation: 0 }}>
+    <Card translucent>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Feather name="thermometer" size={19} color={C.chartTemp} />
         <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>목표 온도 설정</PretendardFont>
@@ -166,9 +175,9 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
       ) : !data ? (
         <View style={{ marginTop: 20, gap: 12 }}>
           <PretendardFont style={{ fontSize: 14, lineHeight: 21, color: C.textAlt }}>현재 목표 온도를 불러오지 못했어요.</PretendardFont>
-          <Pressable accessibilityRole="button" disabled={isFetching} onPress={() => void refetch()} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: C.bg }}>
+          <Tap accessibilityRole="button" disabled={isFetching} onPress={() => void refetch()} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: C.bg }}>
             <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.text }}>{isFetching ? "불러오는 중…" : "다시 불러오기"}</PretendardFont>
-          </Pressable>
+          </Tap>
         </View>
       ) : (
         <>
@@ -199,15 +208,15 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
             </PretendardFont>
           </View>}
           {/* 비활성 상태에도 배경과 테두리를 남겨 버튼 영역이 보이도록 합니다. */}
-          <Pressable accessibilityRole="button" accessibilityLabel={`${hiveName ?? "선택한 벌통"} 목표 온도 ${targetTemperature.toFixed(1)}도로 적용`} accessibilityState={{ disabled: !canEdit || !hasChanges, busy: pending }} disabled={!canEdit || !hasChanges} onPress={applyTemperature}
+          <Tap accessibilityRole="button" accessibilityLabel={`${hiveName ?? "선택한 벌통"} 목표 온도 ${targetTemperature.toFixed(1)}도로 적용`} accessibilityState={{ disabled: !canEdit || !hasChanges, busy: pending }} disabled={!canEdit || !hasChanges} onPress={applyTemperature}
             className="active:opacity-80"
             style={{ minHeight: 48, marginTop: 10, borderRadius: 12, alignSelf: "stretch", alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: !canEdit || !hasChanges ? "#CBD5E1" : "#191F28", backgroundColor: !canEdit || !hasChanges ? "#E2E8F0" : "#191F28" }}>
             <PretendardFont weight="bold" style={{ fontSize: 16, color: !canEdit || !hasChanges ? "#475569" : "#FFFFFF" }}>{pending ? "설정 확인 중…" : `${targetTemperature.toFixed(1)}°C로 적용`}</PretendardFont>
-          </Pressable>
+          </Tap>
           {!pending && (draftTemperature != null || phase === "error" || isError) ? (
-            <Pressable accessibilityRole="button" onPress={() => { setDraftTemperature(null); setPhase("idle"); setNotice(""); void refetch(); }} style={{ minHeight: 44, marginTop: 4, alignItems: "center", justifyContent: "center" }}>
+            <Tap accessibilityRole="button" onPress={() => { setDraftTemperature(null); setPhase("idle"); setNotice(""); void refetch(); }} style={{ minHeight: 44, marginTop: 4, alignItems: "center", justifyContent: "center" }}>
               <PretendardFont weight="medium" style={{ fontSize: 13, color: C.textAlt }}>현재 설정 다시 확인</PretendardFont>
-            </Pressable>
+            </Tap>
           ) : null}
         </>
       )}
@@ -217,9 +226,9 @@ function HiveTemperatureControl({ controlHive, hiveName }: HiveControlSectionPro
 
 function TemperatureStepButton({ direction, disabled, onPress }: { direction: "minus" | "plus"; disabled: boolean; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`목표 온도 0.5도 ${direction === "plus" ? "올리기" : "내리기"}`} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 14, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? C.border : C.bgAlt, opacity: disabled ? 0.4 : 1 })}>
+    <Tap accessibilityRole="button" accessibilityLabel={`목표 온도 0.5도 ${direction === "plus" ? "올리기" : "내리기"}`} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 14, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? C.border : C.bgAlt, opacity: disabled ? 0.4 : 1 })}>
       <Feather name={direction} size={21} color={C.text} />
-    </Pressable>
+    </Tap>
   );
 }
 

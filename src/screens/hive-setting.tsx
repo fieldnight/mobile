@@ -3,10 +3,9 @@
  * - 자동제어 스케줄은 서버 API로 조회/등록/삭제합니다.
  * - 날씨 지역은 기존처럼 로컬 설정으로 저장합니다.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ImageBackground,
-  Platform,
   Pressable,
   ScrollView,
   TextInput,
@@ -14,19 +13,22 @@ import {
 } from "react-native";
 import { BounceScrollView } from "@/components/refresh/BounceScrollView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHideFooterOnScroll } from "@/stores/useFooterVisibility";
+import { useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KMA_REGIONS } from "@/types";
-import { BeeBoxCard } from "@/components/BeeboxCard";
+import { Card } from "@/components/hive/hive-shared";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
+import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
 import { HiveTabBar } from "@/components/hive/HiveTabBar";
 import { useSyncHiveList } from "@/features/hive";
-import { useHiveStore } from "@/stores/useHiveStore";
-import { HiveWifiSetupSheet } from "@/features/hive-wifi";
+import { useOrderedHives } from "@/features/hive";
+import { RISE_DURATION_MS, riseDelay } from "@/features/hive-home";
+import { createHiveWifiAdapter } from "@/features/hive-wifi";
+import { DeviceWifiSetupSheet } from "@/features/device-wifi-setup";
 import { Spacing } from "../constants";
 
 const BG_IMAGE = require("../../assets/df.jpg");
@@ -42,22 +44,35 @@ export interface WeatherRegion {
 
 export default function HiveSettingsScreen() {
   const insets = useSafeAreaInsets();
-  const hives = useHiveStore((state) => state.hives);
+  // 아래로 스크롤하면 하단 탭바를 숨기고, 위로 당기면 다시 보여줍니다.
+  const footerScroll = useHideFooterOnScroll();
+  const hives = useOrderedHives();
 
   useSyncHiveList();
 
+  // 벌통 홈의 Wi-Fi 카드에서 들어오면 그 벌통을 먼저 선택합니다.
+  const { selectedHiveId: routeHiveId } = useLocalSearchParams<{ selectedHiveId?: string }>();
   const [selectedHiveId, setSelectedHiveId] = useState<string | undefined>(
-    hives[0]?.id,
+    routeHiveId ?? hives[0]?.id,
   );
   const [selectedStn, setSelectedStn] = useState<number>(108);
   const [searchText, setSearchText] = useState("");
-  const [savedMessage, setSavedMessage] = useState(false);
   const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
   const [hiveSelectVisible, setHiveSelectVisible] = useState(false);
-  const savedMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { show: showToast } = useAppToast();
 
   const selectedHive =
     hives.find((hive) => hive.id === selectedHiveId) ?? hives[0];
+
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(WEATHER_REGION_KEY).then((value) => {
+      if (!active || !value) return;
+      const saved = JSON.parse(value) as WeatherRegion;
+      if (KMA_REGIONS.some((region) => region.stn === saved.stn)) setSelectedStn(saved.stn);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!hives.length) return;
@@ -76,20 +91,7 @@ export default function HiveSettingsScreen() {
   const selectedRegionName =
     KMA_REGIONS.find((region) => region.stn === selectedStn)?.name || "서울";
 
-  const haptic = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
-
-  const showSavedMessage = () => {
-    if (savedMessageTimerRef.current) clearTimeout(savedMessageTimerRef.current);
-    setSavedMessage(true);
-    savedMessageTimerRef.current = setTimeout(() => setSavedMessage(false), 2000);
-  };
-
   const handleSelectRegion = async (region: WeatherRegion) => {
-    haptic();
     const prev = selectedStn;
     setSelectedStn(region.stn);
     try {
@@ -97,9 +99,10 @@ export default function HiveSettingsScreen() {
         WEATHER_REGION_KEY,
         JSON.stringify({ stn: region.stn, name: region.name }),
       );
-      showSavedMessage();
+      showToast(`날씨 지역을 ${region.name}(으)로 바꿨어요`, "success");
     } catch {
       setSelectedStn(prev);
+      showToast("날씨 지역을 저장하지 못했어요. 다시 시도해 주세요.", "error");
     }
   };
 
@@ -115,8 +118,10 @@ export default function HiveSettingsScreen() {
           paddingBottom: insets.bottom + 100,
         }}
         showsVerticalScrollIndicator={false}
+        onScroll={footerScroll.onScroll}
+        scrollEventThrottle={footerScroll.scrollEventThrottle}
       >
-        <View className="flex-row items-center justify-between rounded-2xl border border-white/50 bg-white/70 px-4 py-3">
+        <Card duration={RISE_DURATION_MS} delay={riseDelay(0)} translucent style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View className="flex-row items-center gap-2.5">
             <View className="h-8 w-8 items-center justify-center rounded-full bg-gray-900">
               <Feather name="clock" size={16} color={C.white} />
@@ -126,17 +131,17 @@ export default function HiveSettingsScreen() {
                 weight="bold"
                 className="text-[14px] text-gray-900"
               >
-                실시간 데이터는 5분마다 업데이트돼요
+                실시간 데이터는 수신 즉시 반영돼요
               </PretendardFont>
               <PretendardFont className="mt-0.5 text-[12px] leading-[17px] text-gray-800">
-                센서 데이터는 최대 5분 기준 안에서 반영돼요.
+                벌통 센서 값이 도착하면 화면이 바로 업데이트돼요.
               </PretendardFont>
             </View>
           </View>
           <Feather name="info" size={18} color={C.sec} />
-        </View>
+        </Card>
 
-        <BeeBoxCard variant="setting">
+        <Card duration={RISE_DURATION_MS} delay={riseDelay(1)} translucent>
           <View className="flex-row items-center gap-3">
             <View
               className="h-10 w-10 items-center justify-center rounded-full"
@@ -161,7 +166,6 @@ export default function HiveSettingsScreen() {
             <Pressable
               onPress={() => {
                 if (hives.length < 2) return;
-                haptic();
                 setHiveSelectVisible(true);
               }}
               className="mt-4 flex-row items-center justify-between rounded-xl px-3.5 py-3 active:opacity-70"
@@ -189,7 +193,6 @@ export default function HiveSettingsScreen() {
 
           <Pressable
             onPress={() => {
-              haptic();
               setWifiSetupVisible(true);
             }}
             className="mt-4 flex-row items-center justify-center gap-2 rounded-2xl py-3.5 active:opacity-80"
@@ -203,9 +206,9 @@ export default function HiveSettingsScreen() {
               Wi-Fi 연결·변경
             </PretendardFont>
           </Pressable>
-        </BeeBoxCard>
+        </Card>
 
-        <BeeBoxCard delay={200} variant="setting">
+        <Card duration={RISE_DURATION_MS} delay={riseDelay(2)} translucent>
           <View className="mb-3 flex-row items-center gap-2.5">
             <View
               className="items-center justify-center rounded-lg p-2"
@@ -296,28 +299,16 @@ export default function HiveSettingsScreen() {
               onSelect={handleSelectRegion}
             />
           )}
-        </BeeBoxCard>
+        </Card>
       </BounceScrollView>
 
-      {savedMessage && (
-        <Animated.View
-          entering={FadeInDown.duration(300)}
-          className="absolute left-0 right-0 z-[999] mx-auto max-w-[200px] flex-row items-center justify-center gap-1.5 self-center rounded-full bg-black/75 px-5 py-2.5"
-          style={{ top: insets.top + 60 }}
-        >
-          <Feather name="check-circle" size={16} color={C.white} />
-          <PretendardFont weight="semibold" className="text-[14px] text-white">
-            저장됐어요
-          </PretendardFont>
-        </Animated.View>
-      )}
-
-      <HiveWifiSetupSheet
+      <DeviceWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
         mode="change"
         initialDeviceId={selectedHive?.macAddress}
-        onProvisioned={showSavedMessage}
+        adapter={createHiveWifiAdapter("change", selectedHive?.macAddress ?? "")}
+        onProvisioned={() => showToast("벌통 Wi-Fi를 바꿨어요.", "success")}
       />
 
       <BottomSheet
@@ -333,7 +324,6 @@ export default function HiveSettingsScreen() {
               <Pressable
                 key={hive.id}
                 onPress={() => {
-                  haptic();
                   setSelectedHiveId(hive.id);
                   setHiveSelectVisible(false);
                 }}

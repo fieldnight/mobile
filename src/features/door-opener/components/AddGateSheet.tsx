@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { BottomSheet } from "@/components/BottomSheet";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { isValidHiveDeviceId, normalizeHiveDeviceId } from "@/features/hive-wifi";
+import { DeviceWifiSetupSheet } from "@/features/device-wifi-setup";
 import { useGateStore } from "@/stores/useGateStore";
 import { C } from "@/constants/hive-colors";
 import type { GateData, GateFormInput } from "@/types/gate-control";
 import { getGateDeviceErrorMessage } from "../api";
-import { useRegisterGateDevice } from "../hooks";
-import { GateWifiSetupSheet } from "./GateWifiSetupSheet";
+import { useRegisterGateDevice, useUpdateGateDevice } from "../hooks";
+import { createGateWifiAdapter } from "../model/gateWifiAdapter";
 
 interface AddGateSheetProps {
   visible: boolean;
@@ -22,6 +23,7 @@ interface AddGateSheetProps {
 const EMPTY_FORM: GateFormInput = {
   macAddress: "",
   name: "",
+  region: "",
   location: "",
   memo: "",
 };
@@ -36,8 +38,9 @@ function normalizeGateName(value: string) {
 }
 
 /**
- * 저장 전에 로컬 개폐기 목록에서 중복을 먼저 확인합니다.
- * 서버 요청이 없는 로컬 전용 등록이라, 저장 직전에만 막아도 충분합니다.
+ * 저장 전에 로컬 개폐기 목록(서버 목록 캐시)에서 중복을 먼저 확인합니다.
+ * 최종 검증은 서버(등록 시 GATE_MAC_ADDRESS_ALREADY_EXISTS)가 하지만, 흔한 실수는
+ * 요청을 보내기 전에 미리 막아 불필요한 API 호출과 대기를 줄입니다.
  */
 function getDuplicateGateMessage({
   gates,
@@ -67,8 +70,8 @@ function getDuplicateGateMessage({
 
 /**
  * 개폐기 등록/수정 공용 바텀시트
- * - 등록은 서버(POST /api/v1/gates)에 반영되고, 수정은 서버 PATCH가 아직 없어
- *   로컬(useGateStore)에만 반영됩니다.
+ * - 등록은 서버(POST /api/v1/gates), 수정은 서버(PUT /api/v1/gates/{gateId})에 반영되고,
+ *   성공 시 로컬(useGateStore) 캐시도 함께 맞춰줍니다.
  * - 벌통 등록 모달(HiveAddSheet)과 동일한 UX(Wi-Fi 연결 카드 포함)를 쓰되, MQTT
  *   연결 확인처럼 서버가 필요한 흐름은 없습니다.
  */
@@ -80,6 +83,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
   const updateGate = useGateStore((state) => state.updateGate);
   const { show: showToast } = useAppToast();
   const registerGateMutation = useRegisterGateDevice();
+  const updateGateMutation = useUpdateGateDevice();
   const [form, setForm] = useState<GateFormInput>(EMPTY_FORM);
   const [wifiSetupVisible, setWifiSetupVisible] = useState(false);
   const [provisionedDeviceId, setProvisionedDeviceId] = useState("");
@@ -94,8 +98,10 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
       gate
         ? {
             id: gate.id,
+            gateId: gate.gateId,
             macAddress: gate.macAddress,
             name: gate.name,
+            region: gate.region ?? "",
             location: gate.location,
             memo: gate.memo ?? "",
           }
@@ -130,13 +136,14 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
   };
 
   const handleSubmit = () => {
-    if (registerGateMutation.isPending) return;
+    if (registerGateMutation.isPending || updateGateMutation.isPending) return;
     if (!canSubmit) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const payload = {
       macAddress: normalizeGateMacAddress(form.macAddress),
       name: form.name.trim(),
+      region: form.region?.trim() || undefined,
       location: form.location.trim(),
       memo: form.memo?.trim() || undefined,
     };
@@ -152,18 +159,40 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
       return;
     }
 
+    const submittedEpoch = uiEpoch.current;
+
     if (editing && gate) {
-      updateGate(gate.id, payload);
-      showToast(`${payload.name} 정보를 수정했어요`, "success");
-      resetAndClose();
+      updateGateMutation.mutate(
+        {
+          gateId: gate.gateId,
+          body: {
+            name: payload.name,
+            region: payload.region,
+            location: payload.location,
+            memo: payload.memo,
+          },
+        },
+        {
+          onSuccess: () => {
+            updateGate(gate.id, payload);
+            if (submittedEpoch !== uiEpoch.current) return;
+            showToast(`${payload.name} 정보를 수정했어요`, "success");
+            resetAndClose();
+          },
+          onError: (error) => {
+            if (submittedEpoch !== uiEpoch.current) return;
+            showToast(getGateDeviceErrorMessage(error, "개폐기 수정에 실패했어요"), "error");
+          },
+        },
+      );
       return;
     }
 
-    const submittedEpoch = uiEpoch.current;
     registerGateMutation.mutate(
       {
         macAddress: payload.macAddress,
         name: payload.name,
+        region: payload.region,
         location: payload.location,
         memo: payload.memo,
       },
@@ -194,7 +223,7 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
           style={{ fontSize: 13, color: C.gatePrimary, lineHeight: 20 }}
         >
           {editing
-            ? "등록된 개폐기의 이름, 위치, 메모를 수정할 수 있어요."
+            ? "등록된 개폐기의 이름, 지역, 위치, 메모를 수정할 수 있어요."
             : "처음 설치라면 개폐기 Wi-Fi를 연결한 뒤 기본 정보를 입력해주세요."}
         </PretendardFont>
       </View>
@@ -226,6 +255,13 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
         placeholder="남쪽 과수원 개폐기"
       />
 
+      <FieldLabel label="지역" />
+      <FormInput
+        value={form.region ?? ""}
+        onChangeText={(value) => updateField("region", value)}
+        placeholder="충청북도 청주시 오창읍"
+      />
+
       <FieldLabel label="사용자 지정 위치" />
       <FormInput
         value={form.location}
@@ -253,28 +289,33 @@ export function AddGateSheet({ visible, onClose, gate }: AddGateSheetProps) {
         </Pressable>
         <Pressable
           onPress={handleSubmit}
-          disabled={!canSubmit || registerGateMutation.isPending}
+          disabled={!canSubmit || registerGateMutation.isPending || updateGateMutation.isPending}
           className="flex-1 items-center rounded-2xl py-4 active:opacity-80"
           style={{
             backgroundColor:
-              canSubmit && !registerGateMutation.isPending ? C.gatePrimary : C.border,
+              canSubmit && !registerGateMutation.isPending && !updateGateMutation.isPending
+                ? C.gatePrimary
+                : C.border,
           }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 14, color: C.white }}>
             {registerGateMutation.isPending
               ? "등록 중..."
-              : editing
-                ? "수정하기"
-                : "등록하기"}
+              : updateGateMutation.isPending
+                ? "수정 중..."
+                : editing
+                  ? "수정하기"
+                  : "등록하기"}
           </PretendardFont>
         </Pressable>
       </View>
 
-      <GateWifiSetupSheet
+      <DeviceWifiSetupSheet
         visible={wifiSetupVisible}
         onClose={() => setWifiSetupVisible(false)}
         mode={editing ? "change" : "register"}
         initialDeviceId={form.macAddress}
+        adapter={createGateWifiAdapter(editing ? "change" : "register")}
         onProvisioned={handleWifiProvisioned}
       />
     </BottomSheet>

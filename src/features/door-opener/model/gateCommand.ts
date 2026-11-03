@@ -10,6 +10,9 @@ const TYPES = {
 
 /** PR #195: path uses numeric DB ID, envelope uses MAC. operation 생략 시 EXECUTE. */
 export function buildGateCommand(card: NfcDoorCardConfig, macAddress: string) {
+  if (card.endAction === "exit_only") {
+    throw new Error("회수구만 여는 카드는 현재 NFC 오프라인으로만 적용할 수 있어요.");
+  }
   const gateId = macAddress.trim().toUpperCase();
   if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(gateId)) throw new Error("개폐기 MAC 주소를 확인해주세요.");
   if (!(card.mode in TYPES)) throw new Error("이 카드는 아직 온라인 실행을 지원하지 않아요. NFC로 적용해주세요.");

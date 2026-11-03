@@ -5,3 +5,4 @@ export { DataTable } from "./DataTable";
 export { HiveReplacementTable } from "./HiveReplacementTable";
 export { HiveReplacementCard } from "./HiveReplacementCard";
 export { LiveTelemetryTable } from "./LiveTelemetryTable";
+export { LoadingTips } from "./LoadingTips";

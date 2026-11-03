@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Dimensions,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
@@ -21,6 +22,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 import { BounceScrollView } from "@/components/refresh/BounceScrollView";
+import { Feather } from "@expo/vector-icons";
 import Svg, { Circle, G, Line, Polyline } from "react-native-svg";
 import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
@@ -28,6 +30,7 @@ import { useHiveStore } from "@/stores/useHiveStore";
 import { useGateStore } from "@/stores/useGateStore";
 import { useGateModeStore } from "@/stores/useGateModeStore";
 import { useSyncHiveList } from "@/features/hive";
+import { useSyncGateList } from "@/features/door-opener/hooks";
 import {
   createDoorActivityReport,
   sendAssistantMessage,
@@ -52,12 +55,16 @@ import type { NfcDoorCardConfig } from "@/features/door-opener/components/nfcDoo
 import { DEFAULT_NFC_DOOR_CARDS } from "@/features/door-opener/components/nfcDoorCards";
 import {
   buildDoorOpenerRuntimeState,
-  getDoorOpenerRuntimeText,
   loadDoorOpenerRuntimeState,
-  saveDoorOpenerRuntimeState,
   type DoorOpenerRuntimeState,
 } from "@/features/door-opener/model/doorOpenerRuntime";
 import { createMockDoorDeviceStats } from "@/features/door-opener/model/mockDoorStats";
+import { mergeDoorBucket, mergeDoorCounters, type DoorCounterState } from "@/features/door-opener/model/doorStatsMerge";
+import { useDoorDeviceState } from "@/stores/useDoorDeviceState";
+import { gateDisplayName, normalizeGateMac, runtimeFromServerCommand } from "@/features/door-opener/model/deviceCardState";
+import { DeviceCardStatus, DeviceCardStatusList } from "@/features/door-opener/components/DeviceCardStatus";
+import { getCurrentGateCommand } from "@/features/door-opener/api/gateCommandsApi";
+import { migrateDeviceCards } from "@/features/door-opener/model/migrateDeviceCards";
 import type { GateActionAppConnectionStatus } from "@/features/door-opener/components/NfcDoorCardSection";
 import {
   setActiveHceCard,
@@ -76,20 +83,21 @@ import type {
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
 const H_PAD = 18;
-const GAP = 16;
+const GAP = 12;
 const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2 - 1;
-const HERO_BANNER_H = SCREEN_H * 0.34;
-const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.62, 260);
-/** 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도. 기존 220에서 20% 줄여 배경이 더 보이게 합니다. */
-const CARD_SHEET_OVERLAP = 220 * 0.8;
+const HERO_IMAGE_SIZE = Math.min(SCREEN_W * 0.5, 200);
+/** 제품 사진은 자르지 않고 전체를 보여줍니다. 위아래 여백만 조금 둡니다. */
+const HERO_BANNER_H = HERO_IMAGE_SIZE + 8;
+/** 카드 시트가 히어로 배너 위로 겹쳐 올라가는 정도. 사진(아래 그림자 여백 포함)을 가리지 않게 0으로 둡니다. */
+const CARD_SHEET_OVERLAP = 0;
 const STATS_PANEL_PAD = 16;
 const STATS_PAGE_GAP = 12;
 const STATS_PAGE_W = SCREEN_W - H_PAD * 2 - STATS_PANEL_PAD * 2;
 const STATS_CHART_W = Math.max(260, STATS_PAGE_W - 64);
 const STATS_CHART_H = 210;
 const STATS_CHART_PAD_X = 18;
-const STATS_CHART_PAD_Y = 50;
-const STATS_HOUR_AXIS_W = 96;
+const STATS_CHART_PAD_Y = 36;
+const STATS_HOUR_AXIS_W = 72;
 const DOOR_STATS_CACHE_STORAGE_KEY = "ourbee:door-opener-stats-cache:v2";
 
 type DoorOpenerTab = "control" | "stats";
@@ -182,7 +190,7 @@ const SAMPLE_HOURLY_STATS: HourlyStatsPoint[] = [
   },
 ];
 
-interface DoorDeviceStats {
+interface DoorDeviceStats extends DoorCounterState {
   deviceId: string;
   runtimeState?: DoorOpenerRuntimeState;
   bootCounts?: BeeTrafficCounts;
@@ -250,6 +258,7 @@ function todayKey() {
 
 export default function DoorOpenerScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ tab?: string; deviceId?: string }>();
   const hives = useHiveStore((s) => s.hives);
   const gates = useGateStore((s) => s.gates);
   const gateMode = useGateModeStore((s) => s.mode);
@@ -257,20 +266,24 @@ export default function DoorOpenerScreen() {
   const [trafficCounts, setTrafficCounts] = useState<BeeTrafficCounts>(
     EMPTY_BEE_TRAFFIC_COUNTS,
   );
-  const [runtimeState, setRuntimeState] =
-    useState<DoorOpenerRuntimeState | null>(null);
   const [appConnectionStatus, setAppConnectionStatus] =
     useState<GateActionAppConnectionStatus>("idle");
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [activeTab, setActiveTab] = useState<DoorOpenerTab>("control");
+  const [activeTab, setActiveTab] = useState<DoorOpenerTab>(params.tab === "stats" ? "stats" : "control");
   const [statsState, setStatsState] = useState<DoorStatsState>({ devices: {} });
   const [statsCacheHydrated, setStatsCacheHydrated] = useState(false);
-  const [selectedStatsDeviceId, setSelectedStatsDeviceId] = useState<
-    string | undefined
-  >();
+  const statsReadyRef = useRef(false);
+  const pendingStatsRef = useRef<HceStatsEvent[]>([]);
+  const [selectedStatsDeviceId, setSelectedStatsDeviceId] = useState<string | undefined>(normalizeGateMac(params.deviceId));
+  useEffect(() => {
+    if (params.tab === "stats") setActiveTab("stats");
+    const mac = normalizeGateMac(params.deviceId);
+    if (mac) setSelectedStatsDeviceId(mac);
+  }, [params.tab, params.deviceId]);
   const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
   const activeHceCardRef = useRef<NfcDoorCardConfig | null>(null);
   useSyncHiveList();
+  useSyncGateList();
 
   useEffect(() => {
     if (gateMode !== "offline") return;
@@ -317,7 +330,9 @@ export default function DoorOpenerScreen() {
     const restoreRuntime = async () => {
       const restored = await loadDoorOpenerRuntimeState();
       if (!restored || cancelled) return;
-      setRuntimeState(restored);
+      if (restored.deviceId) useDoorDeviceState.getState().confirm({
+        deviceId: restored.deviceId, runtime: restored, source: "offline", confirmedAt: restored.activatedAt,
+      });
       if (restored.counts) setTrafficCounts(restored.counts);
     };
 
@@ -329,7 +344,7 @@ export default function DoorOpenerScreen() {
 
   // Keep the most recently received NFC statistics while navigating away from
   // this screen or restarting the app. The ESP32 remains the source of truth:
-  // the next statistics-card tap replaces these values with a fresh snapshot.
+  // each tap merges the device's incremental history into this cache.
   useEffect(() => {
     let cancelled = false;
 
@@ -339,8 +354,13 @@ export default function DoorOpenerScreen() {
         if (!raw || cancelled) return;
         const cached: unknown = JSON.parse(raw);
         if (!isDoorStatsState(cached)) return;
+        for (const device of Object.values(cached.devices)) {
+          if (device.runtimeState && !device.isMock) useDoorDeviceState.getState().confirm({
+            deviceId: device.deviceId, runtime: device.runtimeState, source: "offline", confirmedAt: device.runtimeState.activatedAt,
+          });
+        }
         setStatsState(cached);
-        if (cached.lastDeviceId) setSelectedStatsDeviceId(cached.lastDeviceId);
+        if (cached.lastDeviceId) setSelectedStatsDeviceId(current => current ?? cached.lastDeviceId);
       } catch (error) {
         console.warn("[DoorOpener] Failed to restore stats cache", error);
       } finally {
@@ -376,21 +396,18 @@ export default function DoorOpenerScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const runtimeText = useMemo(
-    () => getDoorOpenerRuntimeText(runtimeState, new Date(nowTick)),
-    [nowTick, runtimeState],
-  );
-
   const handleHceResult = useCallback(
     (event: HceResultEvent, card: NfcDoorCardConfig) => {
+      if (event.status !== "ok") return;
       /* 통계 카드는 조회 전용이므로, 화면의 진행 중 개폐 설정을 덮어쓰지 않는다. */
       if (card.mode === "count_status") {
         if (event.counts) setTrafficCounts(event.counts);
         return;
       }
       const nextRuntimeState = buildDoorOpenerRuntimeState(card, event);
-      setRuntimeState(nextRuntimeState);
-      saveDoorOpenerRuntimeState(nextRuntimeState);
+      if (event.deviceId) useDoorDeviceState.getState().confirm({
+        deviceId: event.deviceId, runtime: nextRuntimeState, source: "offline", confirmedAt: nextRuntimeState.activatedAt,
+      });
 
       if (event.counts) {
         setTrafficCounts(event.counts);
@@ -419,7 +436,9 @@ export default function DoorOpenerScreen() {
             [deviceId]: {
               ...current,
               runtimeState: nextRuntimeState,
-              bootCounts: event.counts ?? current.bootCounts,
+              ...(event.counts ? mergeDoorCounters(current, {
+                type: "boot", raw: event.result, counts: event.counts,
+              }) : {}),
               lastUpdatedAt: Date.now(),
             },
           },
@@ -432,8 +451,12 @@ export default function DoorOpenerScreen() {
 
   const handleHceStats = useCallback((event: HceStatsEvent) => {
     if (event.type === "unknown") return;
+    // Restore persisted totals before applying a tap received during startup.
+    if (!statsReadyRef.current) {
+      pendingStatsRef.current.push(event);
+      return;
+    }
     // NFC v2 keeps the short result free of counters; ST|BOOT carries them.
-    if (event.type === "boot") setTrafficCounts(event.counts);
     const deviceId = getKnownApduDeviceId(
       "deviceId" in event ? event.deviceId : undefined,
     );
@@ -460,34 +483,21 @@ export default function DoorOpenerScreen() {
         lastUpdatedAt: Date.now(),
       };
 
-      if (event.type === "begin") {
-        /* 새 통계 수신마다 이전 날짜의 캐시를 버리고 오늘 스냅샷으로 교체한다. */
-        updated.bootCounts = {
-          entranceIn: 0,
-          entranceOut: 0,
-          exitIn: 0,
-          exitOut: 0,
-        };
-        updated.buckets = [];
-        updated.climateSamples = [];
-        updated.hourlyActive = undefined;
-      }
-
       if (event.type === "boot") {
-        updated.bootCounts = event.counts;
+        Object.assign(updated, mergeDoorCounters(current, event));
       }
 
       if (event.type === "bucket") {
         const existingIndex = updated.buckets.findIndex(
           (bucket) => bucket.start === event.start && bucket.end === event.end,
         );
-        const bucket: HceStatsBucket = {
+        const bucket = mergeDoorBucket(updated.buckets[existingIndex], {
           deviceId: event.deviceId,
           start: event.start,
           end: event.end,
           closed: event.closed,
           counts: event.counts,
-        };
+        }, updated.counterSession);
 
         if (existingIndex >= 0) {
           updated.buckets[existingIndex] = bucket;
@@ -496,7 +506,7 @@ export default function DoorOpenerScreen() {
         }
 
         updated.buckets.sort((a, b) => a.start.localeCompare(b.start));
-        updated.bootCounts = sumBucketTrafficCounts(updated.buckets);
+        // Buckets break down the same events; never add them to the total again.
       }
 
       if (event.type === "climate") {
@@ -533,9 +543,32 @@ export default function DoorOpenerScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!statsCacheHydrated) return;
+    statsReadyRef.current = true;
+    const pending = pendingStatsRef.current;
+    pendingStatsRef.current = [];
+    pending.forEach(handleHceStats);
+  }, [statsCacheHydrated, handleHceStats]);
+
   const handleHceCardActivated = useCallback((card: NfcDoorCardConfig) => {
     activeHceCardRef.current = card;
   }, []);
+
+  // Reconcile known server applications by their appliedAt timestamp. A null
+  // current rule does not mean no card: immediate ON/OFF leave no active rule.
+  useEffect(() => {
+    void migrateDeviceCards(gates);
+    let cancelled = false;
+    void Promise.allSettled(gates.filter(gate => gate.gateId > 0).map(async gate => {
+      const current = await getCurrentGateCommand(gate);
+      if (cancelled || !current) return;
+      const runtime = runtimeFromServerCommand(current, gate.macAddress);
+      if (runtime) useDoorDeviceState.getState().confirm({ deviceId: gate.macAddress,
+        runtime, source: "online", confirmedAt: runtime.activatedAt });
+    }));
+    return () => { cancelled = true; };
+  }, [gates, gateMode]);
 
   // The HCE service can respond after the card modal closes or while the
   // statistics tab is shown, so subscriptions belong to the screen itself.
@@ -646,8 +679,8 @@ export default function DoorOpenerScreen() {
   }));
 
   return (
-    <View className="flex-1">
-      <DoorOpenerBackground />
+    <View className="flex-1" style={activeTab === "control" ? undefined : { backgroundColor: C.bg }}>
+      {activeTab === "control" ? <DoorOpenerBackground /> : null}
       {activeTab === "control" ? (
         <Animated.View
           pointerEvents="none"
@@ -705,23 +738,28 @@ export default function DoorOpenerScreen() {
             {...controlPanResponder.panHandlers}
           >
             <Animated.View
-              className="rounded-t-[28px] px-[18px] pt-5 gap-4"
+              className="rounded-t-2xl px-[18px] pt-4 gap-3"
               style={[
                 {
-                  // 탭 축소분만큼 올리되, 좁은 화면에서도 상단 안내를 덮지 않습니다.
-                  marginTop: -Math.min(HERO_BANNER_H, CARD_SHEET_OVERLAP + tabsHeight - 42),
+                  paddingHorizontal: H_PAD,
+                  paddingTop: 14,
+                  gap: 12,
+                  // 사진 바로 아래에서 시작합니다(사진 위로 카드를 띄우지 않음).
+                  marginTop: -CARD_SHEET_OVERLAP,
                 },
                 controlStretchStyle,
               ]}
             >
               <Animated.View entering={FadeInDown.delay(110).duration(380)}>
+                {gateMode === "offline" ? <DeviceCardStatusList
+                  deviceIds={Object.keys(statsState.devices).filter(id => !statsState.devices[id].isMock)}
+                  now={new Date(nowTick)}
+                /> : null}
                 <NfcDoorCardSection
                   cardWidth={CARD_W}
                   deleting={deleting}
                   onToggleDeleting={() => setDeleting((value) => !value)}
                   onHceCardActivated={handleHceCardActivated}
-                  runtimeState={runtimeState}
-                  runtimeText={runtimeText}
                   hiveId={activeHive?.id}
                   onSyncStatusChange={setAppConnectionStatus}
                   gateMode={gateMode}
@@ -735,8 +773,8 @@ export default function DoorOpenerScreen() {
       ) : (
         <BounceScrollView
           contentContainerStyle={{
-            paddingHorizontal: H_PAD,
-            paddingTop: 18,
+            paddingHorizontal: 14,
+            paddingTop: 8,
             paddingBottom: insets.bottom + 96,
           }}
           showsVerticalScrollIndicator={false}
@@ -747,9 +785,6 @@ export default function DoorOpenerScreen() {
           </Animated.View>
           ) : (
           <Animated.View entering={FadeInDown.delay(110).duration(380)}>
-            <PretendardFont style={{ color: C.sec, fontSize: 13, marginBottom: 12 }}>
-              오프라인 리포트 · NFC로 받은 기록만 표시해요.
-            </PretendardFont>
             <DoorStatsPanel
               stats={statsState}
               now={new Date(nowTick)}
@@ -845,14 +880,26 @@ function DoorStatsPanel({
   appConnectionStatus: GateActionAppConnectionStatus;
   gateConnectionStatus: GateConnectionCheckStatus;
 }) {
-  const pagerRef = useRef<ScrollView>(null);
-  const devices = Object.values(stats.devices).sort((a, b) => {
+  const pagerRef = useRef<ScrollViewInstance>(null);
+  const records = useDoorDeviceState(state => state.records);
+  const registeredGates = useGateStore(state => state.gates);
+  const deviceMap = Object.fromEntries(Object.entries(stats.devices).map(([id, device]) => {
+    const record = records[normalizeGateMac(device.deviceId) ?? ""];
+    return [id, record ? { ...device, runtimeState: record.runtime ?? undefined } : device];
+  }));
+  for (const id of [...Object.keys(records), ...registeredGates.map(gate => gate.macAddress)]) {
+    const mac = normalizeGateMac(id);
+    if (mac && !Object.values(deviceMap).some(device => normalizeGateMac(device.deviceId) === mac)) {
+      deviceMap[mac] = { deviceId: mac, buckets: [], climateSamples: [], runtimeState: records[mac]?.runtime ?? undefined };
+    }
+  }
+  const devices = Object.values(deviceMap).sort((a, b) => {
     if (a.deviceId === stats.lastDeviceId) return -1;
     if (b.deviceId === stats.lastDeviceId) return 1;
     return a.deviceId.localeCompare(b.deviceId);
   });
   const selectedDevice =
-    (selectedDeviceId ? stats.devices[selectedDeviceId] : undefined) ??
+    (selectedDeviceId ? deviceMap[selectedDeviceId] : undefined) ??
     devices[0];
   const selectedIndex = Math.max(
     0,
@@ -882,9 +929,9 @@ function DoorStatsPanel({
   );
 
   return (
-    <View className="mb-8">
+    <View className="mb-6">
       <DoorOpenerHeroVisual
-        counts={selectedDevice?.bootCounts ?? fallbackCounts}
+        counts={selectedDevice ? selectedDevice.bootCounts ?? EMPTY_BEE_TRAFFIC_COUNTS : fallbackCounts}
         latestClimate={latestClimate}
         appConnectionStatus={appConnectionStatus}
         gateConnectionStatus={gateConnectionStatus}
@@ -892,11 +939,11 @@ function DoorStatsPanel({
 
       <DoorAiReportCard
         device={selectedDevice}
-        fallbackCounts={fallbackCounts}
+        fallbackCounts={selectedDevice ? EMPTY_BEE_TRAFFIC_COUNTS : fallbackCounts}
       />
 
       {devices.length > 0 ? (
-        <View className="mt-2">
+        <View className="mt-2.5">
           <ScrollView
             ref={pagerRef}
             horizontal
@@ -948,6 +995,7 @@ function DeviceStatsPage({
   device: DoorDeviceStats;
   now: Date;
 }) {
+  const gates = useGateStore(state => state.gates);
   const hourlyStats = getHourlyStatsPoints(
     device.buckets,
     device.climateSamples,
@@ -955,8 +1003,8 @@ function DeviceStatsPage({
 
   return (
     <View
-      className="mt-4 rounded-3xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.474)" }}
+      className="rounded-2xl px-5 pb-4 pt-5"
+      style={{ backgroundColor: C.white }}
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-1 flex-row items-center" style={{ gap: 8 }}>
@@ -965,13 +1013,13 @@ function DeviceStatsPage({
             numberOfLines={1}
             style={{ flexShrink: 1, fontSize: 17, color: C.text }}
           >
-            {device.deviceId}
+            {gateDisplayName(device.deviceId, gates)}
           </PretendardFont>
         </View>
         {device.lastUpdatedAt ? (
           <PretendardFont
             weight="semibold"
-            style={{ marginLeft: 10, fontSize: 13.5, color: C.textAlt }}
+            style={{ marginLeft: 10, fontSize: 13, color: C.sec }}
           >
             {new Date(device.lastUpdatedAt).toLocaleTimeString("ko-KR", {
               hour: "2-digit",
@@ -981,26 +1029,14 @@ function DeviceStatsPage({
         ) : null}
       </View>
 
-      {device.isMock ? null : device.runtimeState ? (
-        <DeviceRuntimeCard state={device.runtimeState} now={now} />
-      ) : (
-        <View
-          className="mt-3 rounded-3xl p-4"
-          style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{ fontSize: 16, color: C.text }}
-          >
-            진행중 카드 없음
-          </PretendardFont>
-        </View>
-      )}
+      {device.isMock ? null : <View style={{ marginTop: 8, paddingHorizontal: 0, backgroundColor: C.white }}>
+        <DeviceCardStatus deviceId={device.deviceId} now={now} />
+      </View>}
 
       {device.hourlyActive === false ? (
         <PretendardFont
           weight="semibold"
-          style={{ marginTop: 12, fontSize: 14, color: "#F8D15C" }}
+          style={{ marginTop: 12, fontSize: 13, color: C.warning }}
         >
           아직 시간별 집계가 시작되지 않았어요. 앱 카드를 찍어 폰 시간을 전달해
           주세요.
@@ -1132,123 +1168,63 @@ function DoorAiReportCard({
         }
         disabled={!hasData || loading}
         onPress={handleCardPress}
-        className="mt-3 rounded-3xl px-5 py-4 active:opacity-85"
-        style={{
-          minHeight: 116,
-          backgroundColor: "rgba(248,209,92,0.96)",
-          opacity: hasData ? 1 : 0.82,
-        }}
+        className="mt-2.5 rounded-2xl px-5 py-4 active:opacity-80"
+        style={{ backgroundColor: C.white }}
       >
-        <View
-          className="flex-row items-center justify-between"
-          style={{ gap: 12 }}
-        >
-          <PretendardFont
-            weight="bold"
-            style={{ flex: 1, fontSize: 17, color: C.text }}
-          >
-            {isExampleReport ? "AI 벌 활동 리포트 예시" : "AI 벌 활동 리포트"}
-          </PretendardFont>
+        <View className="flex-row items-center" style={{ gap: 12 }}>
           <View
-            className="rounded-full px-2.5 py-1"
-            style={{ backgroundColor: statusMeta.backgroundColor }}
+            className="h-11 w-11 items-center justify-center rounded-xl"
+            style={{ backgroundColor: C.bgAlt }}
           >
+            <Feather name="file-text" size={19} color={C.textAlt} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View className="flex-row items-center" style={{ gap: 6 }}>
+              {report ? (
+                <View
+                  className="rounded-full"
+                  style={{ width: 7, height: 7, backgroundColor: statusMeta.color }}
+                />
+              ) : null}
+              <PretendardFont weight="bold" style={{ fontSize: 15.5, color: C.text }}>
+                AI 벌 활동 리포트
+              </PretendardFont>
+              {isExampleReport ? (
+                <PretendardFont weight="medium" style={{ fontSize: 12.5, color: C.ter }}>
+                  예시
+                </PretendardFont>
+              ) : null}
+            </View>
             <PretendardFont
-              weight="bold"
-              style={{ fontSize: 12, color: statusMeta.color }}
+              weight="medium"
+              numberOfLines={2}
+              style={{ marginTop: 3, fontSize: 13, lineHeight: 18, color: C.sec }}
             >
-              {loading ? "분석 중" : statusMeta.label}
+              {loading
+                ? "출입량과 온습도를 분석하고 있어요"
+                : report
+                  ? `${statusMeta.label} · ${report.summary}`
+                  : "출입량과 온습도로 오늘 활동을 정리해요"}
             </PretendardFont>
+          </View>
+          <View
+            className="h-9 min-w-[56px] items-center justify-center rounded-lg px-3"
+            style={{ backgroundColor: C.bgAlt }}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={C.textAlt} />
+            ) : (
+              <PretendardFont weight="semibold" style={{ fontSize: 13.5, color: C.text }}>
+                {report ? "보기" : "만들기"}
+              </PretendardFont>
+            )}
           </View>
         </View>
 
-        {loading ? (
-          <View className="mt-5 flex-row items-center" style={{ gap: 10 }}>
-            <ActivityIndicator size="small" color={C.text} />
-            <PretendardFont
-              weight="semibold"
-              style={{ fontSize: 14, color: C.text }}
-            >
-              출입량과 온습도를 분석하고 있어요
-            </PretendardFont>
-          </View>
-        ) : report ? (
-          <>
-            <PretendardFont
-              weight="bold"
-              style={{
-                marginTop: 10,
-                fontSize: 15,
-                lineHeight: 21,
-                color: C.text,
-              }}
-            >
-              {report.summary}
-            </PretendardFont>
-            {report.observations.slice(0, 2).map((observation, index) => (
-              <PretendardFont
-                key={`${observation}-${index}`}
-                weight="medium"
-                style={{
-                  marginTop: 5,
-                  fontSize: 13,
-                  lineHeight: 19,
-                  color: "rgba(28,34,44,0.76)",
-                }}
-              >
-                - {observation}
-              </PretendardFont>
-            ))}
-            <PretendardFont
-              weight="bold"
-              style={{
-                marginTop: 11,
-                fontSize: 12.5,
-                color: "rgba(28,34,44,0.64)",
-              }}
-            >
-              눌러서 전체 리포트 보기 &gt;
-            </PretendardFont>
-          </>
-        ) : (
-          <>
-            <PretendardFont
-              weight="medium"
-              style={{
-                marginTop: 7,
-                fontSize: 14,
-                lineHeight: 20,
-                color: "rgba(28,34,44,0.72)",
-              }}
-            >
-              {hasData
-                ? isExampleReport
-                  ? "예시 출입량과 온습도로 리포트 흐름을 먼저 확인해요."
-                  : "받아온 벌 출입량과 온습도로 자세한 활동 리포트를 만들어요."
-                : "리포트 화면을 개폐기에 대면 온습도와 벌 출입 기록을 받아와요."}
-            </PretendardFont>
-            {hasData ? (
-              <PretendardFont
-                weight="bold"
-                style={{ marginTop: 11, fontSize: 13, color: C.text }}
-              >
-                {isExampleReport
-                  ? "예시 리포트 받아오기"
-                  : "눌러서 AI 리포트 만들기"}
-              </PretendardFont>
-            ) : null}
-          </>
-        )}
-
         {error ? (
           <PretendardFont
-            weight="semibold"
-            style={{
-              marginTop: 10,
-              fontSize: 13,
-              lineHeight: 19,
-              color: "#8E2F25",
-            }}
+            weight="medium"
+            style={{ marginTop: 10, fontSize: 13, lineHeight: 19, color: C.error }}
           >
             {error}
           </PretendardFont>
@@ -1317,15 +1293,14 @@ function DoorAiReportModal({
         <View
           style={{
             maxHeight: "88%",
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
             backgroundColor: "#FFFFFF",
             overflow: "hidden",
           }}
         >
           <View
-            className="flex-row items-center justify-between px-5 py-4"
-            style={{ borderBottomWidth: 1, borderBottomColor: "#E8ECF0" }}
+            className="flex-row items-center justify-between px-5 pb-2 pt-5"
           >
             <View style={{ flex: 1 }}>
               <PretendardFont
@@ -1336,7 +1311,7 @@ function DoorAiReportModal({
               </PretendardFont>
               <PretendardFont
                 weight="medium"
-                style={{ marginTop: 3, fontSize: 12.5, color: "#7A8491" }}
+                style={{ marginTop: 3, fontSize: 12.5, color: C.sec }}
               >
                 {new Date(report.generatedAt).toLocaleString("ko-KR")}
               </PretendardFont>
@@ -1345,15 +1320,10 @@ function DoorAiReportModal({
               accessibilityRole="button"
               accessibilityLabel="닫기"
               onPress={onClose}
-              className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
-              style={{ backgroundColor: "#F1F3F5" }}
+              className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+              style={{ backgroundColor: C.bgAlt }}
             >
-              <PretendardFont
-                weight="bold"
-                style={{ fontSize: 20, color: C.text }}
-              >
-                X
-              </PretendardFont>
+              <Feather name="x" size={18} color={C.textAlt} />
             </Pressable>
           </View>
 
@@ -1365,33 +1335,25 @@ function DoorAiReportModal({
               paddingBottom: 34,
             }}
           >
-            <View className="flex-row items-center" style={{ gap: 9 }}>
+            <View className="flex-row items-center" style={{ gap: 6 }}>
               <View
-                className="rounded-full px-3 py-1.5"
-                style={{ backgroundColor: statusMeta.backgroundColor }}
-              >
-                <PretendardFont
-                  weight="bold"
-                  style={{ fontSize: 13, color: statusMeta.color }}
-                >
-                  {statusMeta.label}
-                </PretendardFont>
-              </View>
-              <PretendardFont
-                weight="bold"
-                style={{ flex: 1, fontSize: 17, color: C.text }}
-              >
-                {report.summary}
+                className="rounded-full"
+                style={{ width: 7, height: 7, backgroundColor: statusMeta.color }}
+              />
+              <PretendardFont weight="semibold" style={{ fontSize: 13.5, color: statusMeta.color }}>
+                {statusMeta.label}
               </PretendardFont>
             </View>
+            <PretendardFont
+              weight="bold"
+              style={{ marginTop: 6, fontSize: 19, lineHeight: 27, color: C.text }}
+            >
+              {report.summary}
+            </PretendardFont>
 
             <View
-              className="mt-5 flex-row flex-wrap"
-              style={{
-                borderTopWidth: 1,
-                borderLeftWidth: 1,
-                borderColor: "#E5E9ED",
-              }}
+              className="mt-5 flex-row flex-wrap rounded-xl py-1"
+              style={{ backgroundColor: C.bgAlt }}
             >
               <DoorReportMetric label="들어온 벌" value={`${incoming}마리`} />
               <DoorReportMetric label="나간 벌" value={`${outgoing}마리`} />
@@ -1445,7 +1407,7 @@ function DoorAiReportModal({
                 onPress={onRefresh}
                 className="min-h-12 flex-1 items-center justify-center rounded-xl active:opacity-75"
                 style={{
-                  backgroundColor: "#F8D15C",
+                  backgroundColor: C.bgAlt,
                   opacity: loading ? 0.7 : 1,
                 }}
               >
@@ -1464,7 +1426,7 @@ function DoorAiReportModal({
                 accessibilityRole="button"
                 onPress={onClose}
                 className="min-h-12 flex-1 items-center justify-center rounded-xl active:opacity-75"
-                style={{ backgroundColor: "#202833" }}
+                style={{ backgroundColor: C.primary }}
               >
                 <PretendardFont
                   weight="bold"
@@ -1486,22 +1448,19 @@ function DoorReportMetric({ label, value }: { label: string; value: string }) {
     <View
       style={{
         width: "50%",
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        borderRightWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: "#E5E9ED",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
       }}
     >
       <PretendardFont
         weight="medium"
-        style={{ fontSize: 12.5, color: "#7A8491" }}
+        style={{ fontSize: 12.5, color: C.sec }}
       >
         {label}
       </PretendardFont>
       <PretendardFont
         weight="bold"
-        style={{ marginTop: 3, fontSize: 18, color: C.text }}
+        style={{ marginTop: 2, fontSize: 20, color: C.text }}
       >
         {value}
       </PretendardFont>
@@ -1522,8 +1481,8 @@ function DoorReportSection({
   if (!text && visibleItems.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         {title}
       </PretendardFont>
       {text ? (
@@ -1533,7 +1492,7 @@ function DoorReportSection({
             marginTop: 8,
             fontSize: 14,
             lineHeight: 22,
-            color: "#4F5A67",
+            color: C.textAlt,
           }}
         >
           {text}
@@ -1547,10 +1506,10 @@ function DoorReportSection({
             marginTop: 7,
             fontSize: 14,
             lineHeight: 21,
-            color: "#4F5A67",
+            color: C.textAlt,
           }}
         >
-          - {item}
+          · {item}
         </PretendardFont>
       ))}
     </View>
@@ -1567,14 +1526,12 @@ function DoorReportTableSection({
   if (rows.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         {title}
       </PretendardFont>
       <View
-        className="mt-3"
-        style={{ borderTopWidth: 1, borderTopColor: "#E5E9ED" }}
-      >
+        className="mt-1">
         {rows.map((row, index) => {
           const statusMeta = row.status
             ? getDoorAiStatusMeta(row.status)
@@ -1584,17 +1541,13 @@ function DoorReportTableSection({
             <View
               key={`${row.label}-${row.value}-${index}`}
               className="flex-row items-start py-3"
-              style={{
-                gap: 14,
-                borderBottomWidth: 1,
-                borderBottomColor: "#E5E9ED",
-              }}
+              style={{ gap: 14 }}
             >
               <View style={{ flex: 1 }}>
                 {row.label ? (
                   <PretendardFont
                     weight="semibold"
-                    style={{ fontSize: 13, color: "#68727E" }}
+                    style={{ fontSize: 13, color: C.sec }}
                   >
                     {row.label}
                   </PretendardFont>
@@ -1606,7 +1559,7 @@ function DoorReportTableSection({
                       marginTop: row.label ? 3 : 0,
                       fontSize: 13.5,
                       lineHeight: 20,
-                      color: "#4F5A67",
+                      color: C.textAlt,
                     }}
                   >
                     {row.note}
@@ -1643,15 +1596,14 @@ function DoorReportSolutionSection({
   if (solutions.length === 0) return null;
 
   return (
-    <View className="mt-6">
-      <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
+    <View className="mt-7">
+      <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
         앞으로 이렇게 해보세요
       </PretendardFont>
       {solutions.map((solution, index) => (
         <View
           key={`${solution.title}-${index}`}
           className="py-3"
-          style={{ borderBottomWidth: 1, borderBottomColor: "#E5E9ED" }}
         >
           <PretendardFont weight="bold" style={{ fontSize: 14, color: C.text }}>
             {solution.title}
@@ -1662,7 +1614,7 @@ function DoorReportSolutionSection({
               marginTop: 5,
               fontSize: 14,
               lineHeight: 22,
-              color: "#4F5A67",
+              color: C.textAlt,
             }}
           >
             {solution.description}
@@ -2172,24 +2124,24 @@ function createDoorFieldSolutions(
 
 function getDoorAiStatusMeta(status?: DoorAiReportStatus) {
   if (status === "GOOD") {
-    return { label: "좋음", color: "#116349", backgroundColor: "#DDF5E9" };
+    return { label: "좋음", color: C.success, backgroundColor: C.bgAlt };
   }
   if (status === "CAUTION") {
-    return { label: "주의", color: "#963E27", backgroundColor: "#FFE2D7" };
+    return { label: "주의", color: C.warning, backgroundColor: C.bgAlt };
   }
   if (status === "NORMAL") {
-    return { label: "보통", color: "#2C5F87", backgroundColor: "#DDEFFC" };
+    return { label: "보통", color: C.textAlt, backgroundColor: C.bgAlt };
   }
   return {
     label: "분석 전",
     color: "#5B6470",
-    backgroundColor: "rgba(255,255,255,0.58)",
+    backgroundColor: C.bgAlt,
   };
 }
 
 function ExampleStatsCharts() {
   return (
-    <View className="mt-4">
+    <View className="rounded-2xl px-5 pb-4 pt-1" style={{ backgroundColor: C.white }}>
       <HourlyStatsChartCard
         title="시간별 리포트 예시"
         points={SAMPLE_HOURLY_STATS}
@@ -2208,7 +2160,7 @@ function HourlyStatsChartCard({
   const series: StatsChartSeries[] = [
     {
       label: "들어온 벌",
-      color: "#B7F3E5",
+      color: "#191F28",
       points: points.map((point) => ({
         label: point.label,
         value: point.entered,
@@ -2216,7 +2168,7 @@ function HourlyStatsChartCard({
     },
     {
       label: "나간 벌",
-      color: "#F8D15C",
+      color: "#B0B8C1",
       points: points.map((point) => ({
         label: point.label,
         value: point.exited,
@@ -2245,12 +2197,9 @@ function HourlyStatsChartCard({
   }));
 
   return (
-    <View
-      className="rounded-3xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.474)" }}
-    >
-      <View className="flex-row gap-5">
-        <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text }}>
+    <View className="mt-4">
+      <View className="flex-row items-center justify-between">
+        <PretendardFont weight="bold" style={{ fontSize: 15, color: C.text }}>
           {title}
         </PretendardFont>
 
@@ -2258,12 +2207,12 @@ function HourlyStatsChartCard({
           {visibleSeries.map((item) => (
             <View key={item.label} className="flex-row items-center">
               <View
-                className="mr-2 h-2.5 w-2.5 rounded-full"
+                className="mr-1.5 h-2 w-2 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
               <PretendardFont
-                weight="semibold"
-                style={{ fontSize: 14.5, color: C.textAlt }}
+                weight="medium"
+                style={{ fontSize: 12.5, color: C.sec }}
               >
                 {item.label}
               </PretendardFont>
@@ -2292,22 +2241,7 @@ function HourlyStatsChartCard({
                     y1={y}
                     x2={chartWidth - STATS_HOUR_AXIS_W / 2}
                     y2={y}
-                    stroke="rgba(25,31,40,0.12)"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-
-              {points.map((_, index) => {
-                const x = getAxisX(index);
-                return (
-                  <Line
-                    key={`axis-${index}`}
-                    x1={x}
-                    y1={STATS_CHART_PAD_Y}
-                    x2={x}
-                    y2={STATS_CHART_H - 6}
-                    stroke="rgba(25,31,40,0.08)"
+                    stroke="rgba(25,31,40,0.06)"
                     strokeWidth={1}
                   />
                 );
@@ -2327,7 +2261,7 @@ function HourlyStatsChartCard({
                         .join(" ")}
                       fill="none"
                       stroke={item.color}
-                      strokeWidth={3.5}
+                      strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -2336,9 +2270,9 @@ function HourlyStatsChartCard({
                         key={`${item.label}-${index}`}
                         cx={point.x}
                         cy={point.y}
-                        r={4.2}
+                        r={3.2}
                         fill={item.color}
-                        stroke="rgba(255,255,255,0.95)"
+                        stroke="#FFFFFF"
                         strokeWidth={1.5}
                       />
                     ))}
@@ -2354,36 +2288,22 @@ function HourlyStatsChartCard({
                 style={{
                   position: "absolute",
                   left: item.x - 32,
-                  top: Math.max(2, item.y - 66),
+                  top: Math.max(2, item.y - 40),
                   width: 64,
                   alignItems: "center",
                 }}
               >
                 <PretendardFont
                   weight="bold"
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 24,
-                    color: "#1B9C79",
-                    textShadowColor: "rgba(255,255,255,0.6)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
+                  style={{ fontSize: 13, lineHeight: 16, color: C.text }}
                 >
-                  입 {item.entered}
+                  {item.entered}
                 </PretendardFont>
                 <PretendardFont
-                  weight="bold"
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 24,
-                    color: "#B8860B",
-                    textShadowColor: "rgba(255,255,255,0.6)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
+                  weight="semibold"
+                  style={{ fontSize: 12, lineHeight: 15, color: C.ter }}
                 >
-                  출 {item.exited}
+                  {item.exited}
                 </PretendardFont>
               </View>
             ))}
@@ -2399,39 +2319,32 @@ function HourlyStatsChartCard({
                   style={{ width: STATS_HOUR_AXIS_W, paddingHorizontal: 1 }}
                 >
                   <PretendardFont
-                    weight="bold"
+                    weight="semibold"
                     style={{
-                      fontSize: 16,
-                      color: C.text,
+                      fontSize: 12.5,
+                      color: C.textAlt,
                       textAlign: "center",
                     }}
                   >
                     {point.label}
                   </PretendardFont>
 
-                  <View
-                    className="mt-1.5 rounded-2xl px-1 py-1"
-                    style={{
-                      backgroundColor: "rgba(255,255,255,0.6)",
-                      borderWidth: 1,
-                      borderColor: "rgba(25,31,40,0.08)",
-                    }}
-                  >
+                  <View className="mt-1">
                     {climateSlots.map((slot, slotIndex) => (
                       <View
                         key={`${slot.label}-${slotIndex}`}
                         className="items-center justify-center"
-                        style={{ minHeight: 25 }}
+                        style={{ minHeight: 18 }}
                       >
                         <PretendardFont
-                          weight="bold"
+                          weight="medium"
                           numberOfLines={1}
                           adjustsFontSizeToFit
                           minimumFontScale={0.82}
                           style={{
-                            fontSize: 13.2,
-                            lineHeight: 18,
-                            color: C.text,
+                            fontSize: 11.5,
+                            lineHeight: 16,
+                            color: C.sec,
                             textAlign: "center",
                           }}
                         >
@@ -2450,68 +2363,6 @@ function HourlyStatsChartCard({
   );
 }
 
-function DeviceRuntimeCard({
-  state,
-  now,
-}: {
-  state: DoorOpenerRuntimeState;
-  now: Date;
-}) {
-  const runtimeText = getDoorOpenerRuntimeText(state, now);
-  const active = state.status === "ok" && state.mode !== "count_status";
-
-  return (
-    <View
-      className="mt-3 rounded-3xl p-4"
-      style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
-    >
-      <PretendardFont
-        weight="bold"
-        style={{ fontSize: 16, color: active ? "#B8860B" : C.text }}
-      >
-        {active ? "현재 진행중 카드" : "마지막 찍은 카드"} · {state.title}
-      </PretendardFont>
-      {runtimeText ? (
-        <PretendardFont
-          weight="bold"
-          style={{
-            marginTop: 6,
-            fontSize: 14.5,
-            lineHeight: 20,
-            color: C.text,
-          }}
-        >
-          {runtimeText}
-        </PretendardFont>
-      ) : (
-        <PretendardFont
-          weight="medium"
-          style={{
-            marginTop: 6,
-            fontSize: 14,
-            lineHeight: 20,
-            color: C.textAlt,
-          }}
-        >
-          즉시 실행 카드라 다음 예약 시간은 없어요.
-        </PretendardFont>
-      )}
-      <PretendardFont
-        weight="medium"
-        numberOfLines={1}
-        style={{
-          marginTop: 5,
-          display: "none",
-          fontSize: 12.5,
-          color: C.ter,
-        }}
-      >
-        APDU · {state.result}
-      </PretendardFont>
-    </View>
-  );
-}
-
 function StatsCountsCard({
   title,
   counts,
@@ -2521,7 +2372,7 @@ function StatsCountsCard({
 }) {
   return (
     <View
-      className="mt-3 rounded-3xl p-4"
+      className="mt-3 rounded-xl p-4"
       style={{ backgroundColor: "rgba(255, 255, 255, 0.6)" }}
     >
       <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>

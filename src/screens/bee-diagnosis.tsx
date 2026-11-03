@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Platform, ScrollView, View } from "react-native";
+import { Alert, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AppHeader from "@/components/AppHeader";
 import { PretendardFont } from "@/components/PretendardFont";
@@ -48,17 +47,7 @@ export default function BeeDiagnosisScreen() {
     [step],
   );
 
-  const triggerHaptic = useCallback((style: "light" | "medium") => {
-    if (Platform.OS === "web") return;
-    const impactStyle =
-      style === "light"
-        ? Haptics.ImpactFeedbackStyle.Light
-        : Haptics.ImpactFeedbackStyle.Medium;
-    Haptics.impactAsync(impactStyle);
-  }, []);
-
   const pickImage = useCallback(async () => {
-    triggerHaptic("light");
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
@@ -71,7 +60,7 @@ export default function BeeDiagnosisScreen() {
     setAnalysis(null);
     setResult(null);
     setSavedDiagnosisId(null);
-  }, [triggerHaptic]);
+  }, []);
 
   const analyzeImage = useCallback(async () => {
     if (!selectedImage) {
@@ -83,14 +72,13 @@ export default function BeeDiagnosisScreen() {
       const nextAnalysis = await analyzeMutation.mutateAsync(selectedImage);
       setAnalysis(nextAnalysis);
       setStep("context");
-      triggerHaptic("medium");
     } catch (error) {
       Alert.alert(
         "사진을 분석하지 못했어요",
         getDiagnosisErrorMessage(error, "잠시 후 다시 시도해주세요."),
       );
     }
-  }, [analyzeMutation, selectedImage, triggerHaptic]);
+  }, [analyzeMutation, selectedImage]);
 
   const requestAdvice = useCallback(async () => {
     if (!analysis) return;
@@ -123,14 +111,13 @@ export default function BeeDiagnosisScreen() {
         solutions: advice.solutions,
       });
       setStep("result");
-      triggerHaptic("medium");
     } catch (error) {
       Alert.alert(
         "대처 방법을 불러오지 못했어요",
         getDiagnosisErrorMessage(error, "입력 내용을 확인하고 다시 시도해주세요."),
       );
     }
-  }, [aiMutation, analysis, context, triggerHaptic]);
+  }, [aiMutation, analysis, context]);
 
   const saveResult = useCallback(async () => {
     if (!selectedImage || !result) return;
@@ -150,7 +137,6 @@ export default function BeeDiagnosisScreen() {
         },
       });
       setSavedDiagnosisId(saved.beeDiagnosisId);
-      triggerHaptic("medium");
       Alert.alert("저장했어요", "진단 기록에서 언제든 다시 확인할 수 있어요.");
     } catch (error) {
       Alert.alert(
@@ -158,7 +144,7 @@ export default function BeeDiagnosisScreen() {
         getDiagnosisErrorMessage(error, "잠시 후 다시 시도해주세요."),
       );
     }
-  }, [context, result, saveMutation, selectedImage, triggerHaptic]);
+  }, [context, result, saveMutation, selectedImage]);
 
   const restart = useCallback(() => {
     analyzeMutation.reset();
@@ -173,7 +159,6 @@ export default function BeeDiagnosisScreen() {
   }, [aiMutation, analyzeMutation, saveMutation]);
 
   const goBack = useCallback(() => {
-    triggerHaptic("light");
     if (step === "result") {
       setStep("context");
       return;
@@ -183,7 +168,7 @@ export default function BeeDiagnosisScreen() {
       return;
     }
     router.back();
-  }, [router, step, triggerHaptic]);
+  }, [router, step]);
 
   const openHistory = useCallback(() => {
     if (savedDiagnosisId) {

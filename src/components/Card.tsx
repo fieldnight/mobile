@@ -31,7 +31,7 @@ export function Card({
     <Container
       onPress={onPress}
       className={clsx(
-        "bg-white rounded-2xl p-5 shadow-sm",
+        "bg-white rounded-xl p-4",
         onPress && "active:scale-98",
         className,
       )}

@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Pressable,
-  Platform,
   FlatList,
   Linking,
   ScrollView,
@@ -10,7 +9,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useNavigation } from "expo-router";
 
@@ -37,9 +35,6 @@ const FORM_PANEL_BG = "#EEF2F6";
 
 function RssArticleItem({ item, index }: { item: NewsItem; index: number }) {
   const handlePress = useCallback(() => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
     Linking.openURL(item.link);
   }, [item.link]);
 
@@ -228,9 +223,6 @@ export default function BeeNewsScreen() {
   const handleKeywordChange = useCallback(
     (keyword: string) => {
       if (keyword === selectedKeyword) return;
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
       setSelectedKeyword(keyword);
     },
     [selectedKeyword],

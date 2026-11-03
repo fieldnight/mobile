@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -32,8 +31,6 @@ export default function Profile() {
   const userName = user?.fullName || user?.username || "사용자";
 
   const handleProfileImagePress = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("권한 필요", "사진 접근 권한이 필요합니다.");
@@ -61,7 +58,6 @@ export default function Profile() {
   };
 
   const handleAddFarmland = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/add-farm");
   };
 
@@ -146,10 +142,7 @@ export default function Profile() {
                   <View key={farm.id}>
                     <View className="h-px bg-gray-100 mx-4" />
                     <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSelectedFarm(farm);
-                      }}
+                      onPress={() => setSelectedFarm(farm)}
                       className="flex-row items-center px-4 py-4 active:bg-gray-50"
                     >
                       <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-blue-50">

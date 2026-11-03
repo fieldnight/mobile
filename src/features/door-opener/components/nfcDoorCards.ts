@@ -86,6 +86,8 @@ export interface NfcDoorCardConfig {
   mode: NfcDoorMode;
   start?: string;
   end?: string;
+  /** After a window ends, keep only the return passage open when requested. */
+  endAction?: "exit_only";
   detail?: string;
   repeat?: boolean;
   countControl?: BeeCountControlConfig;
@@ -100,7 +102,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   {
     id: "door-open",
     title: "ON",
-    description: "개폐기를 바로 열어요",
+    description: "",
     detail: "개폐기를 즉시 열어야 할 때 쓰는 기본 카드예요.",
     icon: "unlock",
     mode: "open_now",
@@ -110,7 +112,7 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   {
     id: "door-close",
     title: "OFF",
-    description: "개폐기를 바로 닫아요",
+    description: "",
     detail: "방제, 휴식, 야간 차단처럼 문을 닫아야 할 때 사용해요.",
     icon: "lock",
     mode: "close_now",
@@ -131,9 +133,8 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   {
     id: "pesticide",
     title: "농약방제",
-    description: "방제 후 3일간 문을 닫아요",
-    detail:
-      "전체 작물의 살충제(약제) 방제 후에는 벌통 문을 닫고 약 3일 정도 운영하는 것을 권장해요.",
+    description: "카드를 대면 닫고 72시간 뒤 열어요",
+    detail: "적용 즉시 입구와 회수구를 닫고 72시간 뒤 자동으로 열어요. 방제 일정에 맞춰 적용 시점을 확인해 주세요.",
     icon: "shield",
     mode: "lock_days",
     start: "3",
@@ -143,33 +144,31 @@ export const DEFAULT_NFC_DOOR_CARDS: NfcDoorCardConfig[] = [
   {
     id: "bloom-30",
     title: "개화 30% 이하",
-    description: "오전에만 열고 오후에는 회수구만 열어요",
-    detail:
-      "딸기 과수정은 개화율에 맞춰 출입구 시간을 조절해요. 개화가 30% 이하라면 오전에만 출입구를 열고, 오후에는 회수구만 열어 운영해요.",
+    description: "09:00~14:00 모두 열고 이후 회수구만 열어요",
+    detail: "매일 09:00에 입구와 회수구를 열고 14:00부터는 입구를 닫아 회수구만 열어요.",
     icon: "sun",
     mode: "window",
     start: "09:00",
     end: "14:00",
+    endAction: "exit_only",
     repeat: true,
   },
   {
     id: "bloom-30-60",
     title: "개화 30~60%",
-    description: "하루 열고 다음날 닫는 격일 운영이에요",
-    detail:
-      "개화가 30~60%라면 매일 오전부터 오후 2시까지 열거나, 하루 열고 다음날 닫는 퐁당퐁당 운영을 많이 해요.",
+    description: "24시간 열고 다음 24시간 닫아요",
+    detail: "적용 순간부터 24시간 동안 입구와 회수구를 열고, 다음 24시간은 모두 닫는 동작을 반복해요.",
     icon: "repeat",
     mode: "alternate_24h",
-    start: "close_first",
+    start: "open_first",
     end: "",
     repeat: true,
   },
   {
     id: "bloom-60",
     title: "개화 60% 이상",
-    description: "매일 열어두거나 유연하게 운영해요",
-    detail:
-      "개화가 60% 이상이면 매일 열어두는 분도 많고, 30~60%처럼 관리하는 분도 적지 않아요. 단동 기준이며, 연동은 과수정 우려 없이 매일 열어두는 편이에요.",
+    description: "매일 08:00~18:00 열고 이후 닫아요",
+    detail: "매일 08:00에 입구와 회수구를 열고 18:00에 모두 닫는 카드예요.",
     icon: "sun",
     mode: "window",
     start: "08:00",

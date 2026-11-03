@@ -13,6 +13,16 @@ function load(file, overrides = {}) {
 const { buildGateCommand } = load(path.join(__dirname, 'gateCommand.ts'));
 const mac = 'AA:BB:CC:DD:EE:FF';
 const card = { title: '열기', mode: 'open_now' };
+
+test('immediate duplicate SUCCESS preserves ALREADY_APPLIED without polling a completed command', async () => {
+  const api = {
+    post: async () => ({ data: { data: { commandId: 'same', status: 'SUCCESS', detail: 'ALREADY_APPLIED' } } }),
+    get: async () => { throw Error('must not poll'); },
+  };
+  const { executeGateCard } = load(path.join(__dirname, '../api/gateCommandsApi.ts'), { '@/lib/api': { api } });
+  const result = await executeGateCard({ gateId: 42, macAddress: mac }, card);
+  assert.equal(result.detail, 'ALREADY_APPLIED');
+});
 test('online envelope is PR194, without cancellation or lossy COUNT conversion', () => {
   const result = buildGateCommand({ title: '99', mode: 'count_control', countControl: {
     low: 0, high: 99, repeatDays: { sun:false,mon:true,tue:false,wed:false,thu:false,fri:false,sat:false },

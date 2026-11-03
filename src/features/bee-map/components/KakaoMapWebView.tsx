@@ -20,7 +20,8 @@ export function KakaoMapWebView({
   userLocation,
   onMarkerPress,
 }: KakaoMapWebViewProps) {
-  const webViewRef = useRef<WebView>(null);
+  // react-native-webview 14 타입은 기본 제네릭(undefined)이면 props가 never가 되어 object를 명시합니다.
+  const webViewRef = useRef<WebView<object>>(null);
   const [mapReady, setMapReady] = useState(false);
   const html = useMemo(
     () => buildMapHtml(PUBLIC_CONFIG.kakaoMapApiKey),
@@ -119,7 +120,7 @@ export function KakaoMapWebView({
   }
 
   return (
-    <WebView
+    <WebView<object>
       ref={webViewRef}
       source={{ html, baseUrl: PUBLIC_CONFIG.kakaoMapBaseUrl }}
       originWhitelist={["*"]}

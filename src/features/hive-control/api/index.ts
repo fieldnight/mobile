@@ -31,6 +31,8 @@ export interface HiveControlSettingsResponse {
 }
 
 export interface ControlResultEvent {
+  commandId: string;
+  hiveId: number;
   success: boolean;
   targetTemperature: number | null;
   targetHumidity: number | null;
@@ -82,4 +84,3 @@ export async function requestManualControl(
     throw error;
   }
 }
-

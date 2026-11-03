@@ -1,4 +1,8 @@
-/** Sensor charts with a movable time/value viewport and sensor-specific missing values. */
+/**
+ * 센서 그래프
+ * - 주식 차트처럼 손가락을 대고 움직이면 세로선·점·말풍선이 따라옵니다.
+ * - 일간·주간·월간 모두 기간 전체 칸으로 채워 기록이 덜 찼어도 기간 전체와 양쪽 여백까지 축소해 볼 수 있습니다.
+ */
 import { memo, useEffect, useId, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -8,24 +12,40 @@ import { PretendardFont } from "@/components/PretendardFont";
 import { C } from "@/constants/hive-colors";
 import type { DataPoint, HiveSensorDataKey, Period } from "@/types";
 import {
-  chartSegments, formatSensorValue, latestSensorIndex, sensorStats, sensorValue,
-  visibleChartSegments, type ChartPoint,
+  chartSegments, formatSensorValue, interpolatedSensorValue, latestSensorIndex, padPeriodSlots, periodBounds,
+  sensorStats, sensorValue, visibleChartSegments, type ChartBounds, type ChartPoint,
 } from "../model/chartModel";
 import { useChartInteraction } from "../hooks/useChartInteraction";
 
 const PAD_X = 8;
 const PAD_Y = 16;
 const TICK_COUNT = 7;
+const TOOLTIP_W = 184;
+const TOOLTIP_TOP = 6;
 interface SensorConfig { key: HiveSensorDataKey; label: string; color: string; unit: string; dashed?: boolean }
 interface PreparedSensor extends SensorConfig {
   segments: ChartPoint[][];
   stats: ReturnType<typeof sensorStats>;
 }
-const SENSOR_CONFIGS: SensorConfig[] = [
+// 통합(combined) 보기는 값 범위가 같은 온도·습도 센서만 한 그래프에 겹쳐 보여줍니다.
+const COMBINED_SENSOR_CONFIGS: SensorConfig[] = [
   { key: "internalTemperature", label: "내부 온도", color: C.chartTemp, unit: "°C" },
-  { key: "externalTemperature", label: "외부 온도", color: "#64748B", unit: "°C", dashed: true },
+  { key: "externalTemperature", label: "기계 온도", color: "#64748B", unit: "°C", dashed: true },
   { key: "internalHumidity", label: "내부 습도", color: C.chartHumidity, unit: "%" },
-  { key: "externalHumidity", label: "외부 습도", color: "#64748B", unit: "%", dashed: true },
+  { key: "externalHumidity", label: "기계 습도", color: "#64748B", unit: "%", dashed: true },
+];
+
+// 차트(개별) 보기에는 값 범위가 서로 다른 나머지 센서도 각각 한 그래프씩 추가합니다.
+const SENSOR_CONFIGS: SensorConfig[] = [
+  ...COMBINED_SENSOR_CONFIGS,
+  { key: "co2", label: "CO2", color: "#8B5CF6", unit: "ppm" },
+  { key: "targetTemperature", label: "목표 온도", color: C.hive2, unit: "°C" },
+  { key: "peltierDutyPct", label: "펠티어 출력", color: C.hive3, unit: "%" },
+  { key: "fanHotDutyPct", label: "고온측 팬", color: C.hive4, unit: "%" },
+  { key: "fanColdDutyPct", label: "저온측 팬", color: "#0EA5E9", unit: "%", dashed: true },
+  // 값은 암페어가 아니라 냉방·난방측 IS 핀 ADC 전압(mV)입니다.
+  { key: "peltierCoolCurrentA", label: "냉각측 IS", color: "#0EA5E9", unit: "mV" },
+  { key: "peltierHeatCurrentA", label: "가열측 IS", color: "#EF4444", unit: "mV" },
 ];
 
 function axisValue(value: number, range: number) {
@@ -62,56 +82,67 @@ const SensorLines = memo(function SensorLines({ sensors, start, span, min, max, 
           <Path d={path} stroke={sensor.color} strokeWidth={2.25} fill="none" strokeLinecap="round"
             strokeLinejoin="round" strokeDasharray={sensor.dashed ? "5 4" : undefined} />
           {span <= 10 || segment.length === 1 ? segment.map((point) =>
-            <Circle key={point.index} cx={x(point.index)} cy={y(point.value)} r={2.5} fill={sensor.color} />) : null}
+            <Circle key={point.index} cx={x(point.index)} cy={y(point.value)} r={5} fill={sensor.color} />) : null}
         </G>;
       })}
     </G>)}
   </G>;
 });
 
-const SensorReadings = memo(function SensorReadings({ sensors, selected }: {
-  sensors: PreparedSensor[]; selected: DataPoint | undefined;
+/** 선과 이름만 보여주는 한 줄 범례. 값은 그래프 위 말풍선에서 봅니다. */
+function SensorLegend({ sensors }: { sensors: SensorConfig[] }) {
+  return <View style={styles.legend}>
+    {sensors.map((sensor) => <View key={sensor.key} style={[styles.inline, { gap: 5 }]}>
+      <View style={{ width: 12, borderTopWidth: 2, borderTopColor: sensor.color, borderStyle: sensor.dashed ? "dashed" : "solid" }} />
+      <PretendardFont style={{ fontSize: 12, color: C.textAlt }}>{sensor.label}</PretendardFont>
+    </View>)}
+  </View>;
+}
+
+/**
+ * 세로선 위에 뜨는 말풍선
+ * - 손가락에서 가장 가까운 기록의 시각과 각 지표 값을 보여줍니다.
+ * - 항상 그래프 맨 위, 세로선 가운데에 붙어 따라갑니다(위아래·좌우로 뒤집히지 않음).
+ *   그래프 양끝에서는 화면 밖으로 나가지 않게 안쪽에 멈춥니다.
+ */
+function ChartTooltip({ point, sensors, cursorX, plotWidth }: {
+  point: DataPoint; sensors: SensorConfig[]; cursorX: number; plotWidth: number;
 }) {
-  const [statsPopupKey, setStatsPopupKey] = useState<HiveSensorDataKey | null>(null);
-  return <View style={styles.readings}>
-    {sensors.map((sensor, index) => {
-      const value = sensorValue(selected, sensor.key);
-      const stats = sensor.stats;
-      return <View key={sensor.key} style={styles.reading}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${sensor.label} 기간 평균, 최저, 최고 보기`}
-          onPressIn={() => setStatsPopupKey(sensor.key)} onPressOut={() => setStatsPopupKey(null)}
-          style={{ minHeight: 48 }}>
-          <View style={[styles.inline, { gap: 4 }]}>
-            <View style={{ width: 8, borderTopWidth: 2, borderTopColor: sensor.color, borderStyle: sensor.dashed ? "dashed" : "solid" }} />
-            <PretendardFont weight="medium" numberOfLines={1} style={{ fontSize: 11, color: C.textAlt, flexShrink: 1 }}>{sensor.label}</PretendardFont>
-          </View>
-          <View style={[styles.inline, { alignItems: "baseline", marginTop: 2, gap: 2 }]}>
-            <PretendardFont weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-              style={{ fontSize: sensors.length === 1 ? 28 : 22, color: value === null ? C.sec : sensor.color, flexShrink: 1 }}>
-              {formatSensorValue(value, sensor.key)}
-            </PretendardFont>
-            <PretendardFont style={{ fontSize: 10, color: C.textAlt }}>{value === null ? "미수신" : sensor.unit}</PretendardFont>
-          </View>
-          {statsPopupKey === sensor.key ? <View style={[styles.statsPopup, index >= sensors.length / 2 ? { right: 0 } : { left: 0 }]}>
-            <PretendardFont style={{ fontSize: 11, color: C.white, lineHeight: 16 }}>
-              {stats ? `평균 ${formatSensorValue(stats.avg, sensor.key)}${sensor.unit}\n최저 ${formatSensorValue(stats.min, sensor.key)} · 최고 ${formatSensorValue(stats.max, sensor.key)}` : "이 기간에 측정값이 없어요"}
-            </PretendardFont>
-          </View> : null}
-        </Pressable>
+  const [width, setWidth] = useState(TOOLTIP_W);
+  const left = Math.max(0, Math.min(plotWidth - width, cursorX - width / 2));
+  return <View pointerEvents="none" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+    style={[styles.tooltip, { left, top: TOOLTIP_TOP }]}>
+    <PretendardFont weight="bold" style={{ fontSize: 15, color: C.white }}>{point.label}</PretendardFont>
+    {sensors.map((sensor) => {
+      const value = sensorValue(point, sensor.key);
+      return <View key={sensor.key} style={[styles.inline, { gap: 8, marginTop: 6 }]}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: sensor.color }} />
+        <PretendardFont style={{ flex: 1, fontSize: 14, color: "rgba(255,255,255,0.8)" }}>{sensor.label}</PretendardFont>
+        <PretendardFont weight="semibold" style={{ fontSize: 15, color: C.white, fontVariant: ["tabular-nums"] }}>
+          {value === null ? "미수신" : `${formatSensorValue(value, sensor.key)}${sensor.unit}`}
+        </PretendardFont>
       </View>;
     })}
   </View>;
-});
+}
 
-function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expanded = false }: {
-  data: DataPoint[]; sensors: SensorConfig[]; onInteractionChange?: (active: boolean) => void;
+/**
+ * 주식 차트처럼 손가락을 따라 읽는 그래프
+ * - 한 손가락: 누른 채 좌우로 움직이면 세로선과 점이 선을 따라 부드럽게 이동하고, 말풍선 값이 바뀝니다.
+ * - 두 손가락: 확대/축소. bounds가 있으면(일간) 기록이 덜 찼어도 그 범위까지 축소됩니다.
+ */
+function InteractiveChart({ data, sensors, bounds, onInteractionChange, onExpand, expanded = false }: {
+  data: DataPoint[]; sensors: SensorConfig[]; bounds?: ChartBounds; onInteractionChange?: (active: boolean) => void;
   onExpand?: () => void; expanded?: boolean;
 }) {
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const isSingleSensor = sensors.length === 1;
   const height = expanded
-    ? Math.max(140, window.height - insets.top - insets.bottom - 218)
-    : Math.max(300, Math.min(410, window.height * 0.43));
+    ? Math.max(140, window.height - insets.top - insets.bottom - 160)
+    : isSingleSensor
+      ? Math.max(150, Math.min(205, window.height * 0.215))
+      : Math.max(300, Math.min(410, window.height * 0.43));
   const plotHeight = height - PAD_Y * 2;
   const [plotWidth, setPlotWidth] = useState(240);
   const keys = useMemo(() => sensors.map((sensor) => sensor.key), [sensors]);
@@ -119,9 +150,9 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
     ...sensor, stats: sensorStats(data, sensor.key), segments: chartSegments(data, sensor.key),
   })), [data, sensors]);
   const latestIndex = useMemo(() => latestSensorIndex(data, keys), [data, keys]);
-  const { viewport, selectedIndex, mode, panHandlers, resetView, zoom, cancel } = useChartInteraction({
+  const { viewport, selectedIndex, cursor, mode, panHandlers, resetView, zoom, cancel } = useChartInteraction({
     data, keys, width: Math.max(1, plotWidth - PAD_X * 2), height: plotHeight,
-    paddingX: PAD_X, paddingY: PAD_Y, onInteractionChange,
+    paddingX: PAD_X, paddingY: PAD_Y, bounds, onInteractionChange,
   });
   const id = useId().replace(/:/g, "");
   const clipId = `sensor-plot-${id}`;
@@ -134,19 +165,22 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
   const timeTicks = [...new Set(Array.from({ length: tickCount }, (_, index) =>
     Math.max(0, Math.min(data.length - 1, Math.round(viewport.start + (index / (tickCount - 1)) * viewport.span))),
   ))];
-  const inspecting = selectedIndex >= viewport.start && selectedIndex <= viewport.start + viewport.span;
-  const focusSensor = sensors.find((sensor) => sensorValue(selected, sensor.key) !== null);
-  const focusValue = focusSensor ? sensorValue(selected, focusSensor.key) : null;
-  const valueTagVisible = inspecting && focusValue !== null && focusValue >= viewport.min && focusValue <= viewport.max;
+  // 확대/축소 중에는 세로선·점·말풍선을 숨겨 값이 흔들려 보이지 않게 합니다.
+  const inspecting = mode !== "pinch" && cursor >= viewport.start && cursor <= viewport.start + viewport.span;
+  const cursorX = x(cursor);
+  // 선 위의 점: 앞뒤 기록 사이를 보간해 세로선과 함께 미끄러지듯 움직입니다. 보간할 수 없으면 가까운 기록 위치에 둡니다.
+  const dots = sensors.flatMap((sensor) => {
+    const smooth = interpolatedSensorValue(data, sensor.key, cursor);
+    const value = smooth ?? sensorValue(selected, sensor.key);
+    if (value === null) return [];
+    return [{ sensor, cx: smooth !== null ? cursorX : x(selectedIndex), cy: y(value) }];
+  });
 
   return <View style={styles.chart}>
     <View style={[styles.selectionHeader, { minHeight: onExpand ? 44 : 32 }]}>
-      <PretendardFont weight="medium" numberOfLines={1} style={styles.caption}>
-        {selected ? `${selectedIndex === latestIndex ? "최근" : "선택"} · ${selected.label}` : "수신된 데이터 없음"}
-      </PretendardFont>
+      <SensorLegend sensors={sensors} />
       {onExpand ? <ChartButton label="그래프 크게 보기" icon="maximize-2" onPress={() => { cancel(); onExpand(); }} /> : null}
     </View>
-    <SensorReadings sensors={prepared} selected={selected} />
     {latestIndex < 0 ? <View style={[styles.empty, { minHeight: height }]}>
       <Feather name="activity" size={23} color={C.sec} />
       <PretendardFont weight="semibold" style={{ fontSize: 14, color: C.textAlt, marginTop: 10 }}>표시할 측정값이 없어요</PretendardFont>
@@ -156,11 +190,12 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
         <View style={{ flex: 1, minWidth: 0 }}>
           <View {...panHandlers} testID={`sensor-chart-${sensors[0].key}`}
             accessibilityRole="adjustable"
-            accessibilityLabel={`${sensors.map((sensor) => sensor.label).join(", ")} 그래프. 드래그로 이동하고 두 손가락으로 확대하거나 축소합니다. 길게 누른 채 움직이면 시점별 값을 확인합니다.`}
+            accessibilityLabel={`${sensors.map((sensor) => sensor.label).join(", ")} 그래프. 손가락을 대고 좌우로 움직이면 시점별 값을 확인하고, 두 손가락으로 확대하거나 축소합니다.`}
+            accessibilityValue={selected ? { text: `${selected.label} ${sensors.map((sensor) => `${sensor.label} ${formatSensorValue(sensorValue(selected, sensor.key), sensor.key)}`).join(", ")}` } : undefined}
             accessibilityActions={[{ name: "increment", label: "확대" }, { name: "decrement", label: "축소" }]}
             onAccessibilityAction={(event) => zoom(event.nativeEvent.actionName === "increment" ? 1.4 : 1 / 1.4)}
             onLayout={(event) => setPlotWidth(Math.max(40, event.nativeEvent.layout.width))}
-            style={[{ height, overflow: "hidden", backgroundColor: C.bgAlt, borderRadius: 8 }, Platform.OS === "web" && ({ touchAction: "none", userSelect: "none", cursor: mode === "pan" ? "grabbing" : "crosshair" } as object)]}>
+            style={[{ height, overflow: "hidden", backgroundColor: C.bgAlt, borderRadius: 8 }, Platform.OS === "web" && ({ touchAction: "none", userSelect: "none", cursor: "crosshair" } as object)]}>
             <Svg width={plotWidth} height={height} pointerEvents="none">
               <Defs>
                 <ClipPath id={clipId}><Rect x={0} y={0} width={plotWidth} height={height} /></ClipPath>
@@ -177,44 +212,30 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
                 <SensorLines sensors={prepared} start={viewport.start} span={viewport.span} min={viewport.min} max={viewport.max}
                   width={plotWidth} height={height} gradientId={gradientId} />
                 {inspecting ? <G>
-                  <Line x1={x(selectedIndex)} x2={x(selectedIndex)} y1={0} y2={height} stroke="#64748B" strokeWidth={1} strokeDasharray="3 4" />
-                  {valueTagVisible && focusValue !== null ? <Line x1={0} x2={plotWidth} y1={y(focusValue)} y2={y(focusValue)}
-                    stroke={focusSensor?.color} strokeOpacity={0.65} strokeWidth={1} strokeDasharray="3 4" /> : null}
-                  {sensors.map((sensor) => {
-                    const value = sensorValue(selected, sensor.key);
-                    if (value === null) return null;
-                    return <G key={sensor.key}>
-                      <Circle cx={x(selectedIndex)} cy={y(value)} r={9} fill={sensor.color} fillOpacity={0.13} />
-                      <Circle cx={x(selectedIndex)} cy={y(value)} r={4} fill={C.white} stroke={sensor.color} strokeWidth={2} />
-                    </G>;
-                  })}
+                  <Line x1={cursorX} x2={cursorX} y1={0} y2={height} stroke="#64748B" strokeWidth={1} />
+                  {dots.map((dot) => <G key={dot.sensor.key}>
+                    <Circle cx={dot.cx} cy={dot.cy} r={9} fill={dot.sensor.color} fillOpacity={0.13} />
+                    <Circle cx={dot.cx} cy={dot.cy} r={4} fill={C.white} stroke={dot.sensor.color} strokeWidth={2} />
+                  </G>)}
                 </G> : null}
               </G>
             </Svg>
+            {inspecting && selected ? (
+              <ChartTooltip point={selected} sensors={sensors} cursorX={cursorX} plotWidth={plotWidth} />
+            ) : null}
           </View>
           <View style={styles.timeAxis}>
             {timeTicks.map((index) => <PretendardFont key={index} numberOfLines={1}
-              style={{ position: "absolute", top: 5, left: Math.max(0, Math.min(plotWidth - 66, x(index) - 33)), width: 66, textAlign: "center", color: C.textAlt, fontSize: 10 }}>
+              style={{ position: "absolute", top: 5, left: Math.max(0, Math.min(plotWidth - 66, x(index) - 33)), width: 66, textAlign: "center", color: C.textAlt, fontSize: 11 }}>
               {data[index]?.label}
             </PretendardFont>)}
-            {inspecting && selected ? <View pointerEvents="none"
-              style={[styles.timeTag, { left: Math.max(0, Math.min(plotWidth - 84, x(selectedIndex) - 42)) }]}>
-              <PretendardFont weight="medium" numberOfLines={1} style={{ color: C.white, fontSize: 10, textAlign: "center" }}>{selected.label}</PretendardFont>
-            </View> : null}
           </View>
         </View>
         <View pointerEvents="none" style={{ width: 42, height }}>
           {ticks.map((tick, index) => <PretendardFont key={index}
-            style={{ position: "absolute", top: PAD_Y + (index / (TICK_COUNT - 1)) * plotHeight - 7, left: 5, fontSize: 10, color: C.textAlt }}>
+            style={{ position: "absolute", top: PAD_Y + (index / (TICK_COUNT - 1)) * plotHeight - 7, left: 5, fontSize: 11, color: C.textAlt }}>
             {axisValue(tick, viewport.max - viewport.min)}
           </PretendardFont>)}
-          {valueTagVisible && focusValue !== null && focusSensor ? <View
-            style={[styles.valueTag, { top: Math.max(0, Math.min(height - 22, y(focusValue) - 11)), backgroundColor: focusSensor.color }]}>
-            <PretendardFont weight="semibold" numberOfLines={1} adjustsFontSizeToFit
-              style={{ color: C.white, fontSize: 10, textAlign: "center" }}>
-              {formatSensorValue(focusValue, focusSensor.key)}
-            </PretendardFont>
-          </View> : null}
         </View>
       </View>
       <View style={styles.controls}>
@@ -222,7 +243,7 @@ function InteractiveChart({ data, sensors, onInteractionChange, onExpand, expand
           <ChartButton label="전체" onPress={() => resetView(true)} />
           <ChartButton label="최근" onPress={() => resetView(false)} />
         </View>
-        <PretendardFont numberOfLines={1} style={{ fontSize: 10, color: C.sec, flexShrink: 1 }}>탭하거나 드래그해 값 확인</PretendardFont>
+        <PretendardFont numberOfLines={1} style={{ fontSize: 12, color: C.sec, flexShrink: 1 }}>손가락을 대고 좌우로 움직여 값 확인</PretendardFont>
       </View>
     </>}
   </View>;
@@ -233,16 +254,18 @@ export function ChartCards({ data, viewMode = "chart", period = "일간", onInte
   onInteractionChange?: (active: boolean) => void; resetKey?: number;
 }) {
   const singleSensors = useMemo(() => SENSOR_CONFIGS.map((sensor) => [sensor]), []);
+  const chartData = useMemo(() => padPeriodSlots(data, period), [data, period]);
+  const bounds = useMemo(() => periodBounds(chartData.length), [chartData.length]);
   const [expandedSensors, setExpandedSensors] = useState<SensorConfig[] | null>(null);
   const insets = useSafeAreaInsets();
   useEffect(() => { setExpandedSensors(null); }, [period, viewMode, resetKey]);
   if (!data.length) return <View style={styles.empty}><PretendardFont style={{ fontSize: 14, color: C.textAlt }}>표시할 센서 데이터가 없습니다.</PretendardFont></View>;
   return <View>
     {viewMode === "combined" ? (
-      <InteractiveChart key={`${period}-${resetKey}`} data={data} sensors={SENSOR_CONFIGS} onInteractionChange={onInteractionChange}
-        onExpand={() => setExpandedSensors(SENSOR_CONFIGS)} />
+      <InteractiveChart key={`${period}-${resetKey}`} data={chartData} sensors={COMBINED_SENSOR_CONFIGS} bounds={bounds} onInteractionChange={onInteractionChange}
+        onExpand={() => setExpandedSensors(COMBINED_SENSOR_CONFIGS)} />
     ) : singleSensors.map((sensors, index) => <View key={`${period}-${sensors[0].key}-${resetKey}`} style={index > 0 ? styles.divider : undefined}>
-      <InteractiveChart data={data} sensors={sensors} onInteractionChange={onInteractionChange} onExpand={() => setExpandedSensors(sensors)} />
+      <InteractiveChart data={chartData} sensors={sensors} bounds={bounds} onInteractionChange={onInteractionChange} onExpand={() => setExpandedSensors(sensors)} />
     </View>)}
     {expandedSensors ? <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setExpandedSensors(null)}>
       <View style={[styles.modal, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -252,7 +275,7 @@ export function ChartCards({ data, viewMode = "chart", period = "일간", onInte
           </PretendardFont>
           <ChartButton label="크게 보기 닫기" icon="x" onPress={() => setExpandedSensors(null)} />
         </View>
-        <InteractiveChart data={data} sensors={expandedSensors} expanded onInteractionChange={onInteractionChange} />
+        <InteractiveChart data={chartData} sensors={expandedSensors} bounds={bounds} expanded onInteractionChange={onInteractionChange} />
       </View>
     </Modal> : null}
   </View>;
@@ -262,19 +285,14 @@ const styles = StyleSheet.create({
   chart: { paddingVertical: 4 },
   inline: { flexDirection: "row", alignItems: "center", gap: 6 },
   selectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  caption: { fontSize: 11, color: C.textAlt, flex: 1 },
-  readings: { flexDirection: "row", gap: 4, zIndex: 2 },
-  reading: { flex: 1, minWidth: 64 },
-  statsPopup: {
-    position: "absolute", bottom: "100%", marginBottom: 6, zIndex: 10,
-    backgroundColor: "rgba(25,31,40,0.94)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    minWidth: 150,
+  legend: { flex: 1, flexDirection: "row", flexWrap: "wrap", columnGap: 12, rowGap: 4 },
+  tooltip: {
+    position: "absolute", width: TOOLTIP_W, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
+    backgroundColor: "rgba(25,31,40,0.92)",
   },
   button: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   plotRow: { flexDirection: "row", marginHorizontal: -4, marginTop: 8 },
   timeAxis: { height: 28 },
-  timeTag: { position: "absolute", top: 1, width: 84, minHeight: 22, justifyContent: "center", paddingHorizontal: 4, borderRadius: 4, backgroundColor: C.text },
-  valueTag: { position: "absolute", left: 1, right: 0, height: 22, justifyContent: "center", paddingHorizontal: 2, borderRadius: 3 },
   controls: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 30, backgroundColor: C.bgAlt, borderRadius: 12, marginTop: 12 },
   divider: { marginTop: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border },

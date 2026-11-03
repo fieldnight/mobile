@@ -15,6 +15,7 @@ export interface DoorOpenerRuntimeState {
   mode: NfcDoorMode;
   start?: string;
   end?: string;
+  endAction?: "exit_only";
   repeat: boolean;
   countControl?: BeeCountControlConfig;
   activatedAt: number;
@@ -37,6 +38,7 @@ export function buildDoorOpenerRuntimeState(
     mode: card.mode,
     start: card.start,
     end: card.end,
+    endAction: card.endAction,
     repeat: card.repeat ?? false,
     countControl: card.countControl,
     activatedAt: Date.now(),
@@ -151,16 +153,18 @@ function getWindowText(state: DoorOpenerRuntimeState, now: Date) {
   const inWindow = overnight
     ? now.getTime() >= startToday.getTime() || now.getTime() < atTime(now, end.hour, end.minute).getTime()
     : now.getTime() >= startToday.getTime() && now.getTime() < endToday.getTime();
+  const endLabel = state.endAction === "exit_only" ? "회수구만 열린다" : "닫힌다";
 
   if (inWindow) {
     const closeAt = now.getTime() < endToday.getTime()
       ? endToday
       : new Date(atTime(now, end.hour, end.minute).getTime() + DAY_MS);
-    return `열림 중 · ${formatRemaining(closeAt, now)} 후 닫힌다`;
+    return `열림 중 · ${formatRemaining(closeAt, now)} 후 ${endLabel}`;
   }
 
   const openAt = nextDailyAt(now, start.hour, start.minute);
-  return `닫힘 중 · ${formatRemaining(openAt, now)} 후 열린다`;
+  const currentLabel = state.endAction === "exit_only" ? "회수구만 열림 중" : "닫힘 중";
+  return `${currentLabel} · ${formatRemaining(openAt, now)} 후 모두 열린다`;
 }
 
 function getAlternateText(state: DoorOpenerRuntimeState, now: Date) {

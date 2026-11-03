@@ -14,6 +14,7 @@ import {
   RefreshControl as RNRefreshControl,
   Platform,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -23,7 +24,7 @@ import Animated, {
   cancelAnimation,
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 
 interface PullToRefreshProps extends ScrollViewProps {
   onRefresh: () => Promise<void> | void;
@@ -32,7 +33,7 @@ interface PullToRefreshProps extends ScrollViewProps {
   children?: React.ReactNode;
 }
 
-export const PullToRefresh = forwardRef<ScrollView, PullToRefreshProps>(
+export const PullToRefresh = forwardRef<ScrollViewInstance, PullToRefreshProps>(
   ({ onRefresh, refreshing = false, progressViewOffset = 56, children, ...props }, ref) => {
     const [isRefreshing, setIsRefreshing] = React.useState(refreshing);
     const isRefreshingRef = useRef(false);

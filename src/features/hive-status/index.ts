@@ -4,6 +4,8 @@ export { useHiveTelemetryData } from "./hooks/useHiveTelemetryData";
 export {
   useHiveTelemetryHourData,
   HIVE_TELEMETRY_HOUR_QUERY_KEY,
+  hiveTelemetryHourQueryKey,
+  fetchHiveTelemetryHour,
   type HiveTelemetryHourRecord,
 } from "./hooks/useHiveTelemetryHourData";
 export {
@@ -24,8 +26,14 @@ export {
   HiveReplacementTable,
   HiveReplacementCard,
   LiveTelemetryTable,
+  LoadingTips,
 } from "./components";
 export type {
   HiveTelemetryInterval,
   HiveTelemetryPeriod,
 } from "./api/telemetryApi";
+export {
+  HIVE_LATEST_TELEMETRY_QUERY_KEY,
+  getHiveLatestTelemetry,
+  useHiveLatestTelemetrySync,
+} from "./hooks/useHiveLatestTelemetry";

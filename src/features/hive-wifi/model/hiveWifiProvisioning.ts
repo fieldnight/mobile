@@ -1,4 +1,4 @@
-import { Linking, Platform } from "react-native";
+export { openWifiSettings } from "@/features/device-wifi-setup/model/systemWifiSettings";
 
 export interface HiveWifiStatus {
   stationSsid: string;
@@ -79,46 +79,6 @@ export function getHiveSetupPassword() {
   return SETUP_AP_PASSWORD;
 }
 
-/**
- * Expo Go에서는 앱이 Wi-Fi를 강제로 바꿀 수 없어서 시스템 설정까지만 열어줍니다.
- * 사용자가 벌통 AP를 선택한 뒤 앱으로 돌아오면 로컬 HTTP로 연결 여부를 확인합니다.
- */
-export async function openWifiSettings() {
-  logInfo("system Wi-Fi settings requested");
-
-  if (Platform.OS === "android") {
-    await Linking.sendIntent("android.settings.WIFI_SETTINGS");
-    return;
-  }
-
-  if (Platform.OS === "ios") {
-    const wifiSettingsUrl = "App-Prefs:root=WIFI";
-    if (await Linking.canOpenURL(wifiSettingsUrl)) {
-      await Linking.openURL(wifiSettingsUrl);
-      return;
-    }
-  }
-
-  await Linking.openSettings();
-}
-
-/**
- * 벌통 설정 AP에 연결된 상태에서 펌웨어가 제공하는 웹 설정 페이지를 엽니다.
- * 외부 브라우저가 HTTP를 처리하므로 앱 릴리스의 cleartext 정책과 무관합니다.
- */
-export async function openHiveSetupPage() {
-  logInfo("setup web page requested", { url: HIVE_SETUP_URL });
-
-  try {
-    await Linking.openURL(HIVE_SETUP_URL);
-  } catch {
-    throw new HiveWifiProvisioningError(
-      "벌통 설정 페이지를 열지 못했어요. 휴대폰이 벌통 Wi-Fi에 연결됐는지 확인해주세요.",
-      "HIVE_WIFI_SETUP_PAGE_FAILED",
-    );
-  }
-}
-
 export async function getHiveWifiStatus(): Promise<HiveWifiStatus> {
   const response = await requestHive("/api/status", {
     headers: { Accept: "application/json" },
@@ -155,8 +115,4 @@ export async function sendRouterCredentials(ssid: string, password: string) {
     accepted: true,
     message: await response.text(),
   };
-}
-
-export async function disconnectHiveWifi() {
-  // Expo Go에서는 연결 소유권이 시스템 Wi-Fi 설정에 있으므로 해제할 작업이 없습니다.
 }

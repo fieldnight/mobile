@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, Switch, Alert } from 'react-native';
 import Text from '@/components/Text';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from "@/lib/haptics";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PretendardFont } from '@/components/PretendardFont';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -23,14 +23,9 @@ interface MenuItemProps {
 }
 
 function MenuItem({ icon, label, onPress, rightElement, danger = false }: MenuItemProps) {
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  };
-
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={onPress}
       className="flex-row items-center px-4 py-4 active:bg-gray-50"
     >
       <Feather
@@ -62,7 +57,6 @@ export default function Settings() {
   const [legalNoticeType, setLegalNoticeType] = useState<LegalNoticeKey | null>(null);
   const insets = useSafeAreaInsets();
   const handleLogout = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
         await logout();
     } finally {
@@ -71,7 +65,6 @@ export default function Settings() {
   };
 
   const handleDeleteAccount = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(
       '계정 삭제',
       '정말 탈퇴하시겠습니까?\n탈퇴 후 데이터는 복구할 수 없습니다.',
@@ -186,6 +179,19 @@ export default function Settings() {
             <MenuItem icon="shield" label="개인정보처리방침" onPress={() => setLegalNoticeType('privacy')} />
             <View className="h-px bg-gray-100 ml-11" />
             <MenuItem icon="lock" label="앱 권한 안내" onPress={() => setLegalNoticeType('permissions')} />
+          </View>
+        </View>
+
+        <View className="mb-4">
+          <PretendardFont weight="semibold" className="text-xs text-gray-600 mb-2 px-5">
+            도구
+          </PretendardFont>
+          <View className="mx-4 bg-white rounded-2xl overflow-hidden">
+            <MenuItem icon="activity" label="실시간 센서표" onPress={() => router.push('/hive-live')} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="bar-chart-2" label="벌통 분석" onPress={() => router.push('/hive-analysis')} />
+            <View className="h-px bg-gray-100 ml-11" />
+            <MenuItem icon="layout" label="UI 확인용 샘플" onPress={() => router.push('/hive-ui-check')} />
           </View>
         </View>
 

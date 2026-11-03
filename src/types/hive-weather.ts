@@ -5,6 +5,7 @@
  */
 
 import type { Feather } from "@expo/vector-icons";
+import type { HiveHardwareIssue } from "./hive-telemetry";
 
 export type Period = "일간" | "주간" | "월간";
 
@@ -13,16 +14,34 @@ export type HiveSensorDataKey =
   | "externalTemperature"
   | "internalHumidity"
   | "externalHumidity"
-  | "co2";
+  | "co2"
+  | "peltierDutyPct"
+  | "fanHotDutyPct"
+  | "fanColdDutyPct"
+  | "targetTemperature"
+  | "peltierCoolCurrentA"
+  | "peltierHeatCurrentA";
 
 export interface DataPoint {
   label: string;
+  issues?: HiveHardwareIssue[];
   /** null은 미수신 값이며, 실제 측정값 0과 구분합니다. */
   internalTemperature: number | null;
   externalTemperature: number | null;
   internalHumidity: number | null;
   externalHumidity: number | null;
   co2: number | null;
+  peltierDutyPct: number | null;
+  fanHotDutyPct: number | null;
+  fanColdDutyPct: number | null;
+  targetTemperature: number | null;
+  peltierCoolCurrentA: number | null;
+  peltierHeatCurrentA: number | null;
+  /** 슬롯 내 마지막 값입니다 (평균이 아님). */
+  peltierMode: string | null;
+  fanState: string | null;
+  internalSensorValid: boolean | null;
+  externalSensorValid: boolean | null;
   /** 센서 중 하나라도 측정값이 있는 행입니다. 각 센서의 유무는 해당 값으로 판단합니다. */
   hasData?: boolean;
 }

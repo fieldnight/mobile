@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, View } from "react-native";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/lib/haptics";
 import { Feather } from "@expo/vector-icons";
 import { BottomSheet, ConfirmSheet } from "@/components/BottomSheet";
-import { Card } from "@/components/hive/hive-shared";
 import { PretendardFont } from "@/components/PretendardFont";
 import { useAppToast } from "@/components/ToastContext";
 import { C } from "@/constants/hive-colors";
+import { Tap } from "@/components/Tap";
+import { T } from "@/features/hive-home/theme";
 import type { HiveData } from "@/types/hive-control";
-import type { HiveReplacementHistory } from "../api/replacementHistoryApi";
+import { getReplacementErrorMessage, type HiveReplacementHistory } from "../api/replacementHistoryApi";
 import {
   useCreateHiveReplacementHistory,
   useDeleteHiveReplacementHistory,
@@ -26,8 +27,6 @@ interface HiveReplacementCardProps {
   hive?: HiveData;
 }
 
-const FORM_PANEL_BG = "#EEF2F6";
-const INFO_PANEL_BG = "#EAF4FF";
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 /**
@@ -107,8 +106,8 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           });
           showToast("오늘 날짜로 교체 기록을 등록했어요", "success");
         },
-        onError: () => {
-          showToast("교체 기록 등록에 실패했어요", "error");
+        onError: (error) => {
+          showToast(getReplacementErrorMessage(error, "교체 기록 등록에 실패했어요"), "error");
         },
       },
     );
@@ -133,8 +132,8 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
             setSheetVisible(false);
             setEditingHistoryId(undefined);
           },
-          onError: () => {
-            showToast("교체 기록 수정에 실패했어요", "error");
+          onError: (error) => {
+            showToast(getReplacementErrorMessage(error, "교체 기록 수정에 실패했어요"), "error");
           },
         },
       );
@@ -152,8 +151,8 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           showToast("교체 기록을 등록했어요", "success");
           setSheetVisible(false);
         },
-        onError: () => {
-          showToast("교체 기록 등록에 실패했어요", "error");
+        onError: (error) => {
+          showToast(getReplacementErrorMessage(error, "교체 기록 등록에 실패했어요"), "error");
         },
       },
     );
@@ -174,8 +173,8 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           showToast("교체 기록을 삭제했어요", "success");
           setDeletingRecord(null);
         },
-        onError: () => {
-          showToast("교체 기록 삭제에 실패했어요", "error");
+        onError: (error) => {
+          showToast(getReplacementErrorMessage(error, "교체 기록 삭제에 실패했어요"), "error");
         },
       },
     );
@@ -187,130 +186,84 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
 
   return (
     <>
-      <Card
-        delay={180}
-        className="mb-10"
-        style={{
-          backgroundColor: "rgba(255,255,255,0.72)",
-          elevation: 0,
-        }}
-      >
-        <View className="mb-4">
-          <View className="flex-row items-center justify-between" style={{ gap: 8 }}>
-            <View className="flex-1">
-              <PretendardFont weight="bold" style={{ fontSize: 17, color: C.text }}>
-                벌통 교체
+      {/* 화면의 "벌 교체" 섹션 제목 아래에 놓이는 흰 카드. 한 줄 요약 + 최근 기록만 보여 높이를 줄였습니다. */}
+      <View style={{ backgroundColor: T.panel, borderRadius: 24, paddingHorizontal: 18, paddingVertical: 16 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <PretendardFont style={{ fontSize: 12.5, color: T.muted }}>마지막 교체</PretendardFont>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+              <PretendardFont weight="bold" style={{ fontSize: 17, color: T.ink, fontVariant: ["tabular-nums"] }}>
+                {latest?.replacedAt ?? "기록 없음"}
               </PretendardFont>
-              <PretendardFont style={{ fontSize: 13, color: C.textSx, lineHeight: 19, marginTop: 6 }}>
-                수정벌 교체 날짜와 사용일수를 기록해요.
-              </PretendardFont>
-            </View>
-            <View className="flex-row" style={{ gap: 6 }}>
-              <ReplacementActionButton
-                label="당일교체"
-                icon="check"
-                selected
-                compact
-                disabled={createHistory.isPending}
-                onPress={handleTodayReplace}
-              />
-              <ReplacementActionButton
-                label="날짜추가"
-                icon="calendar"
-                compact
-                onPress={() => openCreateSheet()}
-              />
+              {latest ? (
+                <PretendardFont weight="semibold" style={{ fontSize: 14, color: elapsed.isOverdue ? T.hot : T.inkSoft }}>
+                  {elapsed.label}째
+                </PretendardFont>
+              ) : null}
             </View>
           </View>
-        </View>
-
-        <View className="mb-3 rounded-2xl px-4 py-3" style={{ backgroundColor: C.bgAlt }}>
-          <View className="flex-row items-center justify-between">
-            <View>
-              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.sec }}>
-                마지막 교체
-              </PretendardFont>
-              <PretendardFont weight="bold" style={{ fontSize: 18, color: C.text, marginTop: 3 }}>
-                {latest?.replacedAt ?? "미등록"}
-              </PretendardFont>
-            </View>
-            <View className="items-end">
-              <PretendardFont weight="bold" style={{ fontSize: 13, color: C.sec }}>
-                사용일수
-              </PretendardFont>
-              <PretendardFont
-                weight="bold"
-                style={{
-                  fontSize: 18,
-                  color: elapsed.isOverdue ? C.error : C.text,
-                  marginTop: 3,
-                }}
-              >
-                {elapsed.label}
-              </PretendardFont>
-            </View>
-          </View>
-        </View>
-
-        <View className="flex-row rounded-xl px-3 py-2" style={{ backgroundColor: C.bgAlt }}>
-          <PretendardFont weight="bold" style={{ flex: 1.3, fontSize: 12, color: C.sec }}>
-            교체날짜
-          </PretendardFont>
-          <PretendardFont
-            weight="bold"
-            style={{ flex: 1, fontSize: 12, color: C.sec, textAlign: "right" }}
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel="오늘 날짜로 교체 기록"
+            disabled={createHistory.isPending}
+            onPress={handleTodayReplace}
+            style={({ pressed }) => ({ height: 44, paddingHorizontal: 14, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: pressed ? "#333B45" : T.ink, opacity: createHistory.isPending ? 0.5 : 1 })}
           >
-            사용일수
-          </PretendardFont>
-          <View style={{ width: 108 }} />
+            <Feather name="check" size={15} color={T.panel} />
+            <PretendardFont weight="bold" style={{ fontSize: 13.5, color: T.panel }}>오늘 교체</PretendardFont>
+          </Tap>
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel="날짜를 골라 교체 기록 추가"
+            onPress={() => openCreateSheet()}
+            style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? T.keyPressed : T.key })}
+          >
+            <Feather name="calendar" size={17} color={T.ink} />
+          </Tap>
         </View>
 
         {historyQuery.isLoading ? (
-          <View className="items-center py-5">
-            <ActivityIndicator size="small" color={C.primary} />
+          <View style={{ alignItems: "center", paddingVertical: 12 }}>
+            <ActivityIndicator size="small" color={T.inkSoft} />
           </View>
         ) : history.length ? (
-          history.slice(0, 5).map((record, index) => (
-            <View
-              key={record.replacementHistoryId}
-              className="flex-row items-center px-3 py-3"
-              style={{
-                borderBottomWidth: index < Math.min(history.length, 5) - 1 ? 1 : 0,
-                borderBottomColor: C.border,
-              }}
-            >
-              <PretendardFont style={{ flex: 1.3, fontSize: 13, color: C.text }}>
-                {record.replacedAt}
-              </PretendardFont>
-              <PretendardFont
-                weight="semibold"
-                style={{ flex: 1, fontSize: 13, color: C.text, textAlign: "right" }}
+          <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: T.line }}>
+            {history.slice(0, 3).map((record) => (
+              <View
+                key={record.replacementHistoryId}
+                style={{ flexDirection: "row", alignItems: "center", minHeight: 44, borderBottomWidth: 1, borderBottomColor: T.line }}
               >
-                {getReplacementElapsed(record.replacedAt, record.usageDays).label}
-              </PretendardFont>
-              <View className="ml-3 flex-row" style={{ gap: 10 }}>
-                <IconAction
-                  icon="edit-2"
-                  color={C.text}
+                <PretendardFont style={{ flex: 1, fontSize: 14, color: T.ink, fontVariant: ["tabular-nums"] }}>{record.replacedAt}</PretendardFont>
+                <PretendardFont weight="semibold" style={{ width: 64, fontSize: 13.5, color: T.inkSoft, textAlign: "right" }}>
+                  {getReplacementElapsed(record.replacedAt, record.usageDays).label}
+                </PretendardFont>
+                <Tap
+                  accessibilityRole="button"
+                  accessibilityLabel={`${record.replacedAt} 기록 수정`}
                   disabled={detailQuery.isFetching && editingHistoryId === record.replacementHistoryId}
                   onPress={() => openEditSheet(record)}
-                />
-                <IconAction
-                  icon="trash-2"
-                  color={C.error}
+                  hitSlop={6}
+                  style={({ pressed }) => ({ width: 40, height: 40, marginLeft: 8, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: pressed ? T.keyPressed : "transparent" })}
+                >
+                  <Feather name="edit-2" size={16} color={T.inkSoft} />
+                </Tap>
+                <Tap
+                  accessibilityRole="button"
+                  accessibilityLabel={`${record.replacedAt} 기록 삭제`}
                   onPress={() => setDeletingRecord(record)}
-                />
+                  hitSlop={6}
+                  style={({ pressed }) => ({ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: pressed ? T.keyPressed : "transparent" })}
+                >
+                  <Feather name="trash-2" size={16} color={T.hot} />
+                </Tap>
               </View>
-            </View>
-          ))
-        ) : (
-          <View className="px-3 py-5">
-            <PretendardFont style={{ fontSize: 13, color: C.ter }}>
-              아직 등록된 교체 기록이 없습니다.
-            </PretendardFont>
+            ))}
+            {history.length > 3 ? (
+              <PretendardFont style={{ marginTop: 8, fontSize: 12.5, color: T.muted }}>최근 3건만 보여드려요</PretendardFont>
+            ) : null}
           </View>
-        )}
-      </Card>
+        ) : null}
+      </View>
 
       <BottomSheet
         visible={sheetVisible}
@@ -322,7 +275,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           실제로 수정벌을 교체한 날짜를 선택하면 서버 교체 기록에 저장돼요.
         </SheetInfo>
 
-        <View className="mt-5 rounded-2xl p-4" style={{ backgroundColor: FORM_PANEL_BG }}>
+        <View className="mt-5 rounded-2xl p-4" style={{ backgroundColor: C.bgAlt }}>
           <View className="mb-4 flex-row items-center justify-between">
             <IconAction icon="chevron-left" color={C.text} onPress={() => moveMonth(-1)} />
             <PretendardFont weight="bold" style={{ fontSize: 16, color: C.text }}>
@@ -389,7 +342,7 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
           <Pressable
             onPress={() => setSheetVisible(false)}
             className="flex-1 items-center rounded-2xl py-4 active:opacity-70"
-            style={{ backgroundColor: FORM_PANEL_BG }}
+            style={{ backgroundColor: C.bgAlt }}
           >
             <PretendardFont weight="bold" style={{ fontSize: 14, color: C.textAlt }}>
               취소
@@ -426,45 +379,6 @@ export function HiveReplacementCard({ hive }: HiveReplacementCardProps) {
   );
 }
 
-function ReplacementActionButton({
-  label,
-  icon,
-  selected = false,
-  compact = false,
-  disabled = false,
-  onPress,
-}: {
-  label: string;
-  icon: keyof typeof Feather.glyphMap;
-  selected?: boolean;
-  compact?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      className="flex-row items-center justify-center rounded-2xl active:opacity-85"
-      style={{
-        backgroundColor: selected ? C.text : FORM_PANEL_BG,
-        paddingHorizontal: compact ? 10 : 16,
-        paddingVertical: compact ? 8 : 12,
-        gap: 6,
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
-      <Feather name={icon} size={15} color={selected ? C.white : C.text} />
-      <PretendardFont
-        weight="bold"
-        style={{ fontSize: 13, color: selected ? C.white : C.text }}
-      >
-        {label}
-      </PretendardFont>
-    </Pressable>
-  );
-}
-
 function IconAction({
   icon,
   color,
@@ -491,10 +405,10 @@ function IconAction({
 
 function SheetInfo({ children }: { children: string }) {
   return (
-    <View className="mb-2 rounded-2xl p-4" style={{ backgroundColor: INFO_PANEL_BG }}>
+    <View className="mb-2 rounded-2xl p-4" style={{ backgroundColor: C.infoBg }}>
       <PretendardFont
         weight="semibold"
-        style={{ fontSize: 13, color: C.primary, lineHeight: 20 }}
+        style={{ fontSize: 13, color: C.textAlt, lineHeight: 20 }}
       >
         {children}
       </PretendardFont>

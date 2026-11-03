@@ -24,6 +24,7 @@ test("all fixed and time cards use a short versioned format without UI text", ()
     [{ mode: "open_at", start: "09:00", repeat: false }, "WB2|A|540|0"],
     [{ mode: "close_at", end: "24:00", repeat: true }, "WB2|Z|1440|1"],
     [{ mode: "window", start: "23:00", end: "24:00", repeat: true }, "WB2|W|1380|1440|1"],
+    [{ mode: "window", start: "09:00", end: "14:00", endAction: "exit_only", repeat: true }, "WB2|R|540|840|1"],
     [{ mode: "alternate_24h", start: "close_first", repeat: true }, "WB2|T|0|1"],
     [{ mode: "alternate_24h", start: "open_first" }, "WB2|T|1|0"],
     [{ mode: "lock_days", start: "3" }, "WB2|L|3"],

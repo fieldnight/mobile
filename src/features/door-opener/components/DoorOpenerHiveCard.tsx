@@ -117,7 +117,7 @@ export function DoorOpenerHiveCard({
             >
               {offline
                 ? "오프라인"
-                : `${hive.temperature.toFixed(1)}°C · ${hive.humidity}%`}
+                : `${(hive.temperature?.toFixed(1) ?? "—")}°C · ${hive.humidity ?? "—"}%`}
             </PretendardFont>
           </View>
         </View>

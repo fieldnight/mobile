@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { C } from "@/constants/hive-colors";
+import type { HiveTelemetry } from "./hive-telemetry";
 
 export interface ControlSetting {
   id: string;
@@ -15,10 +16,11 @@ export interface HiveData {
   name: string;
   region: string;
   status: "online" | "offline";
-  temperature: number;
-  humidity: number;
-  externalTemperature?: number;
-  externalHumidity?: number;
+  temperature: number | null;
+  humidity: number | null;
+  externalTemperature?: number | null;
+  externalHumidity?: number | null;
+  telemetry?: HiveTelemetry;
   weight: number;
   beeActivity: "high" | "medium" | "low";
   lastUpdate: string;
@@ -26,6 +28,8 @@ export interface HiveData {
   measuredAt?: number;
   telemetryReceivedAt?: number;
   connectionCheckedAt?: number;
+  /** 마지막 연결 확인 API 결과. 실시간 연결 없이도 온라인 여부를 판단하는 근거입니다. */
+  serverConnected?: boolean;
   /** 마지막으로 서버가 오프라인을 확인한 시각. 늦게 도착한 SSE를 구분합니다. */
   disconnectedAt?: number;
   location?: string;
