@@ -1,0 +1,58 @@
+name: Google Play Internal
+
+on:
+  push:
+    tags: ['play-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-play-internal
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: google-play-internal
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check Expo authentication
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo '::error::Set the EXPO_TOKEN GitHub Actions secret.'
+            exit 1
+          fi
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: 27.5.0
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Build signed AAB
+        run: eas build --platform android --profile production --non-interactive --wait --json > eas-build.json
+      - name: Upload this build to Google Play internal testing
+        run: |
+          BUILD_ID=$(node -e "const fs=require('fs');const builds=JSON.parse(fs.readFileSync('eas-build.json','utf8'));const build=Array.isArray(builds)?builds[0]:builds;if(!build?.id||build.status!=='FINISHED')process.exit(1);process.stdout.write(build.id)")
+          eas submit --platform android --profile internal --id "$BUILD_ID" --non-interactive --wait
+      - name: Save build metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-build-metadata
+          path: eas-build.json
+          if-no-files-found: ignore

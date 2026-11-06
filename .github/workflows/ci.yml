@@ -1,0 +1,32 @@
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches: [master, main, develop, 'codex/**']
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit and contract tests
+        run: pnpm test
+      - name: Android JavaScript bundle
+        run: pnpm exec expo export --platform android --output-dir dist-ci
+        env:
+          CI: '1'
