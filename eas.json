@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 15.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -18,8 +18,22 @@
       }
     },
     "production": {
+      "environment": "production",
+      "autoIncrement": true,
+      "credentialsSource": "remote",
+      "env": {
+        "REQUIRE_GOOGLE_SERVICES_FILE": "true"
+      },
       "android": {
         "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "internal": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
       }
     }
   }

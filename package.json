@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "test": "node scripts/run-tests.cjs",
     "start": "expo start",
     "start:go": "expo start --go",
     "start:dev": "expo start --dev-client",
