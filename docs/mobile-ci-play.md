@@ -19,7 +19,7 @@
 
 ## Trigger
 
-After the workflow is on GitHub, run **Google Play Internal** from Actions on the desired reviewed branch. Alternatively:
+Once the workflow is merged into the repository's default branch, run **Google Play Internal** from Actions on the desired reviewed branch. Before that merge, or for a tagged release, push a tag pointing to a commit containing the workflows:
 
 ```sh
 git tag play-v1.0.1-1
